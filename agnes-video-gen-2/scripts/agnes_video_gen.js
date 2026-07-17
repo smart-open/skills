@@ -43,6 +43,7 @@ function parseArgs(argv) {
     prompt: null,
     workflow: "text2video",
     image: null,
+    audio: null,            // audio URL or local file path for lip sync
     width: 1152,
     height: 768,
     numFrames: 121,
@@ -61,6 +62,7 @@ function parseArgs(argv) {
     "--prompt": "prompt", "-p": "prompt",
     "--workflow": "workflow", "-w": "workflow",
     "--image": "image", "-i": "image",
+    "--audio": "audio",
     "--width": "width",
     "--height": "height",
     "--num-frames": "numFrames", "-n": "numFrames",
@@ -151,6 +153,31 @@ function resolveImageInputs(images, workflow) {
   });
 }
 
+// Resolve audio input: local file -> base64 data URI, or pass URL directly.
+// Seedance 2.0 supports audio-driven lip sync via audio reference input.
+function resolveAudioInput(audioPath) {
+  if (!audioPath) return null;
+
+  // If it's already a URL, return as-is
+  if (/^https?:\/\//i.test(audioPath)) {
+    return audioPath;
+  }
+
+  // Local file: read and base64-encode
+  if (!fs.existsSync(audioPath)) {
+    console.error("ERROR: audio file not found: " + audioPath);
+    process.exit(2);
+  }
+
+  const audioBuffer = fs.readFileSync(audioPath);
+  const audioB64 = audioBuffer.toString("base64");
+  const ext = path.extname(audioPath).toLowerCase();
+  const mimeType = ext === ".wav" ? "audio/wav" : "audio/mpeg";
+
+  process.stderr.write("Audio loaded: " + audioPath + " (" + audioBuffer.length + " bytes, base64 " + audioB64.length + " chars)\n");
+  return "data:" + mimeType + ";base64," + audioB64;
+}
+
 // Build the create-task payload according to the workflow.
 function buildPayload(args) {
   let prompt = args.prompt;
@@ -190,6 +217,27 @@ function buildPayload(args) {
     console.error("ERROR: unknown workflow '" + args.workflow + "'. Use text2video | image2video | multi2video | keyframes");
     process.exit(2);
   }
+
+  // ── Audio input for lip sync (Seedance 2.0 native) ──
+  // Seedance 2.0 supports audio-driven lip sync via LipSyncNet.
+  // Audio is passed as a reference for the model to synchronize mouth movements.
+  if (args.audio) {
+    const audioData = resolveAudioInput(args.audio);
+    if (audioData) {
+      // Try multiple payload structures to maximize compatibility:
+      // 1. Top-level "audio" field (simplest)
+      payload.audio = audioData;
+      // 2. Also add to extra_body as backup
+      if (!payload.extra_body) payload.extra_body = {};
+      payload.extra_body.audio = audioData;
+      // 3. Add as reference (matching native Seedance API structure)
+      if (!payload.extra_body.references) payload.extra_body.references = [];
+      payload.extra_body.references.push({ type: "audio", data: audioData });
+
+      process.stderr.write("Audio attached for lip sync: " + args.audio + "\n");
+    }
+  }
+
   return payload;
 }
 

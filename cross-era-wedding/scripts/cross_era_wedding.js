@@ -25,6 +25,48 @@ const fs = require("fs");
 const path = require("path");
 const { execSync, spawn } = require("child_process");
 
+// ---- FFmpeg path detection ----
+// TRAE bundles a minimal ffmpeg that lacks xfade/drawtext/concat-safe.
+// We detect the winget-installed full build and prefer it.
+const FULL_FFMPEG_CANDIDATES = [
+  process.env["FFMPEG_PATH"],
+  "C:\\Users\\tianw\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.1-full_build\\bin\\ffmpeg.exe",
+  "C:\\Users\\tianw\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1\\bin\\ffmpeg.exe",
+  "C:\\ffmpeg\\bin\\ffmpeg.exe",
+];
+
+function findFullFfmpeg() {
+  for (const p of FULL_FFMPEG_CANDIDATES) {
+    if (p && fs.existsSync(p)) return p;
+  }
+  return "ffmpeg"; // fallback to PATH
+}
+
+const FFMPEG = findFullFfmpeg();
+const FFPROBE = FFMPEG.replace(/ffmpeg\.exe$/i, "ffprobe.exe");
+
+if (FFMPEG !== "ffmpeg") {
+  console.log("  Using full FFmpeg: " + FFMPEG);
+}
+
+// ---- Font path for Chinese text ----
+const FONT_PATH = "C:/Windows/Fonts/simhei.ttf";
+const FONT_FILE_NAME = "simhei.ttf";
+
+function fontExists() {
+  return fs.existsSync(FONT_PATH);
+}
+
+function prepareFont(tempDir) {
+  const dest = path.join(tempDir, FONT_FILE_NAME);
+  if (fontExists() && !fs.existsSync(dest)) {
+    try {
+      fs.copyFileSync(FONT_PATH, dest);
+    } catch (e) {}
+  }
+  return fs.existsSync(dest) ? `fontfile=${FONT_FILE_NAME}:` : "";
+}
+
 // ---- Paths ----
 const SKILL_DIR = __dirname;
 const DYNASTIES_JS = path.join(SKILL_DIR, "dynasties.js");
@@ -55,7 +97,7 @@ function parseArgs(argv) {
     numFrames: 121,
     frameRate: 24,
     generatePortraits: false,
-    useI2IFrames: false,
+    useI2IFrames: true,
   };
   const map = {
     "--male-photo": "malePhoto",
@@ -198,6 +240,10 @@ function downloadFile(url, outPath) {
       res.on("end", () => {
         if (received === 0) return reject(new Error("Downloaded 0 bytes"));
         const buf = Buffer.concat(chunks, received);
+        // Remove read-only flag if file exists to allow overwrite
+        if (fs.existsSync(outPath)) {
+          try { fs.chmodSync(outPath, 0o666); } catch (e) {}
+        }
         const fd = fs.openSync(outPath, "w");
         fs.writeSync(fd, buf, 0, received, 0);
         fs.fsyncSync(fd);
@@ -225,7 +271,7 @@ function parseVideoUrlFromOutput(output) {
 function getDuration(videoPath) {
   try {
     const out = execSync(
-      `ffprobe -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`,
+      `"${FFPROBE}" -v error -show_entries format=duration -of csv=p=0 "${videoPath}"`,
       { encoding: "utf-8" }
     );
     return parseFloat(out.trim());
@@ -332,6 +378,11 @@ class CrossEraWedding {
       try {
         const data = JSON.parse(fs.readFileSync(this.statePath, "utf-8"));
         console.log("Resuming from state: step=" + (data.step || "none"));
+        // Ensure required fields exist
+        data.frames = data.frames || {};
+        data.swappedFrames = data.swappedFrames || {};
+        data.uploadedFrames = data.uploadedFrames || {};
+        data.videos = data.videos || {};
         return data;
       } catch (e) {
         console.error("Warning: failed to load state, starting fresh");
@@ -583,6 +634,9 @@ class CrossEraWedding {
 
     console.log("\n=== Step 4: Generating videos ===");
 
+    // Ensure videos object exists
+    if (!this.state.videos) this.state.videos = {};
+
     // Collect pending dynasties
     const pending = [];
     for (const d of this.dynasties) {
@@ -665,20 +719,49 @@ class CrossEraWedding {
     return { videoPath: outPath };
   }
 
+  // ---- Step 5: Build Dynasty Title Card ----
+  buildDynastyCard(dynasty) {
+    const cardPath = path.join(this.tempDir, dynasty.id + "_card.mp4");
+    const name = dynasty.name;
+    const summary = dynasty.storySummary || "";
+    const fontOpt = prepareFont(this.tempDir);
+
+    const cmd =
+      `"${FFMPEG}" -f lavfi -i color=c=black:s=1152x768:d=2.5 -vf "` +
+      `fade=t=in:st=0:d=0.3,` +
+      `drawtext=${fontOpt}text='${name}':fontsize=52:fontcolor=gold:x=(w-text_w)/2:y=(h-text_h)/2-25:enable='between(t,0.3,2.2)',` +
+      `drawtext=${fontOpt}text='${summary}':fontsize=26:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2+35:enable='between(t,0.5,2.2)',` +
+      `fade=t=out:st=2.2:d=0.3" ` +
+      `-c:v libx264 -preset fast -crf 23 -an -y "${cardPath}"`;
+
+    try {
+      execSync(cmd, { encoding: "utf-8", stdio: "ignore", cwd: this.tempDir });
+      return cardPath;
+    } catch (e) {
+      console.error("  Warning: dynasty card generation failed for " + dynasty.name + ": " + e.message.split("\n")[0]);
+      return null;
+    }
+  }
+
   // ---- Step 5: Build Title Clip ----
   buildTitleClip() {
     if (!this.args.addTitle) return null;
     const titlePath = path.join(this.tempDir, "title.mp4");
     const titleText = "几生几世 跨时空相爱";
     const subText = "Cross-Era Wedding";
+    const eraList = this.dynasties.map((d) => d.name).join(" → ");
+    const fontOpt = prepareFont(this.tempDir);
+
     const cmd =
-      `ffmpeg -f lavfi -i color=c=black:s=1152x768:d=3 -vf "` +
-      `drawtext=text='${titleText}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2-30:enable='between(t,0,3)',` +
-      `drawtext=text='${subText}':fontsize=24:fontcolor=gray:x=(w-text_w)/2:y=(h-text_h)/2+30:enable='between(t,0,3)',` +
-      `fade=t=out:st=2.5:d=0.5" ` +
+      `"${FFMPEG}" -f lavfi -i color=c=black:s=1152x768:d=4 -vf "` +
+      `fade=t=in:st=0:d=0.5,` +
+      `drawtext=${fontOpt}text='${titleText}':fontsize=42:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2-50:enable='between(t,0.5,4)',` +
+      `drawtext=${fontOpt}text='${subText}':fontsize=22:fontcolor=gray:x=(w-text_w)/2:y=(h-text_h)/2+10:enable='between(t,0.5,4)',` +
+      `drawtext=${fontOpt}text='${eraList}':fontsize=18:fontcolor=gold:x=(w-text_w)/2:y=(h-text_h)/2+55:enable='between(t,1,4)',` +
+      `fade=t=out:st=3.5:d=0.5" ` +
       `-c:v libx264 -preset fast -crf 23 -an -y "${titlePath}"`;
     try {
-      execSync(cmd, { encoding: "utf-8", stdio: "ignore" });
+      execSync(cmd, { encoding: "utf-8", stdio: "ignore", cwd: this.tempDir });
       return titlePath;
     } catch (e) {
       console.error("Warning: title clip generation failed: " + e.message.split("\n")[0]);
@@ -692,15 +775,17 @@ class CrossEraWedding {
     const endingPath = path.join(this.tempDir, "ending.mp4");
     const titleText = "今生今世 永不分离";
     const subText = "Forever and Always";
+    const fontOpt = prepareFont(this.tempDir);
+
     const cmd =
-      `ffmpeg -f lavfi -i color=c=black:s=1152x768:d=4 -vf "` +
+      `"${FFMPEG}" -f lavfi -i color=c=black:s=1152x768:d=5 -vf "` +
       `fade=t=in:st=0:d=1,` +
-      `drawtext=text='${titleText}':fontsize=48:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2-30:enable='between(t,1,4)',` +
-      `drawtext=text='${subText}':fontsize=24:fontcolor=gray:x=(w-text_w)/2:y=(h-text_h)/2+30:enable='between(t,1,4)',` +
-      `fade=t=out:st=3.5:d=0.5" ` +
+      `drawtext=${fontOpt}text='${titleText}':fontsize=42:fontcolor=white:x=(w-text_w)/2:y=(h-text_h)/2-30:enable='between(t,1,5)',` +
+      `drawtext=${fontOpt}text='${subText}':fontsize=22:fontcolor=gray:x=(w-text_w)/2:y=(h-text_h)/2+30:enable='between(t,1,5)',` +
+      `fade=t=out:st=4.5:d=0.5" ` +
       `-c:v libx264 -preset fast -crf 23 -an -y "${endingPath}"`;
     try {
-      execSync(cmd, { encoding: "utf-8", stdio: "ignore" });
+      execSync(cmd, { encoding: "utf-8", stdio: "ignore", cwd: this.tempDir });
       return endingPath;
     } catch (e) {
       console.error("Warning: ending clip generation failed: " + e.message.split("\n")[0]);
@@ -715,7 +800,7 @@ class CrossEraWedding {
       return this.state.outputPath;
     }
 
-    console.log("\n=== Step 5: Merging videos with FFmpeg ===");
+    console.log("\n=== Step 5: Merging videos with xfade transitions ===");
 
     // Collect video files in dynasty order
     const videoFiles = [];
@@ -730,37 +815,33 @@ class CrossEraWedding {
       process.exit(1);
     }
 
+    // Build dynasty title cards (inserted before each video)
+    console.log("  Generating dynasty title cards...");
+    const cardInputs = [];
+    for (const d of this.dynasties) {
+      const v = this.state.videos[d.id];
+      if (v && fs.existsSync(v)) {
+        const card = this.buildDynastyCard(d);
+        if (card) {
+          cardInputs.push(card);
+        }
+        cardInputs.push(v);
+      }
+    }
+
     // Build title and ending clips
     const titleClip = this.buildTitleClip();
     const endingClip = this.buildEndingClip();
     const allInputs = [];
     if (titleClip) allInputs.push(titleClip);
-    allInputs.push(...videoFiles);
+    allInputs.push(...cardInputs);
     if (endingClip) allInputs.push(endingClip);
-
-    // Check FFmpeg version for xfade support
-    let hasXfade = false;
-    try {
-      const versionOut = execSync("ffmpeg -version", { encoding: "utf-8" });
-      const versionMatch = versionOut.match(/version\s+(\d+)\.(\d+)/i);
-      if (versionMatch) {
-        const major = parseInt(versionMatch[1], 10);
-        const minor = parseInt(versionMatch[2], 10);
-        hasXfade = major > 4 || (major === 4 && minor >= 4);
-      }
-    } catch (e) {
-      console.error("Warning: could not detect FFmpeg version.");
-    }
 
     const outPath = this.args.output || path.join(this.finalDir, "wedding_movie_" + this.sessionId + ".mp4");
 
-    if (hasXfade && allInputs.length > 1) {
-      console.log("Using xfade transitions (FFmpeg 4.4+).");
-      await this.mergeWithXfade(allInputs, outPath);
-    } else {
-      console.log("Using concat demuxer (no transitions).");
-      await this.mergeWithConcat(allInputs, outPath);
-    }
+    // Use xfade for smooth cross-dissolve transitions
+    console.log("  Using xfade cross-dissolve transitions.");
+    await this.mergeWithXfade(allInputs, outPath);
 
     this.state.outputPath = outPath;
     this.state.step = "merged";
@@ -771,62 +852,130 @@ class CrossEraWedding {
   }
 
   async mergeWithXfade(inputs, outPath) {
-    // Build input list and filter_complex
-    let inputArgs = "";
+    const td = this.args.transitionDuration; // default 1.0s
+
+    // Phase 1: Pre-process each input — normalize to 1152x768 + fps=25 (for xfade compatibility)
+    console.log("  Pre-processing segments (normalize resolution + fps)...");
+    const normalizedInputs = [];
     for (let i = 0; i < inputs.length; i++) {
-      inputArgs += ` -i "${inputs[i]}"`;
+      const inputPath = inputs[i];
+      const fileName = path.basename(inputPath, path.extname(inputPath));
+      const normPath = path.join(this.tempDir, fileName + "_norm.mp4");
+
+      // Build ffmpeg command: scale+pad to 1152x768, fps=25
+      const scaleFilter = "scale=1152:768:force_original_aspect_ratio=decrease,pad=1152:768:(ow-iw)/2:(oh-ih)/2:black,fps=25";
+      const cmd =
+        `"${FFMPEG}" -i "${inputPath}" -vf "${scaleFilter}" ` +
+        `-c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -an -y "${normPath}"`;
+
+      try {
+        execSync(cmd, { encoding: "utf-8", stdio: "ignore" });
+        normalizedInputs.push(normPath);
+      } catch (e) {
+        console.error("  Warning: normalize failed for " + fileName + ", skipping.");
+      }
     }
 
-    const durations = inputs.map((v) => getDuration(v));
-    const td = this.args.transitionDuration;
-
-    // Build video filter chain
-    let vFilters = [];
-    let aFilters = [];
-    let lastV = "0:v";
-    let lastA = "0:a";
-    let offset = 0;
-
-    for (let i = 0; i < inputs.length - 1; i++) {
-      offset += durations[i] - (i > 0 ? td : 0);
-      const outV = `v${i}${i + 1}`;
-      const outA = `a${i}${i + 1}`;
-
-      vFilters.push(
-        `[${lastV}][${i + 1}:v]xfade=transition=fade:duration=${td}:offset=${offset.toFixed(3)}[${outV}]`
-      );
-      aFilters.push(
-        `[${lastA}][${i + 1}:a]acrossfade=d=${td}[${outA}]`
-      );
-
-      lastV = outV;
-      lastA = outA;
+    if (normalizedInputs.length < 2) {
+      console.error("ERROR: Not enough normalized segments for xfade merge.");
+      process.exit(1);
     }
 
-    const filterComplex = [...vFilters, ...aFilters].join("; ");
-    const cmd =
-      `ffmpeg${inputArgs} -filter_complex "${filterComplex}" ` +
-      `-map "[${lastV}]" -map "[${lastA}]" ` +
-      `-c:v libx264 -preset medium -crf 18 ` +
-      `-c:a aac -b:a 192k ` +
-      `-movflags +faststart ` +
-      `-y "${outPath}"`;
+    // Phase 2: Pairwise xfade merge — chain two segments at a time
+    console.log("  Applying xfade cross-dissolve transitions (duration=" + td + "s)...");
+    let current = normalizedInputs[0];
 
-    try {
-      execSync(cmd, { encoding: "utf-8", stdio: "inherit" });
-    } catch (e) {
-      console.error("FFmpeg xfade merge failed: " + e.message.split("\n")[0]);
-      console.log("Falling back to concat demuxer...");
-      await this.mergeWithConcat(inputs, outPath);
+    for (let i = 1; i < normalizedInputs.length; i++) {
+      const next = normalizedInputs[i];
+      const mergedPath = path.join(this.tempDir, "xfade_" + i + ".mp4");
+      const curDuration = getDuration(current);
+      // xfade offset = current_duration - transition_duration (leave 0.04s margin)
+      const offset = Math.max(0, curDuration - td - 0.04);
+
+      const cmd =
+        `"${FFMPEG}" -i "${current}" -i "${next}" ` +
+        `-filter_complex "[0:v][1:v]xfade=transition=fade:duration=${td}:offset=${offset.toFixed(3)}[v]" ` +
+        `-map "[v]" -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -an -y "${mergedPath}"`;
+
+      try {
+        execSync(cmd, { encoding: "utf-8", stdio: "ignore" });
+        current = mergedPath;
+      } catch (e) {
+        console.error("  Warning: xfade merge failed at step " + i + ": " + e.message.split("\n")[0]);
+        console.log("  Falling back to concat demuxer for remaining segments...");
+        await this.mergeWithConcat([current, next, ...normalizedInputs.slice(i + 1)], outPath);
+        return;
+      }
+    }
+
+    // Copy final result to outPath
+    if (current !== outPath) {
+      const cmd = `"${FFMPEG}" -i "${current}" -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -an -movflags +faststart -y "${outPath}"`;
+      try {
+        execSync(cmd, { encoding: "utf-8", stdio: "ignore" });
+      } catch (e) {
+        console.error("  Warning: final copy failed: " + e.message.split("\n")[0]);
+        // Try direct file copy as fallback
+        try { fs.copyFileSync(current, outPath); } catch (e2) {}
+      }
     }
   }
 
   async mergeWithConcat(inputs, outPath) {
+    // Pre-process each segment: trim long videos to 4s + apply short fades
+    console.log("  Pre-processing segments (trim to 4s + 0.3s fades)...");
+    const processedInputs = [];
+    for (let i = 0; i < inputs.length; i++) {
+      const inputPath = inputs[i];
+      const fileName = path.basename(inputPath, path.extname(inputPath));
+      const procPath = path.join(this.tempDir, fileName + "_proc.mp4");
+
+      const duration = getDuration(inputPath);
+      // Videos are ~5s, cards/title/ending are 2-5s
+      const isLongVideo = duration >= 4.5;
+      const targetDuration = isLongVideo ? 4.0 : duration;
+      const fadeInDur = 0.3;
+      const fadeOutDur = 0.3;
+      const fadeOutStart = Math.max(0, targetDuration - fadeOutDur);
+
+      // Skip processing for very short clips (< 1.0s)
+      if (duration < 1.0) {
+        processedInputs.push(inputPath);
+        continue;
+      }
+
+      let procCmd;
+      if (isLongVideo) {
+        // Long video: trim to first 4 seconds (avoid face distortion in latter part) + fade
+        procCmd =
+          `"${FFMPEG}" -i "${inputPath}" -t ${targetDuration} -vf "` +
+          `fade=t=in:st=0:d=${fadeInDur},` +
+          `fade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeOutDur}" ` +
+          `-c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -an -y "${procPath}"`;
+      } else {
+        // Short clip (cards, title, ending): just apply fades
+        procCmd =
+          `"${FFMPEG}" -i "${inputPath}" -vf "` +
+          `fade=t=in:st=0:d=${fadeInDur},` +
+          `fade=t=out:st=${fadeOutStart.toFixed(2)}:d=${fadeOutDur}" ` +
+          `-c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -an -y "${procPath}"`;
+      }
+
+      try {
+        execSync(procCmd, { encoding: "utf-8", stdio: "ignore" });
+        processedInputs.push(procPath);
+      } catch (e) {
+        console.error("  Warning: pre-process failed for " + fileName + ", using original.");
+        processedInputs.push(inputPath);
+      }
+    }
+
     const listPath = path.join(this.tempDir, "concat_list.txt");
-    const lines = inputs.map((v) => `file '${v.replace(/'/g, "'\\''")}'`).join("\n");
+    const lines = processedInputs.map((v) => `file '${v.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`).join("\n");
     fs.writeFileSync(listPath, lines);
 
-    const cmd = `ffmpeg -f concat -safe 0 -i "${listPath}" -c copy -y "${outPath}"`;
+    // Use re-encode to ensure consistent codec parameters across segments
+    const cmd = `"${FFMPEG}" -f concat -safe 0 -i "${listPath}" -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -an -movflags +faststart -y "${outPath}"`;
     try {
       execSync(cmd, { encoding: "utf-8", stdio: "inherit" });
     } catch (e) {

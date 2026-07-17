@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-5-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-6-orange)]()
 
 ---
 
@@ -22,6 +22,7 @@
   - [cross-era-wedding — 跨时空婚礼电影（Agnes + FaceFusion）](#3-cross-era-wedding--跨时空婚礼电影agnes--facefusion)
   - [volc-wedding — 跨时空婚礼电影（Volcengine Ark）](#4-volc-wedding--跨时空婚礼电影volcengine-ark)
   - [suno-cn-music — AI 音乐创作助手](#5-suno-cn-music--ai-音乐创作助手)
+  - [comedy-show — 爆款舞台美女脱口秀视频生成器](#6-comedy-show--爆款舞台美女脱口秀视频生成器)
 - [朝代列表](#朝代列表)
 - [婚礼电影方案对比](#婚礼电影方案对比)
 - [通用注意事项](#通用注意事项)
@@ -33,16 +34,17 @@
 
 ## 简介
 
-本工程聚合了 5 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、跨时空婚礼电影**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
+本工程聚合了 6 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、跨时空婚礼电影、脱口秀视频**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
 
 **核心亮点：**
 
 - **零依赖**：纯 Node.js 内置模块，无需安装任何 npm 包
 - **多平台支持**：Agnes、火山方舟 Ark、Suno.cn 三大 AI 平台
 - **电影级画质**：自动追加 cinematic lighting、8K、HDR 等修饰词
-- **断点续跑**：婚礼电影类技能支持 `state.json` 中断恢复
+- **断点续跑**：婚礼电影与脱口秀类技能支持 `state.json` 中断恢复
 - **跨朝代叙事**：13 个中国历史朝代完整配置，每个朝代独立服装 / 场景 / 风俗
 - **面部复刻**：FaceFusion 换脸（80%+）或 Seedream i2i 保留五官特征
+- **口型同步**：脱口秀视频通过 Wav2Lip 后处理实现口型与 TTS 语音精准对齐
 - **文件持久化**：两步式下载 + 只读属性，确保视频文件不被清空
 
 ---
@@ -56,6 +58,7 @@
 | `cross-era-wedding` | 跨时空婚礼电影生成器（Agnes + FaceFusion 换脸） | Agnes API + FaceFusion + FFmpeg | Node.js 12+、Python 3.10+（可选）、FFmpeg 4.4+ | 2 朝代约 10–15 分钟，4 朝代约 20–30 分钟 |
 | `volc-wedding` | 基于 Volcengine Ark 的跨时空婚礼电影生成器 | 火山方舟 Ark API + FFmpeg | Node.js 12+、FFmpeg 4.4+ | 4 朝代约 15–25 分钟 |
 | `suno-cn-music` | Suno.cn AI 音乐创作助手（8 个 REST API） | Suno.cn API | 无（HTTP REST 调用） | 单首约 1–3 分钟 |
+| `comedy-show` | 爆款舞台美女脱口秀视频生成器（剧本优化 + TTS + Wav2Lip 口型同步） | Agnes Text/Image/Video API + Edge TTS + Wav2Lip + FFmpeg | Node.js 12+、Python、FFmpeg 4.4+、PyTorch（可选） | 单场景约 3–8 分钟 |
 
 ---
 
@@ -92,6 +95,15 @@ d:\ai_work\skills\
     ├── SKILL.md                       # 完整 API 调用规范（8 个 API）
     ├── install.bat                    # Windows 安装脚本
     └── install.sh                     # Linux/macOS 安装脚本
+├── comedy-show/
+│   ├── SKILL.md
+│   └── scripts/
+│       ├── comedy_show.js            # 主入口 CLI + 4 阶段流水线（531 行）
+│       ├── agnes_text_gen.js         # Agnes Text API 封装（158 行）
+│       ├── tts_engine.js             # Edge TTS 封装 + ffprobe 时长提取（214 行）
+│       ├── lipsync_engine.js         # Wav2Lip 口型同步封装（216 行）
+│       ├── merge_engine.js           # FFmpeg 混流 + concat 合并 + 字幕（245 行）
+│       └── character_config.js       # 角色描述、宽高比、声音映射配置（261 行）
 ```
 
 ---
@@ -140,6 +152,11 @@ node agnes-video-gen-2/scripts/agnes_video_gen.js \
 node volc-wedding/scripts/volc_wedding.js \
   --male-photo "groom.jpg" --female-photo "bride.jpg" \
   --dynasties "tang,song,ming,modern" --add-title --add-ending
+
+# 生成脱口秀视频（段子自动优化 + 口型同步）
+node comedy-show/scripts/comedy_show.js \
+  --script "早高峰挤地铁，我被压成二维码，扫出来全是救命。" \
+  --ratio 9:16 --add-subtitles
 ```
 
 ---
@@ -172,6 +189,9 @@ node volc-wedding/scripts/volc_wedding.js \
 | Python | 3.10+ | FaceFusion 运行环境 | cross-era-wedding | [python.org](https://www.python.org/) |
 | FaceFusion | 最新 | 真实面部替换，80%+ 面部复刻 | cross-era-wedding | `scripts/install_facefusion.bat` 或 `git clone https://github.com/facefusion/facefusion.git` |
 | Git | 任意 | FaceFusion 安装需要 | cross-era-wedding | [git-scm.com](https://git-scm.com/) |
+| edge-tts | 最新 | 中文语音合成（TTS） | comedy-show | `pip install edge-tts` |
+| PyTorch（CPU 版） | 最新 | Wav2Lip 推理运行环境 | comedy-show | `pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu` |
+| Wav2Lip | 最新 | 口型同步后处理 | comedy-show | `git clone https://github.com/Rudrabha/Wav2Lip` |
 
 **FaceFusion 安装（Windows）：**
 
@@ -576,6 +596,134 @@ Body: {
 
 ---
 
+### 6. comedy-show — 爆款舞台美女脱口秀视频生成器
+
+基于 **Agnes AI** 平台（Text + Image + Video 三模态）和 **Edge TTS** 的脱口秀视频生成 Skill。用户输入一段脱口秀段子，系统自动优化剧本、拆分分镜、生成链式舞台视频，最终输出带语音和口型同步的完整脱口秀视频。
+
+**核心流程：**
+
+```
+用户输入脱口秀段子
+       │
+       ▼
+  Agnes Text API    →  优化幽默感 + 社会洞察 + 拆分 ~10s 分镜
+  agnes-2.0-flash      返回 JSON: optimized_script + scenes[]
+       │
+       ▼
+  Edge TTS          →  并行生成每场景中文语音 MP3
+  zh-CN-Xiaoxiao       ffprobe 提取时长 → 计算 num_frames (8n+1)
+       │
+       ▼
+  逐场景串行链式视频生成
+  Scene 0: t2i 首帧 → image2video → 末帧 → i2i 重托管
+           → mux(视频+音频) → Wav2Lip 口型同步
+  Scene 1: 上场景 URL → image2video → ... → Wav2Lip
+  Scene N: ...
+       │
+       ▼
+  FFmpeg concat      →  合并所有场景 → 最终 MP4（有画面 + 有声音 + 口型同步）
+```
+
+**基本用法：**
+```powershell
+node comedy-show/scripts/comedy_show.js `
+  --script "早高峰挤地铁，我被压成二维码，扫出来全是救命。老板说效益不好要渡劫，我看工资条苦笑：这劫上个月就渡完了！" `
+  --ratio 9:16 --api-key "sk-xxxx"
+```
+
+**从文件读取段子 + 横版 + 字幕：**
+```powershell
+node comedy-show/scripts/comedy_show.js `
+  --script-file joke.txt `
+  --ratio 16:9 --add-subtitles `
+  --api-key "sk-xxxx"
+```
+
+**断点续跑：**
+```powershell
+node comedy-show/scripts/comedy_show.js `
+  --resume --work-dir "work/20260717-142556-sdad" `
+  --api-key "sk-xxxx"
+```
+
+**跳过口型同步（加快速度，但口型不对齐）：**
+```powershell
+node comedy-show/scripts/comedy_show.js `
+  --script "段子内容" --no-lipsync --api-key "sk-xxxx"
+```
+
+**可用语音：**
+
+| 语音 ID | Edge TTS 声音 | 风格 |
+|---------|---------------|------|
+| `zh-CN-XiaoxiaoNeural` | 晓晓 | 自然温暖（**默认**，吐字清晰） |
+| `zh-CN-XiaoyiNeural` | 晓伊 | 活泼（语速较快） |
+| `zh-CN-XiaoyanNeural` | 晓颜 | 亲切 |
+| `zh-CN-XiaoruiNeural` | 晓睿 | 成熟 |
+| `zh-CN-XiaomoNeural` | 晓墨 | 温柔 |
+
+**参数速查：**
+
+| 参数 | 说明 | 必填 | 默认 |
+|------|------|------|------|
+| `--script <text>` | 脱口秀段子文本（与 `--script-file` 二选一） | 是* | — |
+| `--script-file <path>` | 从文件读取段子 | 是* | — |
+| `--api-key <key>` | Agnes API Key | 是 | 环境变量 |
+| `--ratio <r>` | 宽高比：`9:16` / `16:9` | 否 | `9:16` |
+| `--voice <v>` | Edge TTS 语音 | 否 | `zh-CN-XiaoxiaoNeural` |
+| `--rate <r>` | 语速调节（如 `+20%`、`-10%`） | 否 | 默认 |
+| `--character-desc <text>` | 角色描述（自定义舞台形象） | 否 | 内置默认 |
+| `--output <path>` | 最终输出 MP4 路径 | 否 | 自动 |
+| `--add-subtitles` | 在画面底部烧录中文字幕 | 否 | false |
+| `--no-lipsync` | 跳过 Wav2Lip 口型同步 | 否 | false |
+| `--no-enhance` | 关闭图片质量增强修饰词 | 否 | false |
+| `--resume` | 从 state.json 断点续跑 | 否 | false |
+| `--regenerate <n>` | 从场景 n 开始重新生成 | 否 | — |
+| `--work-dir <dir>` | 工作目录 | 否 | 自动 |
+
+**技术架构：**
+
+| 文件 | 行数 | 职责 |
+|------|------|------|
+| `comedy_show.js` | 531 | 主入口 CLI，4 阶段流水线编排，状态管理，断点续跑 |
+| `agnes_text_gen.js` | 158 | Agnes Text API 封装（剧本优化 + 分镜拆分 + JSON 容错解析） |
+| `tts_engine.js` | 214 | Edge TTS 封装（音频生成 + ffprobe 时长提取 + 8n+1 帧数计算） |
+| `lipsync_engine.js` | 216 | Wav2Lip 口型同步封装（音频转 WAV + 抽取纯视频流 + Wav2Lip 推理 + 失败回退） |
+| `merge_engine.js` | 245 | FFmpeg 封装（末帧提取 + 音视频混流 + concat 合并 + 字幕烧录） |
+| `character_config.js` | 261 | 角色描述、宽高比、声音映射、prompt 模板配置 |
+
+> 纯 Node.js 实现，零 npm 依赖，全部代码约 1,625 行。
+
+**输出文件结构：**
+```
+work/{YYYYMMDD-HHMMSS-sessionId}/
+├── state.json              # 进度状态（支持 resume）
+├── input_script.txt        # 原始段子备份
+├── audio/                  # TTS 音频 per scene
+│   └── scene_0.mp3
+├── frames/                 # 首帧图片（t2i / i2i 重托管）
+│   ├── scene_0.png
+│   └── scene_0_rehosted.png
+├── last_frames/            # 末帧截图
+│   └── scene_0_last.png
+├── videos/                 # 无音频视频片段
+│   └── scene_0.mp4
+├── muxed/                  # 音视频混流 + 口型同步 + 字幕版
+│   ├── scene_0_muxed.mp4
+│   ├── scene_0_lipsynced.mp4
+│   └── scene_0_subtitled.mp4
+└── final/                  # 最终输出
+    └── comedy_show_{id}.mp4
+```
+
+**技术约束：**
+- Agnes Video API 仅接受公开 URL，链式传递时通过 i2i 重托管末帧获取公开 URL
+- Agnes Video API 不支持音频输入，口型同步通过 Wav2Lip 后处理实现
+- `num_frames` 必须满足 `8n+1` 且 ≤441，脚本根据 TTS 音频时长自动计算
+- Wav2Lip 口型同步失败时自动回退使用原始混流视频，不中断流程
+
+---
+
 ## 朝代列表
 
 cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
@@ -666,6 +814,11 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | FaceFusion 未检测到 | 未安装或路径未配置 | 运行 `install_facefusion.bat` 或设置 `FACEFUSION_PATH` |
 | Agnes 视频帧数报错 | `num_frames` 不满足 8n+1 | 使用合法值：81, 121, 169, 193, 241, 441 |
 | Suno.cn 中文标签报错 | tags 传入中文 | 改用英文标签：`pop, folk, electronic` |
+| `edge-tts not found` | 未安装 edge-tts | `pip install edge-tts`，或检查 Python Scripts 目录 |
+| Wav2Lip checkpoint 未找到 | 未下载模型权重 | 下载 `wav2lip_gan.pth` 到 `Wav2Lip/checkpoints/` 目录 |
+| Wav2Lip `DLL load failed` | PyTorch 缺少 VC++ 运行库 | 安装 [Visual C++ Redistributable](https://aka.ms/vs/17/release/vc_redist.x64.exe) |
+| Wav2Lip `face not detected` | 首帧人物面部不清晰 | 使用面部清晰可见的首帧，调整 `pads` 参数扩大检测边界 |
+| 脱口秀场景间画面不连贯 | i2i 重托管失败 | 检查 `state.json` 中的 `rehosted.url` 字段 |
 
 ---
 
@@ -680,6 +833,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | 婚礼电影 — 无需 Python，快速生成 | `volc-wedding` | Seedream i2i 保留五官，零额外依赖 |
 | 婚礼电影 — 需要分镜剧本 | `volc-wedding` | 战国/唐/明/现代已配置时间分段剧本 |
 | 婚礼电影 — 朝代较多（5 个） | `volc-wedding` | 支持 2–5 个朝代 |
+| 生成脱口秀 / 喜剧短视频 | `comedy-show` | 剧本自动优化 + TTS 语音 + Wav2Lip 口型同步 |
 
 ---
 
@@ -687,7 +841,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 
 仅供个人学习和非商业用途。请遵守各 AI 平台的使用条款：
 
-- **Agnes** — Agnes Image / Video API 使用条款
+- **Agnes** — Agnes Image / Video / Text API 使用条款
 - **Volcengine Ark** — 火山方舟平台使用条款
 - **Suno.cn** — Suno.cn 服务条款
 - **FaceFusion** — [MIT License](https://github.com/facefusion/facefusion/blob/master/LICENSE)
