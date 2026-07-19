@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-8-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-9-orange)]()
 
 ---
 
@@ -25,6 +25,7 @@
   - [comedy-show — 爆款舞台美女脱口秀视频生成器](#6-comedy-show--爆款舞台美女脱口秀视频生成器)
   - [tech-article-craft — 自包含技术文章生成器](#7-tech-article-craft--自包含技术文章生成器)
   - [learning-handbook-pipeline — 图文并茂 PDF 学习手册生成流水线](#8-learning-handbook-pipeline--图文并茂-pdf-学习手册生成流水线)
+  - [enterprise-portal-generator — 企业门户网站一键生成器](#9-enterprise-portal-generator--企业门户网站一键生成器)
 - [朝代列表](#朝代列表)
 - [婚礼电影方案对比](#婚礼电影方案对比)
 - [通用注意事项](#通用注意事项)
@@ -36,7 +37,7 @@
 
 ## 简介
 
-本工程聚合了 8 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、跨时空婚礼电影、脱口秀视频、技术文章、学习手册**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
+本工程聚合了 9 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
 
 **核心亮点：**
 
@@ -50,6 +51,7 @@
 - **文件持久化**：两步式下载 + 只读属性，确保视频文件不被清空
 - **可发布技术文章**：自包含 HTML 文章生成，内联 CSS/JS + AI 配图 + HTML/CSS 图表组件
 - **图文并茂学习手册**：理论文本蒸馏为 PDF 学习手册，三技能协作（插图 + 图表 + 前端设计）
+- **企业门户一键生成**：从公司简介一键生成 6 页生产级企业网站，12 行业预设自适应
 
 ---
 
@@ -65,6 +67,7 @@
 | `comedy-show` | 爆款舞台美女脱口秀视频生成器（剧本优化 + TTS + Wav2Lip 口型同步） | Agnes Text/Image/Video API + Edge TTS + Wav2Lip + FFmpeg | Node.js 12+、Python、FFmpeg 4.4+、PyTorch（可选） | 单场景约 3–8 分钟 |
 | `tech-article-craft` | 自包含技术文章生成器（内联 CSS/JS HTML + AI 配图 + 图表组件） | GenerateImage + WebSearch/WebFetch | 无（纯模板生成） | 单篇文章约 5–15 分钟 |
 | `learning-handbook-pipeline` | 图文并茂 PDF 学习手册生成流水线（三技能协作） | guizang 插图 + fireworks 图表 + design-taste-frontend | Node.js（Puppeteer）、Python（PyMuPDF 验证） | 单本手册约 20–60 分钟 |
+| `enterprise-portal-generator` | 企业门户网站一键生成器（6 页生产级网站 + 12 行业预设） | GenerateImage（Hero 图） | 无（纯 HTML/CSS/JS 模板） | 单站点约 10–30 分钟 |
 
 ---
 
@@ -114,6 +117,13 @@ d:\ai_work\skills\
     └── SKILL.md                      # 自包含技术文章生成规范（7 步工作流 + HTML 模板）
 ├── learning-handbook-pipeline/
     └── SKILL.md                      # PDF 学习手册流水线规范（5 阶段 + 三技能协作）
+└── enterprise-portal-generator/
+    ├── SKILL.md                      # 企业门户生成规范（7 步工作流 + 3 个调节盘）
+    └── references/
+        ├── design-system.md          # CSS 设计令牌 + 组件规范 + 动画库
+        ├── industry-presets.md       # 12 行业预设（配色/字体/密度/内容模式）
+        ├── page-architecture.md      # 6 页页面架构 + 共享组件 + 布局多样性规则
+        └── optimization-checklist.md # 60+ 项预飞检查清单 + 反俗套规则
 ```
 
 ---
@@ -981,6 +991,143 @@ PDF 质量：
 
 ---
 
+### 9. enterprise-portal-generator — 企业门户网站一键生成器
+
+从单一用户简介生成**完整、生产就绪的 6 页企业门户网站**。输出自适应配色、字体、布局密度和内容模式到用户所在行业 — 没有两个行业看起来相同，但共享相同的工程质量与反俗套纪律。
+
+**核心原则**：一个文件夹，六个 HTML 页面，一套 CSS 设计系统，一层 JS 交互。通过 `file://` 或任何静态服务器打开 `index.html` — 开箱即用。无构建步骤、无框架、除 Google Fonts 外无 CDN 依赖。
+
+**6 个页面：**
+
+| 页面 | 文件 | 核心职责 |
+|------|------|---------|
+| 首页 | `index.html` | 承诺 + 证据：hero、信任条、服务、架构、行业、案例、证言、CTA |
+| 产品/服务 | `products.html` | 深度：服务 bento、交付流程、技术栈、FAQ |
+| 新闻 | `news.html` | 节奏：新闻网格 + 分类筛选 + 精选文章 |
+| 关于 | `about.html` | 信任：简介、使命/愿景/价值观、时间线、团队、文化、联系 |
+| 招聘 | `recruitment.html` | 招募：开放职位、文化、福利、面试流程 |
+| 咨询 | `consultation.html` | 转化：联系渠道、咨询表单、服务时间、FAQ |
+
+**7 步工作流：**
+
+| 步骤 | 说明 |
+|------|------|
+| Step 1 | 解析简介 & 选择行业预设 — 提取 5 个必需信号，匹配 12 行业预设 |
+| Step 2 | 生成设计令牌 — 颜色、字体、间距、圆角、阴影、缓动 |
+| Step 3 | 构建 CSS 设计系统 — 7 层：reset → tokens → typography → layout → components → animations → responsive |
+| Step 4 | 生成页面资产 — favicon SVG + Hero 图（GenerateImage）+ 案例图 |
+| Step 5 | 构建 6 个 HTML 页面 — 遵循 page-architecture.md 的章节结构 |
+| Step 6 | 构建 JS 交互 — 导航切换、滚动揭示、数字计数、表单验证、返回顶部、新闻筛选 |
+| Step 7 | 预飞检查 & 浏览器验证 — 60+ 项检查清单 + 计算样式验证 + 截图 |
+
+**三个调节盘（Three Dials）：**
+
+| 调节盘 | 范围 | B2B 默认 | 说明 |
+|--------|------|---------|------|
+| `DESIGN_VARIANCE` | 1–10 | 5–7 | 1=完美对称，10=艺术混沌 |
+| `MOTION_INTENSITY` | 1–10 | 4–6 | 1=静态，10=电影级 |
+| `VISUAL_DENSITY` | 1–10 | 4–5 | 1=空灵画廊，10=密集驾驶舱 |
+
+**12 行业预设：**
+
+| # | 行业 | 强调色 | 情绪 | 变化 | 动效 | 密度 |
+|---|------|--------|------|------|------|------|
+| 1 | 软件/科技 | 蓝 `#2E67E0` | 信任+科技 | 6 | 5 | 4 |
+| 2 | 金融/金融科技 | 青绿 `#0F766E` | 稳定+增长 | 5 | 4 | 5 |
+| 3 | 医疗/健康 | 青蓝 `#0D9488` | 健康+平静 | 5 | 3 | 4 |
+| 4 | 制造/工业 | 焦橙 `#C2410C` | 工业+能量 | 6 | 4 | 5 |
+| 5 | 零售/电商 | 玫瑰 `#BE185D` | 活力+商业 | 7 | 5 | 3 |
+| 6 | 政府/公共 | 深蓝 `#1E40AF` | 权威+信任 | 4 | 3 | 5 |
+| 7 | 教育/培训 | 紫罗兰 `#7C3AED` | 知识+好奇 | 6 | 4 | 4 |
+| 8 | 法律/专业 | 琥珀青铜 `#854D0E` | 传承+庄重 | 5 | 3 | 4 |
+| 9 | 房地产/物业 | 森林绿 `#166534` | 增长+物业 | 6 | 5 | 3 |
+| 10 | 咨询/顾问 | 海军蓝 `#1E3A5F` | 高端+战略 | 6 | 5 | 4 |
+| 11 | 物流/供应链 | 深玫瑰 `#9F1239` | 动感+紧迫 | 6 | 5 | 5 |
+| 12 | 能源/清洁技术 | 琥珀 `#B45309` | 力量+温暖 | 6 | 5 | 4 |
+
+> 无精确匹配时混合两个最接近的预设（如"fintech" = 金融 + 软件/科技）。
+
+**设计系统基线：**
+
+| 维度 | 规范 |
+|------|------|
+| 中性墨色 | Zinc 系（`#18181B` / `#3F3F46` / `#71717A` / `#A1A1AA`） |
+| 背景层级 | 暖白 `#FAFAF9` / `#F4F4F5` / `#E4E4E7` |
+| 强调色 | 按行业替换，全页只用一个 |
+| 暗色区块 | `#0A0A0B` / `#18181B` |
+| 显示字体 | Noto Sans SC（中文）/ Geist, Satoshi, Cabinet Grotesk（英文） |
+| 等宽字体 | JetBrains Mono / Cascadia Code |
+| 容器宽度 | `.container`=1320px，`.container-wide`=1480px（不混用） |
+| 圆角系统 | sm=8px / md=12px / lg=16px / xl=24px / 2xl=32px / full=999px |
+| 缓动 | `cubic-bezier(0.22, 1, 0.36, 1)` |
+
+**反俗套纪律（不可协商）：**
+
+1. 全文无 em-dash（—）或 en-dash（–）
+2. 无 AI 紫/蓝光默认美学
+3. 眉题克制：每 3 个区块最多 1 个眉题
+4. 无空 bento 单元格（N 项 N 格，<3 项移除网格）
+5. 无重复 CTA 意图（每页每意图一个标签）
+6. 无装饰性圆点、编号卡片标签、横向滚动器
+7. 玻璃拟态仅在材质合理处使用
+8. 无磁性按钮效果（用渐变扫光替代）
+9. 一套圆角系统（不混用 4px + 16px + 24px）
+10. 全页一个强调色（中性色承载其余）
+
+**工程约定：**
+
+- `clamp()` 语法：`+` 和 `-` 两侧必须有空白，否则静默回退为 0
+- 章节内边距：`clamp(1.6rem, 0.75rem + 2.5vw, 3rem)`（紧凑密度）
+- 表单内边距：`clamp(3.6rem, 2.6rem + 5vw, 5.8rem)`（充裕呼吸空间）
+- 卡片悬停：`translateY(-4px)` + 阴影提升（非 -2px）
+- 滚动锚点：所有 `[id]` 区块 `scroll-margin-top: 80px`
+- 标题换行：所有标题 `text-wrap: balance`
+- 减弱动效：非必要动画包裹在 `@media not all and (prefers-reduced-motion: reduce)`
+- 图片：除 hero（eager）外 `loading="lazy"`，始终含描述性 `alt`
+
+**输出产物：**
+
+| 产物 | 路径 | 说明 |
+|------|------|------|
+| HTML 页面 | `{output-dir}/{slug}/index.html` + 5 个 | 6 页：index, products, news, about, recruitment, consultation |
+| CSS | `{output-dir}/{slug}/css/style.css` | 单一设计系统文件（令牌 + 组件） |
+| JS | `{output-dir}/{slug}/js/main.js` | 导航、滚动揭示、计数、表单、返回顶部 |
+| Favicon | `{output-dir}/{slug}/assets/favicon.svg` | 内联 SVG 品牌标记 |
+| Hero 图 | `{output-dir}/{slug}/assets/images/*.jpg` | GenerateImage 生成 |
+
+> `{slug}` = 公司英文名 kebab-case（如 `sourcelead`、`acme-corp`）。所有页面平铺在 slug 文件夹内。
+
+**内容语调：**
+- 标题：短、陈述性、利益导向，桌面端最多 2 行
+- 正文：对话式但专业，避免术语（除非受众是技术型）
+- CTA：动作动词 + 对象（"免费咨询方案" 而非 "了解更多"）
+- 信任信号：具体数字优于模糊声明（"127+ 交付项目" 而非 "众多成功案例"）
+
+**预飞检查清单（60+ 项）：**
+- 结构（8 项）：6 HTML + 1 CSS + 1 JS + favicon + hero 图 + 单文件夹 + 无外部依赖 + file:// 可用
+- 导航（6 项）：fixed + backdrop-filter + 6 链接 + aria-current + 移动汉堡 + CTA
+- 页脚（6 项）：品牌块 + 3 链接列 + 联系 + 呼吸状态点 + 版权 + 法律链接
+- Hero（8 项）：径向渐变 + .h1 统一 + 2 CTA + 状态点 + 浮动动画 + 渐变遮罩 + alt + eager
+- 内容（10 项）：halved clamp + border-top + scroll-margin + 布局多样性 + 无空格 + -4px 悬停 + zigzag + 暗色过渡 + 信任条计数 + 滚动揭示
+- 表单（8 项）：clamp 内边距 + 空格 + data-required + phone/email 验证 + 错误消息 + btn-lg + 隐私说明
+- 反俗套（10 项）：零 em-dash + 零 AI 紫 + 眉题≤2 + 无编号标签 + 无装饰点 + 无磁性按钮 + 无横向滚动 + 一个强调色 + 一套圆角
+- 图片（5 项）：alt + lazy + 无水印 + 无 hex 码 + 无 UI 边框
+- 响应式（5 项）：768px 汉堡 + 网格折叠 + 信任条 + 内边距 + 无横向滚动
+- 无障碍（5 项）：alt + aria-label + WCAG AA + 焦点状态 + 减弱动效
+
+**引用文件路由：**
+
+| 引用文件 | 何时加载 |
+|---------|---------|
+| `references/design-system.md` | Step 2-3：构建 CSS |
+| `references/industry-presets.md` | Step 1：选择行业适配 |
+| `references/page-architecture.md` | Step 5：构建 HTML 页面 |
+| `references/optimization-checklist.md` | Step 7：预飞验证 |
+
+> 开头加载全部四个引用文件 — 它们体积小且交叉引用。
+
+---
+
 ## 朝代列表
 
 cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
@@ -1093,6 +1240,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | 生成脱口秀 / 喜剧短视频 | `comedy-show` | 剧本自动优化 + TTS 语音 + Wav2Lip 口型同步 |
 | 撰写可发布的技术文章 | `tech-article-craft` | 自包含 HTML + AI 配图 + 13 种图表组件 |
 | 制作图文并茂的 PDF 学习手册 | `learning-handbook-pipeline` | 三技能协作（插图 + 图表 + 前端设计）+ Puppeteer 转 PDF |
+| 生成企业门户网站 | `enterprise-portal-generator` | 6 页生产级网站 + 12 行业预设自适应 + 60+ 项预飞检查 |
 
 ---
 
