@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-7-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-8-orange)]()
 
 ---
 
@@ -24,6 +24,7 @@
   - [suno-cn-music — AI 音乐创作助手](#5-suno-cn-music--ai-音乐创作助手)
   - [comedy-show — 爆款舞台美女脱口秀视频生成器](#6-comedy-show--爆款舞台美女脱口秀视频生成器)
   - [tech-article-craft — 自包含技术文章生成器](#7-tech-article-craft--自包含技术文章生成器)
+  - [learning-handbook-pipeline — 图文并茂 PDF 学习手册生成流水线](#8-learning-handbook-pipeline--图文并茂-pdf-学习手册生成流水线)
 - [朝代列表](#朝代列表)
 - [婚礼电影方案对比](#婚礼电影方案对比)
 - [通用注意事项](#通用注意事项)
@@ -35,7 +36,7 @@
 
 ## 简介
 
-本工程聚合了 7 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、跨时空婚礼电影、脱口秀视频、技术文章**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
+本工程聚合了 8 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、跨时空婚礼电影、脱口秀视频、技术文章、学习手册**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
 
 **核心亮点：**
 
@@ -48,6 +49,7 @@
 - **口型同步**：脱口秀视频通过 Wav2Lip 后处理实现口型与 TTS 语音精准对齐
 - **文件持久化**：两步式下载 + 只读属性，确保视频文件不被清空
 - **可发布技术文章**：自包含 HTML 文章生成，内联 CSS/JS + AI 配图 + HTML/CSS 图表组件
+- **图文并茂学习手册**：理论文本蒸馏为 PDF 学习手册，三技能协作（插图 + 图表 + 前端设计）
 
 ---
 
@@ -62,6 +64,7 @@
 | `suno-cn-music` | Suno.cn AI 音乐创作助手（8 个 REST API） | Suno.cn API | 无（HTTP REST 调用） | 单首约 1–3 分钟 |
 | `comedy-show` | 爆款舞台美女脱口秀视频生成器（剧本优化 + TTS + Wav2Lip 口型同步） | Agnes Text/Image/Video API + Edge TTS + Wav2Lip + FFmpeg | Node.js 12+、Python、FFmpeg 4.4+、PyTorch（可选） | 单场景约 3–8 分钟 |
 | `tech-article-craft` | 自包含技术文章生成器（内联 CSS/JS HTML + AI 配图 + 图表组件） | GenerateImage + WebSearch/WebFetch | 无（纯模板生成） | 单篇文章约 5–15 分钟 |
+| `learning-handbook-pipeline` | 图文并茂 PDF 学习手册生成流水线（三技能协作） | guizang 插图 + fireworks 图表 + design-taste-frontend | Node.js（Puppeteer）、Python（PyMuPDF 验证） | 单本手册约 20–60 分钟 |
 
 ---
 
@@ -109,6 +112,8 @@ d:\ai_work\skills\
 │       └── character_config.js       # 角色描述、宽高比、声音映射配置（261 行）
 └── tech-article-craft/
     └── SKILL.md                      # 自包含技术文章生成规范（7 步工作流 + HTML 模板）
+├── learning-handbook-pipeline/
+    └── SKILL.md                      # PDF 学习手册流水线规范（5 阶段 + 三技能协作）
 ```
 
 ---
@@ -823,6 +828,159 @@ work/{YYYYMMDD-HHMMSS-sessionId}/
 
 ---
 
+### 8. learning-handbook-pipeline — 图文并茂 PDF 学习手册生成流水线
+
+把理论文本蒸馏成图文并茂的 PDF 学习手册的完整流水线。协调三个技能：`guizang-material-illustration`（概念插图）、`fireworks-tech-graph`（技术图表）、`design-taste-frontend-v1`（前端设计系统），产出 HTML 并转 PDF。
+
+**三技能协作架构：**
+
+```
+design-taste-frontend-v1（设计总指挥）
+  提供设计系统：字体/配色/Bento Grid/反俗套/动效
+  │
+  ├── guizang-material-illustration（概念视觉）
+  │     产出 3D 瑞士编辑风格 PNG，作为内容插图
+  │
+  └── fireworks-tech-graph（技术图表）
+        产出 SVG，作为信息图表嵌入正文
+
+最终 HTML → Puppeteer → PDF
+```
+
+> **关键**：三者视觉语言必须预先对齐（配色、强调色、线条、留白），避免风格割裂。
+
+**5 阶段工作流：**
+
+| 阶段 | 说明 |
+|------|------|
+| Phase 1 | 规划 — 章节结构 + 视觉资产清单 + 设计方案 |
+| Phase 2 | 视觉资产生成 — 插图（guizang）+ 图表（fireworks）并行 |
+| Phase 3 | HTML 构建 — 字体 + CSS + 图文穿插内容 |
+| Phase 4 | PDF 转换 — Puppeteer + 分页优化 |
+| Phase 5 | 验证迭代 — 页数、空白页、白边框、图文配比检查 |
+
+**章节结构模板：**
+```
+封面页（主视觉插图）
+序章（心法总览图）
+第一章 · 方法论（道）—— 4 方法 + 5 误区
+第二章 · 入门篇（术·入门）—— Day1-Day7 每日配图
+第三章 · 进阶篇（术·进阶）—— 技能体系
+第四章 · 深耕篇（术·深耕）—— 专业迁移
+第五章 · 实战项目库（战）—— 阶梯项目
+第六章 · 复盘成长（续）—— 闭环与变现
+附录（快捷键/FAQ/资源/术语表）
+```
+
+**视觉资产清单规则：**
+- 每章至少 3 张大图（插图或图表）
+- 每个 Day/小节至少 1 张配图
+- 关键操作步骤必须配示意图
+- 专业术语首次出现配 callout 解释块
+- 图文比 ≥ 1:3（每 3 段文字至少 1 张视觉）
+
+**文件组织：**
+```
+<project>/
+├── index.html              # 主 HTML（屏幕预览 + PDF 源）
+├── <output>.pdf            # 最终 PDF
+├── generate-pdf.js         # Puppeteer 脚本（放交付目录）
+├── assets/
+│   ├── css/                # fonts.css + main.css + print.css
+│   ├── js/                 # main.js（动效）
+│   ├── fonts/              # woff2 字体
+│   └── images/
+│       ├── illustrations/  # guizang PNG
+│       └── diagrams/       # fireworks SVG
+└── package.json
+```
+
+**设计系统基线：**
+
+| 维度 | 规范 |
+|------|------|
+| 拉丁/数字字体 | Geist + Geist Mono |
+| 中文字体 | Noto Sans SC / HarmonyOS Sans SC，fallback 微软雅黑 |
+| 主背景 | `#0A0A0B` / `#141416` / `#1C1C1F` |
+| 正文文字 | `#FAFAFA` / `#A1A1AA` / `#71717A` |
+| 强调色 | 单一琥珀 `#F59E0B`（全书只用一个） |
+| 边框 | `#27272A` / `#3F3F46` |
+| 版式 | Bento Grid 非对称网格，大字号编辑式标题，章节大留白 |
+
+**概念插图 Prompt 模板（guizang）：**
+```
+[插图名称]: 3D Swiss editorial style illustration, cinematic material rendering.
+<主题隐喻的具体描述>.
+Dark background (#141416), amber accent (#F59E0B) on <关键元素>.
+Minimalist Swiss design, 3D material rendering with soft studio lighting,
+generous whitespace. Premium editorial quality. No text, no logos, no watermarks.
+```
+
+> prompt 末尾必须写 `No text, no logos, no watermarks` 防水印；所有图配色统一（暗色背景 + 单一琥珀强调色）；批量生成时每批 5 张并行。
+
+**技术图表生成（fireworks）：**
+- Python 列表法逐行 append SVG，避免语法错误
+- 验证：`xml.etree.ElementTree.parse('file.svg')`
+- 配色 token：背景 `#0A0A0B`/`#141416`，文字 `#FAFAFA`/`#A1A1AA`，强调 `#F59E0B`，边框 `#27272A`
+
+**反 AI 俗套清单（必须规避）：**
+- 禁止居中 hero 三件套
+- 禁止 3 列等高 feature 卡（改 Bento 非对称）
+- 禁止紫色/蓝紫渐变
+- 禁止 emoji 当图标（用自定义 SVG）
+- 禁止 Inter 字体（用 Geist）
+- 禁止圆角 2xl 滥用 + 玻璃拟态
+
+**图文并茂策略：**
+- 每个知识点"图主导 + 文辅助"：先放图，下方配 2-3 句白话解读
+- 杜绝"大段文字后集中放图"的学术论文式排版
+- 长章节每滚动 1 屏（约 600px）必须出现至少 1 个视觉元素
+
+**通俗化写作规范：**
+- 短句优先，单句不超过 25 字
+- 口语化："这个功能就是用来..."、"简单说就是..."
+- 多用类比：关键帧=书签、LUT=滤镜配方、码率=画质密度
+- 专业术语首次出现配括号大白话
+- 步骤用数字编号 + 短动词开头
+- 验收标准用可勾选清单
+
+**PDF 转换关键配置（Puppeteer）：**
+- `executablePath`：指定系统 Chrome，避免下载 Chromium
+- `emulateMediaType('print')`：确保 `@media print` 样式生效
+- `addStyleTag` 注入背景色：解决白边框问题
+- `margin: 0` + `@page margin: 0`：全幅背景填充
+- `displayHeaderFooter: false`：去掉页眉页脚占用空间
+- `printBackground: true`：保留暗色背景
+
+**踩坑记录与对策：**
+
+| 问题 | 根因 | 对策 |
+|------|------|------|
+| PDF 空白页多 | `break-before: page` + `break-inside: avoid` | 只在封面/序章/第一章分页；Bento Grid 打印降级双列；图片限高 220px；正文 10pt |
+| PDF 白色边框 | `@page margin` 和 Puppeteer margin 未设 0 | `@page { size: A4; margin: 0; }`；Puppeteer margin 全 0；注入背景色；容器 padding 0 10mm |
+| 中文字体乱码 | web font 加载失败 | Google Fonts CDN 引入 Noto Sans SC；fallback 微软雅黑；`document.fonts.ready` 等待；额外等 2 秒 |
+| 图片有水印 | AI 文生图偶发水印 | prompt 末尾强制 `No text, no logos, no watermarks`；有水印则重新生成 |
+
+**验证清单：**
+
+内容完整性：
+- [ ] 理论框架（方法/阶段/误区）全部成节且配图
+- [ ] 每个知识点都有配图，无纯文字段落超过 3 段
+- [ ] 专业术语首次出现均有括号大白话解释
+- [ ] 单句不超过 25 字
+
+PDF 质量：
+- [ ] 用 PyMuPDF 检查每页文字量，无空白页（文字<20字且无图=空白）
+- [ ] 四角像素采样验证背景填充（RGB<30 = 暗色填充）
+- [ ] 中文字体已嵌入，无乱码
+- [ ] 章节分页正确，无标题孤立页底
+- [ ] SVG 矢量清晰，PNG 插图无压缩伪影
+
+**适用场景扩展：**
+本流水线不仅限于视频剪辑学习手册，可复用于：AI 创作教程手册、编程入门指南、任何"理论 + 实战 + 图文"的知识手册。替换章节结构和领域内容即可，视觉资产生成和 PDF 转换流程完全复用。
+
+---
+
 ## 朝代列表
 
 cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
@@ -934,6 +1092,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | 婚礼电影 — 朝代较多（5 个） | `volc-wedding` | 支持 2–5 个朝代 |
 | 生成脱口秀 / 喜剧短视频 | `comedy-show` | 剧本自动优化 + TTS 语音 + Wav2Lip 口型同步 |
 | 撰写可发布的技术文章 | `tech-article-craft` | 自包含 HTML + AI 配图 + 13 种图表组件 |
+| 制作图文并茂的 PDF 学习手册 | `learning-handbook-pipeline` | 三技能协作（插图 + 图表 + 前端设计）+ Puppeteer 转 PDF |
 
 ---
 
