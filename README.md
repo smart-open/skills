@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-6-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-7-orange)]()
 
 ---
 
@@ -23,6 +23,7 @@
   - [volc-wedding — 跨时空婚礼电影（Volcengine Ark）](#4-volc-wedding--跨时空婚礼电影volcengine-ark)
   - [suno-cn-music — AI 音乐创作助手](#5-suno-cn-music--ai-音乐创作助手)
   - [comedy-show — 爆款舞台美女脱口秀视频生成器](#6-comedy-show--爆款舞台美女脱口秀视频生成器)
+  - [tech-article-craft — 自包含技术文章生成器](#7-tech-article-craft--自包含技术文章生成器)
 - [朝代列表](#朝代列表)
 - [婚礼电影方案对比](#婚礼电影方案对比)
 - [通用注意事项](#通用注意事项)
@@ -34,7 +35,7 @@
 
 ## 简介
 
-本工程聚合了 6 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、跨时空婚礼电影、脱口秀视频**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
+本工程聚合了 7 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、跨时空婚礼电影、脱口秀视频、技术文章**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
 
 **核心亮点：**
 
@@ -46,6 +47,7 @@
 - **面部复刻**：FaceFusion 换脸（80%+）或 Seedream i2i 保留五官特征
 - **口型同步**：脱口秀视频通过 Wav2Lip 后处理实现口型与 TTS 语音精准对齐
 - **文件持久化**：两步式下载 + 只读属性，确保视频文件不被清空
+- **可发布技术文章**：自包含 HTML 文章生成，内联 CSS/JS + AI 配图 + HTML/CSS 图表组件
 
 ---
 
@@ -59,6 +61,7 @@
 | `volc-wedding` | 基于 Volcengine Ark 的跨时空婚礼电影生成器 | 火山方舟 Ark API + FFmpeg | Node.js 12+、FFmpeg 4.4+ | 4 朝代约 15–25 分钟 |
 | `suno-cn-music` | Suno.cn AI 音乐创作助手（8 个 REST API） | Suno.cn API | 无（HTTP REST 调用） | 单首约 1–3 分钟 |
 | `comedy-show` | 爆款舞台美女脱口秀视频生成器（剧本优化 + TTS + Wav2Lip 口型同步） | Agnes Text/Image/Video API + Edge TTS + Wav2Lip + FFmpeg | Node.js 12+、Python、FFmpeg 4.4+、PyTorch（可选） | 单场景约 3–8 分钟 |
+| `tech-article-craft` | 自包含技术文章生成器（内联 CSS/JS HTML + AI 配图 + 图表组件） | GenerateImage + WebSearch/WebFetch | 无（纯模板生成） | 单篇文章约 5–15 分钟 |
 
 ---
 
@@ -104,6 +107,8 @@ d:\ai_work\skills\
 │       ├── lipsync_engine.js         # Wav2Lip 口型同步封装（216 行）
 │       ├── merge_engine.js           # FFmpeg 混流 + concat 合并 + 字幕（245 行）
 │       └── character_config.js       # 角色描述、宽高比、声音映射配置（261 行）
+└── tech-article-craft/
+    └── SKILL.md                      # 自包含技术文章生成规范（7 步工作流 + HTML 模板）
 ```
 
 ---
@@ -724,6 +729,100 @@ work/{YYYYMMDD-HHMMSS-sessionId}/
 
 ---
 
+### 7. tech-article-craft — 自包含技术文章生成器
+
+生成**单个自包含、独立可发布的 HTML 技术文章**。每篇文章完全独立 — 无跨文章导航、无共享 CSS/JS、无外部依赖（除 Google Fonts CDN）。输出可直接发布到任何地方：静态主机、文件夹、邮件附件或单文件分享。
+
+**核心原则**：一个 HTML 文件 + 一个 images 文件夹。移动文件夹，文章即可正常工作。无需站点脚手架。
+
+**7 步工作流：**
+
+| 步骤 | 说明 |
+|------|------|
+| Step 1 | 调研与规划 — 读取源文档（如有）、WebSearch 最新信息、WebFetch 权威来源、规划 6–8 章结构、确定 slug |
+| Step 2 | 生成 Hero 图 — `landscape_16_9`（1280×720），电影级暗黑风格，禁止 hex 色码出现在 prompt 中 |
+| Step 3 | 生成内联配图 — `landscape_4_3`（1152×864），每个关键章节一张概念图 |
+| Step 4 | 生成技术图表 — 优先 HTML/CSS 组件（13 种可用），复杂拓扑用内联 SVG，禁止 Mermaid |
+| Step 5 | 编写自包含 HTML — 所有 CSS 内联 `<style>`、所有 JS 内联 `<script>`、图片相对路径、火箭返回顶部动画 |
+| Step 6 | 验证文章 — 11 项检查（结构、外部引用、图片、TOC、独立性、footer、火箭动画等） |
+| Step 7 | 可选：单文件化 — 将图片转为 base64 data URI 嵌入 HTML，删除 images 文件夹 |
+
+**输出产物：**
+
+| 产物 | 路径 | 说明 |
+|------|------|------|
+| 文章 HTML | `{output-dir}/{slug}/index.html` | slug 文件夹内固定命名 `index.html` |
+| Hero 图 | `{output-dir}/{slug}/images/hero.jpg` | 1280×720，landscape_16_9 |
+| 内联配图 | `{output-dir}/{slug}/images/{section}.jpg` | 1152×864，landscape_4_3 |
+| SVG 图表 | 内联在 HTML 中（优先）或 `images/{section}.svg` | 小型直接内联 |
+
+> 整个 `{slug}/` 文件夹是分发单元 — 压缩、上传或直接托管。`index.html` 通过相对路径 `images/xxx.jpg` 引用图片，无需服务器即可通过 `file://` 打开。
+
+**内置 HTML/CSS 图表组件（13 种）：**
+
+| 组件类名 | 用途 |
+|---------|------|
+| `.arch-layer-stack` | 分层架构图 |
+| `.skill-cards` / `.skill-card` | 卡片网格 |
+| `.hitl-flow` / `.hitl-stage` | 流程图带箭头 |
+| `.dataflow-pipeline` | 数据流水线可视化 |
+| `.impl-phases` | 实施阶段网格 |
+| `.cost-table` | 成本对比表 |
+| `.event-topics` | 事件驱动架构网格 |
+| `.pain-points` / `.pain-card` | 痛点分析网格 |
+| `.match-layers` | 多层匹配引擎 |
+| `.router-flow` / `.router-node` | 路由流程图 |
+| `.skill-tiers` | 分层架构 |
+| `.compare-table` | 功能对比表（带高亮） |
+| `.code-block` | 代码/配置示例（带语法高亮） |
+| `.callout` | 高亮信息/警告框 |
+
+**设计规范：**
+
+| 变量 | 值 | 用途 |
+|------|-----|------|
+| `--bg-primary` | `#0a0a0f` | 主背景 |
+| `--bg-secondary` | `#12121a` | 卡片、代码块 |
+| `--text-primary` | `#e8e8ec` | 正文 |
+| `--accent` | `#00f0ff` | 高亮、链接、激活态 |
+| `--amber` | `#ffb347` | 警告提示、数字 |
+| `--divider` | `#2a2a35` | 边框、分隔线 |
+
+字体：`Inter`（正文）、`JetBrains Mono`（代码）。均从 Google Fonts CDN 加载，离线时降级到系统字体。
+
+**关键规则：**
+- 所有 CSS 内联在 `<style>`，所有 JS 内联在 `<script>` — 无外部 `.css`/`.js` 文件
+- 所有 `h2` 必须有 `id="section-N"` 供 TOC 锚点
+- TOC 由内联脚本自动生成 — 只需提供空 `id="articleToc"` 容器
+- 图片路径相对（`images/hero.jpg`）— 禁止 `../../` 前缀
+- 文章独立 — 无 `articles-data.js`、无 `articleNav`、无上下篇导航、无顶部菜单、无 footer
+- favicon 为内联 SVG data URI
+- 返回顶部按钮为火箭图标（内联 SVG），点击播放 `rocket-launch` 垂直升空动画
+- 中文引号使用「」，引用使用 `<sup><a href="#cite-N">[N]</a></sup>`
+
+**图片生成禁令（QA 检查清单）：**
+每张生成的图片必须不含：意外 logo、水印、UI 边框/装饰、无关英文字符串、hex 色码字符串。
+
+**文章质量检查清单：**
+- [ ] 6–8 章节，逻辑清晰
+- [ ] Hero 图已生成（landscape_16_9，无 hex 码）
+- [ ] 2–4 张关键章节内联配图
+- [ ] 2–4 个 HTML/CSS 可视化组件
+- [ ] 对比表使用 `.compare-table` 类
+- [ ] 代码示例使用 `.code-block` 带语法高亮
+- [ ] 引用使用 `<sup>` 链接和 `<li id="cite-N">` 目标
+- [ ] 所有 h2 有 `id="section-N"`
+- [ ] `markdown-body` 容器类
+- [ ] 侧边栏 TOC 容器 `id="articleToc"`
+- [ ] 响应式 `@media (max-width: 768px)` 规则
+- [ ] 所有 CSS/JS 内联，无外部文件
+- [ ] 所有图片路径相对
+- [ ] 图片干净（无 logo、水印、UI 边框、无关英文、hex 码）
+- [ ] 火箭返回顶部按钮（垂直向上、纯垂直升空动画）
+- [ ] 文章可通过 `file://` 渲染，火箭动画可播放
+
+---
+
 ## 朝代列表
 
 cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
@@ -834,6 +933,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | 婚礼电影 — 需要分镜剧本 | `volc-wedding` | 战国/唐/明/现代已配置时间分段剧本 |
 | 婚礼电影 — 朝代较多（5 个） | `volc-wedding` | 支持 2–5 个朝代 |
 | 生成脱口秀 / 喜剧短视频 | `comedy-show` | 剧本自动优化 + TTS 语音 + Wav2Lip 口型同步 |
+| 撰写可发布的技术文章 | `tech-article-craft` | 自包含 HTML + AI 配图 + 13 种图表组件 |
 
 ---
 
