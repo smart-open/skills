@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-9-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-10-orange)]()
 
 ---
 
@@ -26,6 +26,7 @@
   - [tech-article-craft — 自包含技术文章生成器](#7-tech-article-craft--自包含技术文章生成器)
   - [learning-handbook-pipeline — 图文并茂 PDF 学习手册生成流水线](#8-learning-handbook-pipeline--图文并茂-pdf-学习手册生成流水线)
   - [enterprise-portal-generator — 企业门户网站一键生成器](#9-enterprise-portal-generator--企业门户网站一键生成器)
+  - [music-downloader — 国内 5 大音乐平台歌曲下载器](#10-music-downloader--国内-5-大音乐平台歌曲下载器)
 - [朝代列表](#朝代列表)
 - [婚礼电影方案对比](#婚礼电影方案对比)
 - [通用注意事项](#通用注意事项)
@@ -37,7 +38,7 @@
 
 ## 简介
 
-本工程聚合了 9 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
+本工程聚合了 10 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
 
 **核心亮点：**
 
@@ -52,6 +53,7 @@
 - **可发布技术文章**：自包含 HTML 文章生成，内联 CSS/JS + AI 配图 + HTML/CSS 图表组件
 - **图文并茂学习手册**：理论文本蒸馏为 PDF 学习手册，三技能协作（插图 + 图表 + 前端设计）
 - **企业门户一键生成**：从公司简介一键生成 6 页生产级企业网站，12 行业预设自适应
+- **多平台音乐下载**：5 大国内音乐平台（网易云/QQ/酷狗/咪咕/汽水）搜索下载 MP3 + LRC 歌词
 
 ---
 
@@ -68,6 +70,7 @@
 | `tech-article-craft` | 自包含技术文章生成器（内联 CSS/JS HTML + AI 配图 + 图表组件） | GenerateImage + WebSearch/WebFetch | 无（纯模板生成） | 单篇文章约 5–15 分钟 |
 | `learning-handbook-pipeline` | 图文并茂 PDF 学习手册生成流水线（三技能协作） | guizang 插图 + fireworks 图表 + design-taste-frontend | Node.js（Puppeteer）、Python（PyMuPDF 验证） | 单本手册约 20–60 分钟 |
 | `enterprise-portal-generator` | 企业门户网站一键生成器（6 页生产级网站 + 12 行业预设） | GenerateImage（Hero 图） | 无（纯 HTML/CSS/JS 模板） | 单站点约 10–30 分钟 |
+| `music-downloader` | 国内 5 大音乐平台歌曲下载器（MP3 + LRC 歌词） | 网易云/QQ/酷狗/咪咕/汽水 API | Python 3.8+ | 单首约 3–10 秒 |
 
 ---
 
@@ -124,6 +127,10 @@ d:\ai_work\skills\
         ├── industry-presets.md       # 12 行业预设（配色/字体/密度/内容模式）
         ├── page-architecture.md      # 6 页页面架构 + 共享组件 + 布局多样性规则
         └── optimization-checklist.md # 60+ 项预飞检查清单 + 反俗套规则
+├── music-downloader/
+    ├── SKILL.md                      # 音乐下载技能规范（5 平台 + 多 API 回退）
+    └── scripts/
+        └── batch_download_v4.py      # 下载脚本（569 行，Python）
 ```
 
 ---
@@ -1128,6 +1135,124 @@ PDF 质量：
 
 ---
 
+### 10. music-downloader — 国内 5 大音乐平台歌曲下载器
+
+根据演唱者和歌曲名称，从国内 5 大主流音乐平台搜索并下载歌曲（MP3）及歌词（LRC）。支持单首下载、批量下载、文本/文件/Excel 多种输入方式。
+
+**支持平台：**
+
+| 平台 | 搜索 | 下载 | 歌词 |
+|------|------|------|------|
+| 网易云音乐 | 官方 API | 4 个第三方 API 回退 | 有 |
+| QQ音乐 | 官方 API | 2 个第三方 API 回退 | 有 |
+| 酷狗音乐 | 官方 API | 2 个第三方 API 回退 | 有 |
+| 咪咕音乐 | 官方 API | 官方下载接口 | 有 |
+| 汽水音乐 | 官方 API | 第三方 API + 官方试听 | 有 |
+
+**5 平台回退机制：** 网易云 → QQ → 酷狗 → 咪咕 → 汽水，逐层回退，每平台 2–4 个第三方 API。
+
+**音质参数：**
+
+| 参数值 | 说明 | 建议场景 |
+|--------|------|---------|
+| `standard` | 标准音质（128kbps） | 快速试听、节省空间 |
+| `high` | 高品质（320kbps） | 默认推荐 |
+| `lossless` | 无损音质（FLAC） | 收藏级，文件较大 |
+
+**单首下载示例：**
+```python
+import sys; sys.path.insert(0, r'scripts')
+from batch_download_v4 import MusicDownloader
+
+dl = MusicDownloader(output_dir=r'D:\音乐目录', default_quality='high')
+
+# 最简用法
+result = dl.download('陈奕迅', '孤勇者')
+
+# 指定音质
+result = dl.download('周杰伦', '晴天', quality='lossless')
+
+# 带分类
+result = dl.download('周深', '大鱼', era='2010年代', level='S级')
+```
+
+**批量下载示例：**
+```python
+# dict 列表
+songs = [
+    {'singer': '陈奕迅', 'song_name': '孤勇者'},
+    {'singer': '周杰伦', 'song_name': '晴天', 'era': '2000年代', 'level': 'S级'},
+]
+dl.download_batch(songs, quality='high')
+
+# 字符串列表（自动解析）
+songs = ['陈奕迅的孤勇者', '周杰伦 晴天', '林俊杰,江南']
+dl.download_batch(songs, era='2000年代', quality='high')
+
+# 从文本
+dl.download_from_text('陈奕迅 孤勇者\n周杰伦 晴天', era='2000年代')
+
+# 从文件
+dl.download_from_file('songs.txt', era='2000年代')
+
+# 从 Excel（自动过滤经典选曲占位符）
+dl.download_from_excel('歌曲列表.xlsx', quality='high')
+```
+
+**命令行用法：**
+```bash
+# 单首下载
+python scripts/batch_download_v4.py -s "陈奕迅" -n "孤勇者" -q high
+
+# 指定音质
+python scripts/batch_download_v4.py -s "周杰伦" -n "晴天" -q lossless
+
+# 批量文本
+python scripts/batch_download_v4.py --text "陈奕迅 孤勇者\n周杰伦 晴天" -q high
+
+# 批量文件
+python scripts/batch_download_v4.py --file songs.txt --era "2000年代" --level "S级" -q high
+
+# Excel 批量
+python scripts/batch_download_v4.py --excel "歌曲列表.xlsx" -q high
+```
+
+**输入格式自动解析：**
+
+| 格式 | 示例 | 结果 |
+|------|------|------|
+| dict | `{'singer': '陈奕迅', 'song_name': '孤勇者'}` | 陈奕迅 / 孤勇者 |
+| tuple | `('陈奕迅', '孤勇者')` | 陈奕迅 / 孤勇者 |
+| "XX的XX" | `"陈奕迅的孤勇者"` | 陈奕迅 / 孤勇者 |
+| 空格分隔 | `"陈奕迅 孤勇者"` | 陈奕迅 / 孤勇者 |
+| 逗号分隔 | `"陈奕迅,孤勇者"` | 陈奕迅 / 孤勇者 |
+| Tab 分隔 | `"陈奕迅\t孤勇者"` | 陈奕迅 / 孤勇者 |
+
+**核心特性：**
+- 5 平台回退：网易云 → QQ → 酷狗 → 咪咕 → 汽水，逐层回退
+- 多 API 回退：每平台 2–4 个第三方 API
+- 断点续传：默认跳过已下载文件
+- 自动歌词：同时下载 LRC 歌词
+- 音质可选：standard / high / lossless
+- 灵活分类：era / level 参数控制目录结构
+- 多种输入：dict 列表、字符串列表、文本、文件、Excel
+
+**参数速查：**
+
+| 参数 | 说明 | 必填 | 默认 |
+|------|------|------|------|
+| `-s` / `--singer` | 歌手名 | 单首下载必填 | — |
+| `-n` / `--song-name` | 歌曲名 | 单首下载必填 | — |
+| `-q` / `--quality` | 音质：standard / high / lossless | 否 | `high` |
+| `--text` | 批量文本输入 | 批量下载 | — |
+| `--file` | 批量文件输入 | 批量下载 | — |
+| `--excel` | Excel 批量输入 | 批量下载 | — |
+| `--era` | 年代分类（如"2000年代"） | 否 | — |
+| `--level` | 等级分类（如"S级"） | 否 | — |
+| `-o` / `--output-dir` | 输出目录 | 否 | 当前目录 |
+
+---
+
 ## 朝代列表
 
 cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
@@ -1233,6 +1358,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | 生成一张精美 AI 图片 | `agnes-image-gen-2` | 电影级画质，文生图 / 图生图 |
 | 生成一段 AI 视频 | `agnes-video-gen-2` | 4 种工作流，灵活选择 |
 | 创作一首 AI 音乐 | `suno-cn-music` | 8 个 API，全流程覆盖 |
+| 下载已有歌曲（MP3 + 歌词） | `music-downloader` | 5 平台回退，批量下载，自动歌词 |
 | 婚礼电影 — 需高面部相似度 | `cross-era-wedding` | FaceFusion 换脸 80%+ |
 | 婚礼电影 — 无需 Python，快速生成 | `volc-wedding` | Seedream i2i 保留五官，零额外依赖 |
 | 婚礼电影 — 需要分镜剧本 | `volc-wedding` | 战国/唐/明/现代已配置时间分段剧本 |
