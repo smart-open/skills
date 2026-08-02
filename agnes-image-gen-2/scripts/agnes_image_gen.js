@@ -25,8 +25,8 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const API_URL = "https://apihub.agnes-ai.com/v1/images/generations";
-const API_HOST = "apihub.agnes-ai.com";
+const API_URL = "https://api.agnes-ai.cn/v1/images/generations";
+const API_HOST = "api.agnes-ai.cn";
 const API_PATH = "/v1/images/generations";
 const MODEL = "agnes-image-2.1-flash";
 

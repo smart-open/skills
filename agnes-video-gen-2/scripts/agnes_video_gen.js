@@ -28,7 +28,7 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const API_HOST = "apihub.agnes-ai.com";
+const API_HOST = "api.agnes-ai.cn";
 const CREATE_PATH = "/v1/videos";
 const MODEL = "agnes-video-v2.0";
 
