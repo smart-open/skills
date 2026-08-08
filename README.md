@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-11-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-12-orange)]()
 
 ---
 
@@ -28,6 +28,7 @@
   - [enterprise-portal-generator — 企业门户网站一键生成器](#9-enterprise-portal-generator--企业门户网站一键生成器)
   - [music-downloader — 国内 5 大音乐平台歌曲下载器](#10-music-downloader--国内-5-大音乐平台歌曲下载器)
   - [a-stock-operator — A 股市场操盘手](#11-a-stock-operator--a-股市场操盘手)
+  - [dev-lifecycle — 软件开发生命周期编排](#12-dev-lifecycle--软件开发生命周期编排)
 - [朝代列表](#朝代列表)
 - [婚礼电影方案对比](#婚礼电影方案对比)
 - [通用注意事项](#通用注意事项)
@@ -39,7 +40,7 @@
 
 ## 简介
 
-本工程聚合了 11 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、A 股市场操盘分析**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
+本工程聚合了 12 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、A 股市场操盘分析、软件开发生命周期编排**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
 
 **核心亮点：**
 
@@ -56,6 +57,7 @@
 - **企业门户一键生成**：从公司简介一键生成 6 页生产级企业网站，12 行业预设自适应
 - **多平台音乐下载**：5 大国内音乐平台（网易云/QQ/酷狗/咪咕/汽水）搜索下载 MP3 + LRC 歌词
 - **A 股操盘分析**：个股六维诊断 + 市场资讯选股推荐，12 个东方财富 API 实时数据 + 6 层数据验证体系
+- **软件开发生命周期编排**：5 阶段 + 每阶段 HITL 确认，前 4 阶段产出文档，第 5 阶段按 SOP 6 步推进开发
 
 ---
 
@@ -74,6 +76,7 @@
 | `enterprise-portal-generator` | 企业门户网站一键生成器（6 页生产级网站 + 12 行业预设） | GenerateImage（Hero 图） | 无（纯 HTML/CSS/JS 模板） | 单站点约 10–30 分钟 |
 | `music-downloader` | 国内 5 大音乐平台歌曲下载器（MP3 + LRC 歌词） | 网易云/QQ/酷狗/咪咕/汽水 API | Python 3.8+ | 单首约 3–10 秒 |
 | `a-stock-operator` | A 股市场操盘手（个股六维诊断 + 市场资讯选股推荐） | 东方财富 API（12 端点）+ 财联社等 5 大财经网站 + integrated_code_mode MCP | 无（纯规范型，通过 MCP 调用 API） | 个股诊断约 2–5 分钟，市场报告约 5–10 分钟 |
+| `dev-lifecycle` | 端到端软件开发流程编排（5 阶段 + 每阶段 HITL 确认） | 无（纯规范型，仅 SKILL.md） | 无 | 按项目规模而定 |
 
 ---
 
@@ -136,6 +139,8 @@ d:\ai_work\skills\
         └── batch_download_v4.py      # 下载脚本（569 行，Python）
 └── a-stock-operator/
     └── SKILL.md                      # A 股操盘手技能规范（900 行，六大维度 + 12 API 端点 + 6 层数据验证）
+└── dev-lifecycle/
+    └── SKILL.md                      # 软件开发生命周期编排技能规范（5 阶段 + HITL 确认 + SOP 6 步）
 ```
 
 ---
@@ -1366,6 +1371,60 @@ A 股市场操盘手技能，提供两大核心能力：**个股六维诊断分�
 
 ---
 
+### 12. dev-lifecycle — 软件开发生命周期编排
+
+将一个模糊想法/需求，端到端推进到可交付的代码实现。核心是 **5 阶段 + 每阶段 HITL（Human-In-The-Loop）确认**，前 4 阶段产出文档，第 5 阶段按 **SOP 6 步** 逐阶段开发。
+
+**适用场景：**
+
+| 场景 | 第 1-4 阶段处理 | 第 5 阶段处理 |
+|------|----------------|---------------|
+| 新项目创建 | 完整走 4 阶段，产出 roadmap / development-plan / api-doc | 从第 1 阶段开始按 SOP 推进 |
+| 需求迭代（v1→v2） | 聚焦"增量需求"分析，复用已有架构，产出迭代计划 | 仅推进新增/变更阶段 |
+| 技术重构 | 聚焦"重构目标 + 风险"分析，产出重构方案与回归测试策略 | 按重构单元逐个 SOP 推进 |
+
+**5 阶段流程：**
+
+```
+阶段 1：需求探索 → [HITL]
+阶段 2：技术框架 → [HITL]
+阶段 3：产品设计方案 → [HITL]
+阶段 4：API 文档 + 分阶段开发计划 → [HITL]
+阶段 5：分阶段 SOP 开发（每阶段 6 步，审查阶段全面）
+```
+
+**前 4 阶段产出文档：**
+
+| 阶段 | 文档 |
+|------|------|
+| 需求探索 | `docs/requirements.md`（迭代为 `requirements-v{X}.md`） |
+| 技术框架 | `docs/tech-framework.md` |
+| 产品设计 | `docs/product-design.md` |
+| API + 计划 | `docs/api-doc.md` + `docs/development-plan.md` |
+
+**阶段 5 SOP 6 步：**
+
+```
+1. 了解需求 → 编码实现（先 Read 后 Edit）
+2. 编写测试 → pytest 全绿（覆盖率 ≥ 80%）
+3. 全面审查 → 文档/代码/安全/测试/配置/迁移/回归 → 修复后回归测试
+4. development-plan 标 ✅ + AGENT.md 更新
+5. git add 具体文件 → commit（不 push）
+6. 进入下一阶段
+```
+
+**核心原则：**
+
+- **HITL 强制确认**：每阶段产出后必须让用户确认/完善，禁止跳过直接进入下一阶段
+- **文档先行**：前 4 阶段产出 Markdown 落盘到 `docs/`，作为第 5 阶段执行依据
+- **最小必要**：不过度工程；不新增非必要文件；不加无关注释
+- **可追溯**：每阶段产出物可追溯到上游需求；commit 信息含阶段标识
+- **质量红线**：禁止跳过 HITL / 禁止跳过全面审查 / 禁止 `git add -A` / 禁止盲改代码 / 测试覆盖率 ≥ 80%
+
+> 纯规范型技能（仅 SKILL.md，无脚本），适用于新项目、需求迭代、技术重构等需要完整开发流程编排的场景。
+
+---
+
 ## 朝代列表
 
 cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
@@ -1482,6 +1541,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | 生成企业门户网站 | `enterprise-portal-generator` | 6 页生产级网站 + 12 行业预设自适应 + 60+ 项预飞检查 |
 | A 股个股诊断分析 | `a-stock-operator` | 六维评分体系 + 12 API 实时数据 + 6 层验证 |
 | A 股市场行情与选股 | `a-stock-operator` | 涨停池 + 板块排行 + 龙虎榜 + 情绪指标 |
+| 从需求到代码的完整开发流程编排 | `dev-lifecycle` | 5 阶段 + HITL 确认 + SOP 6 步开发 |
 
 ---
 
