@@ -16,3 +16,9 @@ demo/
 # 系统文件
 Thumbs.db
 .DS_Store
+
+# a-stock-operator-v2 运行时产物（数据快照、报告输出、Python 缓存）
+a-stock-operator-v2/data/
+a-stock-operator-v2/output/
+**/__pycache__/
+*.pyc
