@@ -47,8 +47,9 @@ from urllib3.util.retry import Retry
 
 requests.packages.urllib3.disable_warnings()
 
-EXCEL_FILE = r"c:\Users\tianw\.trae-cn\attachments\6a5f984a8c70c7c1a9161441\52cfdc1e-8273-4463-95c8-7e4e386752c0_d6070509-0be1-4c60-801f-3bb43462ea32_中国各年代流行歌曲推荐500首.xlsx"
-DEFAULT_OUTPUT = r"d:\ai_work\musics\music_download"
+PROJECT_ROOT = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+EXCEL_FILE = PROJECT_ROOT / "中国各年代流行歌曲推荐500首.xlsx"
+DEFAULT_OUTPUT = PROJECT_ROOT / "music_download"
 
 # Quality mapping per platform
 QUALITY_MAP = {

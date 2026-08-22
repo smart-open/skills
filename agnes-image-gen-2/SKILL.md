@@ -37,13 +37,13 @@ node "<skill-dir>/scripts/agnes_image_gen.js" \
   --mode t2i \
   --prompt "一位古典西汉美女，曲裾深衣，堕马髻，朱红宫殿背景" \
   --size 768x1024 \
-  --output "C:\Users\tianw\Desktop\test\out.png" \
+  --output "./out/out.png" \
   --api-key "sk-xxxx"
 ```
 
 - `--prompt` 必填：图像描述。
 - `--size` 默认 `1024x1024`。
-- `--output`：保存路径（建议保存到用户工作区 `c:\Users\tianw\Desktop\test`）。
+- `--output`：保存路径（建议保存到工程根目录 `./out`）。
 - 脚本会**自动追加电影质感 / 高清画质修饰词**（cinematic lighting、8K、HDR 等），无需手动写。
 
 ## 图生图（image-to-image）
@@ -52,9 +52,9 @@ node "<skill-dir>/scripts/agnes_image_gen.js" \
 node "<skill-dir>/scripts/agnes_image_gen.js" \
   --mode i2i \
   --prompt "将场景转换为雨夜赛博朋克霓虹，保留原始构图" \
-  --image "C:\Users\tianw\Desktop\test\input.png" \
+  --image "./out/input.png" \
   --size 1024x768 \
-  --output "C:\Users\tianw\Desktop\test\out_i2i.png" \
+  --output "./out/out_i2i.png" \
   --api-key "sk-xxxx"
 ```
 
@@ -114,7 +114,7 @@ node "<skill-dir>/scripts/agnes_image_gen.js" \
 1. 脚本成功后会打印 `OUT_PATH=<绝对路径>`，从输出中解析该路径。
 2. 用 `Read` 工具读取生成的图片，确认画质与内容符合用户预期。
 3. 向用户提供 `computer://` 链接以便查看，例如：
-   `[查看图片](computer://C:\Users\tianw\Desktop\test\out.png)`
+   `[查看图片](computer://./out/out.png)`
 4. 如效果不符，优化提示词后重试；图生图可多次迭代。
 
 ## 参数速查

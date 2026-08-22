@@ -59,7 +59,7 @@ API key 按以下优先级解析（脚本自动处理）：
 node "<skill-dir>/scripts/agnes_video_gen.js" \
   --workflow text2video \
   --prompt "一只猫在日落时的海滩上漫步，柔和的海浪，温暖的金色光线，逼真的运动" \
-  --output "C:\Users\tianw\Desktop\test\cat_beach.mp4" \
+  --output "./out/cat_beach.mp4" \
   --api-key "sk-xxxx"
 ```
 
@@ -70,7 +70,7 @@ node "<skill-dir>/scripts/agnes_video_gen.js" \
   --workflow image2video \
   --prompt "女子缓缓转身回望镜头，自然的表情，电影感运镜" \
   --image "https://example.com/woman.png" \
-  --output "C:\Users\tianw\Desktop\test\woman_turn.mp4" \
+  --output "./out/woman_turn.mp4" \
   --api-key "sk-xxxx"
 ```
 
@@ -81,7 +81,7 @@ node "<skill-dir>/scripts/agnes_video_gen.js" \
   --workflow multi2video \
   --prompt "在两张参考图之间创建平滑的变换场景，电影级光照，保持人物身份一致，自然运动" \
   --image "https://example.com/img1.png" "https://example.com/img2.png" \
-  --output "C:\Users\tianw\Desktop\test\transform.mp4" \
+  --output "./out/transform.mp4" \
   --api-key "sk-xxxx"
 ```
 
@@ -92,7 +92,7 @@ node "<skill-dir>/scripts/agnes_video_gen.js" \
   --workflow keyframes \
   --prompt "在关键帧之间生成流畅的电影级过渡，保持视觉一致性，自然的镜头运动" \
   --image "https://example.com/keyframe1.png" "https://example.com/keyframe2.png" \
-  --output "C:\Users\tianw\Desktop\test\keyframe_transition.mp4" \
+  --output "./out/keyframe_transition.mp4" \
   --api-key "sk-xxxx"
 ```
 
@@ -176,8 +176,8 @@ node "<skill-dir>/scripts/agnes_video_gen.js" \
 
 **PowerShell 方式（Windows 推荐）**：
 ```powershell
-Invoke-WebRequest -Uri "VIDEO_URL" -OutFile "C:\Users\tianw\Desktop\test\out.mp4" -UseBasicParsing
-(Get-Item "C:\Users\tianw\Desktop\test\out.mp4").IsReadOnly = $true
+Invoke-WebRequest -Uri "VIDEO_URL" -OutFile "./out/out.mp4" -UseBasicParsing
+(Get-Item "./out/out.mp4").IsReadOnly = $true
 ```
 
 **Node.js 方式（跨平台）**：
@@ -192,9 +192,9 @@ node -e "const https=require('https');const fs=require('fs');const u='VIDEO_URL'
 ## 执行后必做
 
 1. 从第 1 步输出解析 `VIDEO_URL=...`。
-2. 用第 2 步短命令下载到 `c:\Users\tianw\Desktop\test\` 下。
+2. 用第 2 步短命令下载到工程根目录 `./out/` 下。
 3. 下载后立即验证文件大小非 0：`Get-Item <文件> | Select Length`。
-4. 向用户提供 `computer://` 链接，例如：`[查看视频](computer://C:\Users\tianw\Desktop\test\out.mp4)`
+4. 向用户提供 `computer://` 链接，例如：`[查看视频](computer://./out/out.mp4)`
 5. 如效果不符，优化提示词 / 调整帧数与尺寸后重试。
 6. **注意**：视频生成耗时较长（几十秒到数分钟），第 1 步默认最长等待 20 分钟（`--max-wait 1200`）。请用长进程执行第 1 步，短命令执行第 2 步。
 
