@@ -19,8 +19,29 @@ from pathlib import Path
 from datetime import datetime
 from typing import List, Dict, Union
 
-import requests
-import pandas as pd
+try:
+    import requests
+except ImportError:  # 托管 Python 缺失依赖时，自动引导本地 venv 安装 requests
+    import subprocess, sys, os
+    _HERE = os.path.dirname(os.path.abspath(__file__))
+    _VENV = os.path.join(_HERE, ".venv")
+    try:
+        if not os.path.isdir(_VENV):
+            subprocess.run([sys.executable, "-m", "venv", _VENV], check=True)
+        _PIP = os.path.join(_VENV, "Scripts", "pip.exe") if os.name == "nt" \
+            else os.path.join(_VENV, "bin", "pip")
+        subprocess.run([_PIP, "install", "--quiet", "requests"], check=True)
+        _SP = os.path.join(_VENV, "Lib", "site-packages") if os.name == "nt" \
+            else os.path.join(_VENV, "lib", f"python{sys.version_info.major}.{sys.version_info.minor}", "site-packages")
+        sys.path.insert(0, _SP)
+    except Exception:
+        pass
+    import requests
+
+try:
+    import pandas as pd
+except ImportError:
+    pd = None
 from requests.adapters import HTTPAdapter
 from urllib3.util.retry import Retry
 
@@ -100,7 +121,7 @@ class MusicDownloader:
         keyword = f"{singer} {song_name}"
         self._log(f"下载: {keyword} (音质={quality})")
 
-        result = self._try_all_platforms(keyword, mp3_path, lrc_path, quality)
+        result = self._try_all_platforms(singer, song_name, mp3_path, lrc_path, quality)
         if result["success"]:
             self.stats["success"] += 1
             self._log(f"  [成功] {result['source']}: {song_name}")
@@ -131,6 +152,9 @@ class MusicDownloader:
     def download_from_excel(self, excel_path: str = EXCEL_FILE, output_dir: str = None,
                             quality: str = None):
         """从Excel批量下载（自动过滤经典选曲）"""
+        if pd is None:
+            self._log("未安装 pandas，无法解析 Excel，请先 pip install pandas")
+            return []
         self._log(f"读取Excel: {excel_path}")
         base_dir = Path(output_dir) if output_dir else self.output_dir
         all_sheets = pd.read_excel(excel_path, sheet_name=None)
@@ -191,14 +215,13 @@ class MusicDownloader:
         return "", "", default_era, default_level
 
     # ==================== All Platforms Engine ====================
-    def _try_all_platforms(self, keyword: str, mp3_path: Path, lrc_path: Path, quality: str) -> dict:
-        """依次尝试 网易云→QQ→酷狗→咪咕→汽水"""
-        # 1. NetEase
-        songs = self._search_netease(keyword)
-        for song in songs:
-            if self._try_netease_apis(str(song["id"]), mp3_path, lrc_path, quality):
-                return {"success": True, "source": "网易云", "mp3_path": str(mp3_path),
-                        "lrc_path": str(lrc_path), "message": f"网易云: {song['name']}"}
+    def _try_all_platforms(self, singer: str, song_name: str, mp3_path: Path, lrc_path: Path, quality: str) -> dict:
+        """依次尝试 网易云(稳健)→QQ→酷狗→咪咕→汽水"""
+        keyword = f"{singer} {song_name}"
+        # 1. NetEase (稳健: 演唱者校验 + 完整音频 + 真实时间轴歌词)
+        if self._try_netease_robust(singer, song_name, mp3_path, lrc_path, quality):
+            return {"success": True, "source": "网易云", "mp3_path": str(mp3_path),
+                    "lrc_path": str(lrc_path), "message": f"网易云: {song_name}"}
         # 2. QQ
         songs = self._search_qq(keyword)
         for song in songs:
@@ -227,91 +250,245 @@ class MusicDownloader:
         return {"success": False, "source": "", "mp3_path": "", "lrc_path": "",
                 "message": f"所有平台均无法下载: {keyword}"}
 
-    # ========== NetEase ==========
-    def _search_netease(self, keyword: str, limit: int = 5) -> list:
+    # ========== NetEase (稳健: 演唱者校验 + 完整音频 + 真实时间轴歌词) ==========
+    def _search_netease(self, keyword: str, limit: int = 10) -> list:
         try:
             h = {"User-Agent": "Mozilla/5.0", "Referer": "https://music.163.com/"}
             resp = self.session.post("https://music.163.com/api/cloudsearch/pc",
                                      data={"s": keyword, "type": 1, "limit": limit, "offset": 0},
                                      headers=h, timeout=10)
             songs = resp.json().get("result", {}).get("songs", [])
-            return [{"id": s["id"], "name": s["name"],
+            return [{"id": s["id"], "name": s.get("name", ""),
                      "artist": ", ".join([a["name"] for a in s.get("artists", [])])} for s in songs]
         except:
             return []
 
-    def _try_netease_apis(self, song_id: str, mp3_path: Path, lrc_path: Path, quality: str) -> bool:
-        q = QUALITY_MAP["netease"][quality]
-        h_std = {"user-agent": "Mozilla/5.0"}
-        # toubiec
+    def _get_netease_detail(self, song_id) -> dict:
         try:
-            h = {"Accept": "*/*", "Origin": "https://wyapi.toubiec.cn",
-                 "Referer": "https://wyapi.toubiec.cn/", "User-Agent": "Mozilla/5.0"}
-            resp = self.session.post("https://nextmusic.toubiec.cn/api/getSongUrl", headers=h,
-                                     json={"id": str(song_id), "level": q, "timestamp": int(time.time() * 1000)},
-                                     timeout=10)
-            url = resp.json().get("data", {}).get("url", "")
-            if url and url.startswith("http") and self._download_file(url, mp3_path):
-                self._save_netease_lyric(song_id, lrc_path)
-                return True
+            h = {"User-Agent": "Mozilla/5.0", "Referer": "https://music.163.com/"}
+            resp = self.session.post("https://music.163.com/api/song/detail",
+                                     data={"id": song_id, "ids": "[" + str(song_id) + "]"},
+                                     headers=h, timeout=15)
+            songs = resp.json().get("songs", [])
+            if songs:
+                s = songs[0]
+                return {
+                    "name": s.get("name", ""),
+                    "artist": ", ".join([a.get("name", "") for a in s.get("artists", [])]),
+                    "album": s.get("album", {}).get("name", ""),
+                }
         except:
             pass
-        # cggapi
+        return {}
+
+    @staticmethod
+    def _artist_matches(artist_str: str, singer: str) -> bool:
+        if not artist_str or not singer:
+            return False
+        a = re.sub(r"[\s\-–—&/、，,]", "", str(artist_str)).lower()
+        s = re.sub(r"[\s\-–—&/、，,]", "", str(singer)).lower()
+        return bool(s) and (s in a or a in s)
+
+    @staticmethod
+    def _has_timestamps(text: str) -> bool:
+        return len(re.findall(r"\[\d{1,2}:\d{2}", text or "")) >= 3
+
+    @staticmethod
+    def _score_originality(name: str, song_name: str) -> int:
+        """原版倾向打分: 名称越接近纯'歌名'越高；带翻唱/Live/DJ/乐器版等后缀扣分"""
+        n = (name or "").strip()
+        s = (song_name or "").strip()
+        core = re.sub(r"[\(（\[【][^\)）\]\】]*[\)）\]\】]", "", n)  # 去括号内容
+        core = re.sub(r"\s+", "", core)
+        score = 0
+        if core == s or core.startswith(s):
+            score += 100
+        penalty = ["原唱", "翻唱", "Cover", "cover", "Live", "live", "DJ", "dj",
+                   "Remix", "remix", "版", "Demo", "demo", "女生", "男生",
+                   "女声", "男声", "钢琴", "吉他", "伴奏", "致敬", "现场",
+                   "试听", "串烧", "慢摇", "电音", "烟嗓", "戏腔", "古风",
+                   "卡点", "深情", "正式", "完整", "纯音乐", "Instrumental"]
+        for t in penalty:
+            if t in n:
+                score -= 30
+        return score
+
+    # ---- 镜像音频直链 fetcher (完整音频优先) ----
+    def _netease_url_cenguigui(self, sid, level):
         try:
-            for q2 in ["exhigh", "higher", "standard"]:
-                resp = self.session.get(f"https://api-v2.cenguigui.cn/api/netease/music_v1.php?id={song_id}&type=json&level={q2}", headers=h_std, timeout=10)
-                data = resp.json()
-                url = data.get("data", {}).get("url", "")
-                if url and url.startswith("http") and self._download_file(url, mp3_path):
-                    lyric = data.get("data", {}).get("lyric", "")
-                    with open(lrc_path, "w", encoding="utf-8") as f:
-                        f.write(lyric or "[00:00.000]暂无歌词\n")
-                    return True
+            r = self.session.get(
+                f"https://api-v2.cenguigui.cn/api/netease/music_v1.php?id={sid}&type=json&level={level}",
+                headers={"user-agent": "Mozilla/5.0"}, timeout=15)
+            return r.json().get("data", {}).get("url", "")
         except:
-            pass
-        # haitangw
+            return ""
+
+    def _netease_url_haitangw(self, sid, level):
         try:
-            for q2 in ["lossless", "exhigh", "standard"]:
-                resp = self.session.get(f"https://musicapi.haitangw.net/music/wy.php?id={song_id}&level={q2}&type=json", headers=h_std, timeout=10)
-                data = resp.json()
-                url = data.get("data", {}).get("url", "")
-                if url and url.startswith("http") and self._download_file(url, mp3_path):
-                    lyric = data.get("data", {}).get("lyric", "")
-                    with open(lrc_path, "w", encoding="utf-8") as f:
-                        f.write(lyric or "[00:00.000]暂无歌词\n")
-                    return True
+            r = self.session.get(
+                f"https://musicapi.haitangw.net/music/wy.php?id={sid}&level={level}&type=json",
+                headers={"user-agent": "Mozilla/5.0"}, timeout=15)
+            return r.json().get("data", {}).get("url", "")
         except:
-            pass
-        # rrvenn
+            return ""
+
+    def _netease_url_rrvenn(self, sid, level):
         try:
             h = {"User-Agent": "Mozilla/5.0", "Referer": "https://music.rrvenn.cn/"}
-            for q2 in ["exhigh", "higher", "standard", "lower"]:
-                resp = self.session.post("https://music.rrvenn.cn/Song_V1",
-                                         json={"url": str(song_id), "level": q2, "type": "json"}, headers=h, timeout=10)
-                data = resp.json()
-                url = data.get("data", {}).get("url", "")
-                if url and url.startswith("http") and self._download_file(url, mp3_path):
-                    lyric = data.get("data", {}).get("lyric", "")
-                    with open(lrc_path, "w", encoding="utf-8") as f:
-                        f.write(lyric or "[00:00.000]暂无歌词\n")
+            r = self.session.post("https://music.rrvenn.cn/Song_V1",
+                                  json={"url": str(sid), "level": level, "type": "json"},
+                                  headers=h, timeout=15)
+            return r.json().get("data", {}).get("url", "")
+        except:
+            return ""
+
+    def _netease_url_toubiec(self, sid, level):
+        try:
+            h = {"Origin": "https://wyapi.toubiec.cn", "Referer": "https://wyapi.toubiec.cn/",
+                 "User-Agent": "Mozilla/5.0"}
+            r = self.session.post("https://nextmusic.toubiec.cn/api/getSongUrl", headers=h,
+                                  json={"id": str(sid), "level": level,
+                                        "timestamp": int(time.time() * 1000)}, timeout=15)
+            return r.json().get("data", {}).get("url", "")
+        except:
+            return ""
+
+    def _download_netease_audio(self, sid, mp3_path: Path, quality: str, min_mb: float = 1.5) -> bool:
+        levels = {"high": ["exhigh", "higher", "standard"],
+                  "standard": ["standard", "higher"],
+                  "lossless": ["lossless", "exhigh"]}.get(quality, ["exhigh", "higher", "standard"])
+        # 顺序: 优先完整音频镜像，toubiec 易返回截断片段，放最后兜底
+        fetchers = [self._netease_url_cenguigui, self._netease_url_haitangw,
+                    self._netease_url_rrvenn, self._netease_url_toubiec]
+        part = mp3_path.with_suffix(".part.mp3")  # 临时文件，达标才原子改名
+        for fetcher in fetchers:
+            for lvl in levels:
+                url = fetcher(sid, lvl)
+                if not url or not url.startswith("http"):
+                    continue
+                size = self._fetch_url_to_file(url, part)
+                if size >= min_mb * 1024 * 1024:
+                    part.replace(mp3_path)  # 完整 -> 落盘为最终文件
                     return True
+                # 文件过小(被截断片段) -> 清理临时文件并尝试下一源
+                if part.exists():
+                    try:
+                        part.unlink()
+                    except Exception:
+                        pass
+        return False
+
+    def _fetch_netease_lyric(self, sid, lrc_path: Path) -> bool:
+        """官方歌词接口，返回带时间轴的真实 LRC"""
+        try:
+            h = {"User-Agent": "Mozilla/5.0", "Referer": "https://music.163.com/"}
+            r = self.session.post("https://music.163.com/api/song/lyric",
+                                  data={"id": sid, "lv": 1, "kv": 1, "tv": -1},
+                                  headers=h, timeout=15)
+            data = r.json()
+            lrc = data.get("lrc", {})
+            lyric = lrc.get("lyric", "") if isinstance(lrc, dict) else ""
+            if self._has_timestamps(lyric):
+                lrc_path.write_text(lyric, encoding="utf-8")
+                return True
         except:
             pass
         return False
 
-    def _save_netease_lyric(self, song_id: str, lrc_path: Path):
-        try:
-            h = {"Accept": "*/*", "Origin": "https://wyapi.toubiec.cn",
-                 "Referer": "https://wyapi.toubiec.cn/", "User-Agent": "Mozilla/5.0"}
-            resp = self.session.post("https://nextmusic.toubiec.cn/api/getSongLyric", headers=h,
-                                     json={"id": str(song_id), "timestamp": int(time.time() * 1000)}, timeout=10)
-            lyric = resp.json().get("data", {}).get("lrc", "")
-            if lyric and lyric.startswith("{"):
-                lyric = json.loads(lyric).get("lrc", {}).get("lyric", lyric)
-        except:
-            lyric = ""
-        with open(lrc_path, "w", encoding="utf-8") as f:
-            f.write(lyric or "[00:00.000]暂无歌词\n")
+    def _fetch_netease_lyric_inline(self, sid, lrc_path: Path) -> bool:
+        """镜像源内联歌词兜底"""
+        inline = [
+            f"https://api-v2.cenguigui.cn/api/netease/music_v1.php?id={sid}&type=json&level=exhigh",
+            f"https://musicapi.haitangw.net/music/wy.php?id={sid}&level=exhigh&type=json",
+        ]
+        for url in inline:
+            try:
+                r = self.session.get(url, headers={"user-agent": "Mozilla/5.0"}, timeout=15)
+                lyric = r.json().get("data", {}).get("lyric", "")
+                if self._has_timestamps(lyric):
+                    lrc_path.write_text(lyric, encoding="utf-8")
+                    return True
+            except:
+                continue
+        return False
+
+    def _get_netease_lyric_best(self, primary_id, all_ids, lrc_path: Path) -> bool:
+        # 同一首歌在不同版本间歌词文本一致，优先用主 ID，缺失则回退其他候选
+        for sid in [primary_id] + [i for i in all_ids if i != primary_id]:
+            if self._fetch_netease_lyric(sid, lrc_path):
+                return True
+        for sid in all_ids:
+            if self._fetch_netease_lyric_inline(sid, lrc_path):
+                return True
+        lrc_path.write_text("[00:00.000]暂无歌词\n", encoding="utf-8")
+        return False
+
+    def _try_netease_robust(self, singer, song_name, mp3_path: Path, lrc_path: Path, quality: str) -> bool:
+        candidates = self._search_netease(f"{singer} {song_name}", limit=10)
+        if not candidates:
+            return False
+        enriched = []
+        for c in candidates[:10]:
+            d = self._get_netease_detail(c["id"]) or {}
+            c["artist"] = d.get("artist") or c.get("artist", "")
+            c["album"] = d.get("album", "")
+            c["match"] = self._artist_matches(c.get("artist", ""), singer)
+            enriched.append(c)
+        matched = [c for c in enriched if c["match"]]
+        if not matched:
+            # 搜索接口降级或未收录原唱 -> 不静默返回翻唱/片段
+            self._log(f"  ⚠️ 网易云搜索结果未匹配到原唱「{singer}」，可能为翻唱或搜索接口降级，跳过")
+            return False
+        # 原唱匹配者中，优先"最像原版"的名称(Live/翻唱/DJ 等后缀扣分)
+        matched.sort(key=lambda x: -self._score_originality(x["name"], song_name))
+        all_ids = [c["id"] for c in enriched]
+        for c in matched:
+            if self._download_netease_audio(c["id"], mp3_path, quality, min_mb=1.5):
+                self._get_netease_lyric_best(c["id"], all_ids, lrc_path)
+                self._log(f"  网易云命中原唱: {c.get('name')} / {c.get('artist')}")
+                return True
+        return False
+
+    # ========== 按 NetEase 歌曲 ID 精确下载（搜索降级时的可靠通道） ==========
+    def download_by_id(self, netease_id, singer: str = "", song_name: str = "",
+                       output_dir: str = None, era: str = "", level: str = "",
+                       quality: str = None, skip_existing: bool = True) -> dict:
+        quality = (quality or self.default_quality).lower()
+        if quality not in ("standard", "high", "lossless"):
+            quality = "high"
+        base_dir = Path(output_dir) if output_dir else self.output_dir
+        base_dir.mkdir(parents=True, exist_ok=True)
+        if era and level:
+            save_dir = base_dir / self._sanitize(era) / self._sanitize(level)
+        elif era:
+            save_dir = base_dir / self._sanitize(era)
+        else:
+            save_dir = base_dir
+        save_dir.mkdir(parents=True, exist_ok=True)
+
+        detail = self._get_netease_detail(netease_id) or {}
+        singer = (singer or detail.get("artist") or "未知歌手").strip()
+        song_name = (song_name or detail.get("name") or str(netease_id)).strip()
+        filename = f"{self._sanitize(singer)} - {self._sanitize(song_name)}"
+        mp3_path = save_dir / f"{filename}.mp3"
+        lrc_path = save_dir / f"{filename}.lrc"
+
+        if skip_existing and self._already_downloaded(mp3_path, lrc_path):
+            self.stats["skipped"] += 1
+            return {"success": True, "source": "cached", "mp3_path": str(mp3_path),
+                    "lrc_path": str(lrc_path), "message": "已存在，跳过"}
+
+        self._log(f"按ID下载: {netease_id} (音质={quality}) -> {filename}")
+        if not self._download_netease_audio(netease_id, mp3_path, quality, min_mb=1.5):
+            self.stats["failed"] += 1
+            self._log(f"  [失败] 无法获取音频: {netease_id}")
+            return {"success": False, "source": "", "mp3_path": "",
+                    "lrc_path": "", "message": f"按ID下载音频失败: {netease_id}"}
+        self._get_netease_lyric_best(netease_id, [netease_id], lrc_path)
+        self.stats["success"] += 1
+        self._log(f"  [成功] 按ID下载: {filename}")
+        return {"success": True, "source": "网易云(按ID)", "mp3_path": str(mp3_path),
+                "lrc_path": str(lrc_path), "message": f"网易云: {filename}"}
 
     # ========== QQ Music ==========
     def _search_qq(self, keyword: str, limit: int = 5) -> list:
@@ -560,6 +737,27 @@ class MusicDownloader:
         except:
             return False
 
+    def _fetch_url_to_file(self, url: str, path: Path) -> int:
+        """流式下载到 path，返回实际字节数(失败返回 0)，用于完整度校验"""
+        try:
+            resp = self.session.get(url, headers={"User-Agent": "Mozilla/5.0"},
+                                    timeout=60, stream=True)
+            resp.raise_for_status()
+            tmp = path.with_suffix(path.suffix + ".part")
+            total = 0
+            with open(tmp, "wb") as f:
+                for chunk in resp.iter_content(8192):
+                    if chunk:
+                        f.write(chunk)
+                        total += len(chunk)
+            if total < 1024:
+                tmp.unlink(missing_ok=True)
+                return 0
+            tmp.replace(path)
+            return total
+        except:
+            return 0
+
     def _sanitize(self, name: str) -> str:
         return re.sub(r'[\\/:*?"<>|]', "_", str(name)).strip()
 
@@ -584,6 +782,7 @@ def main():
     parser = argparse.ArgumentParser(description="中国主流音乐平台歌曲下载器 V4")
     parser.add_argument("-s", "--singer", help="演唱者名称")
     parser.add_argument("-n", "--song", help="歌曲名称")
+    parser.add_argument("--id", type=int, help="网易云歌曲ID（搜索不可用时的精确下载通道）")
     parser.add_argument("-o", "--output", default=DEFAULT_OUTPUT, help="输出目录")
     parser.add_argument("-q", "--quality", default="high", choices=["standard", "high", "lossless"],
                         help="音质: standard(标准) high(高品质) lossless(无损)")
@@ -603,6 +802,10 @@ def main():
         dl.download_from_text(args.text, output_dir=args.output, era=args.era, level=args.level, quality=args.quality)
     elif args.file:
         dl.download_from_file(args.file, output_dir=args.output, era=args.era, level=args.level, quality=args.quality)
+    elif args.id:
+        result = dl.download_by_id(args.id, singer=args.singer or "", song_name=args.song or "",
+                                  output_dir=args.output, era=args.era, level=args.level, quality=args.quality)
+        print(f"\n结果: {result['message']}")
     elif args.singer and args.song:
         result = dl.download(args.singer, args.song, output_dir=args.output,
                              era=args.era, level=args.level, quality=args.quality)
