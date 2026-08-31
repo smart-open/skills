@@ -22,3 +22,6 @@ a-stock-operator-v2/data/
 a-stock-operator-v2/output/
 **/__pycache__/
 *.pyc
+
+# lhb-t3-recommender 运行时产物（数据快照、模型、历史、推荐 CSV、HTML 报告）
+lhb-t3-recommender/runtime/

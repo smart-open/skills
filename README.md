@@ -5,7 +5,7 @@
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-13-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-14-orange)]()
 
 ---
 
@@ -30,6 +30,7 @@
   - [a-stock-operator — A 股市场操盘手](#11-a-stock-operator--a-股市场操盘手)
   - [dev-lifecycle — 软件开发生命周期编排](#12-dev-lifecycle--软件开发生命周期编排)
   - [a-stock-operator-v2 — A 股行情复盘与个股诊断（增强版）](#13-a-stock-operator-v2--a-股行情复盘与个股诊断增强版)
+  - [lhb-t3-recommender — 龙虎榜 T+3 涨停推荐与自进化模型](#14-lhb-t3-recommender--龙虎榜-t3-涨停推荐与自进化模型)
 - [朝代列表](#朝代列表)
 - [婚礼电影方案对比](#婚礼电影方案对比)
 - [通用注意事项](#通用注意事项)
@@ -41,7 +42,7 @@
 
 ## 简介
 
-本工程聚合了 13 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、A 股市场操盘分析、软件开发生命周期编排**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
+本工程聚合了 14 个独立的 TRAE Skills，覆盖 AI 创作的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、A 股市场操盘分析、龙虎榜 T+3 涨停推荐、软件开发生命周期编排**。所有脚本仅使用 Node.js 内置模块（`https`、`fs`、`path` 等），**无需 `npm install`**，开箱即用。
 
 **核心亮点：**
 
@@ -60,6 +61,7 @@
 - **A 股操盘分析**：个股六维诊断 + 市场资讯选股推荐，12 个东方财富 API 实时数据 + 6 层数据验证体系
 - **A 股行情复盘与个股诊断（增强版）**：金融终端深色主题报告，情绪温度计 + 近一月板块轮动 + 资金四象限 + 全流程一键管线
 - **软件开发生命周期编排**：5 阶段 + 每阶段 HITL 确认，前 4 阶段产出文档，第 5 阶段按 SOP 6 步推进开发
+- **龙虎榜 T+3 涨停推荐**：可解释逻辑回归概率模型 + 席位画像 + 每日验证重训的自进化机制，时间外 AUC 门控版本迭代
 
 ---
 
@@ -80,6 +82,7 @@
 | `a-stock-operator` | A 股市场操盘手（个股六维诊断 + 市场资讯选股推荐） | 东方财富 API（12 端点）+ 财联社等 5 大财经网站 + integrated_code_mode MCP | 无（纯规范型，通过 MCP 调用 API） | 个股诊断约 2–5 分钟，市场报告约 5–10 分钟 |
 | `dev-lifecycle` | 端到端软件开发流程编排（5 阶段 + 每阶段 HITL 确认） | 无（纯规范型，仅 SKILL.md） | 无 | 按项目规模而定 |
 | `a-stock-operator-v2` | A 股行情复盘 + 个股诊断（情绪温度计 + 板块轮动专题 + 双权重评分） | 东方财富/腾讯/新浪公开 API + 财联社 | Python 3.10+ | 全流程约 5–10 分钟（`collect_all.py` 一条命令） |
+| `lhb-t3-recommender` | 龙虎榜「后期涨停」推荐与自进化模型（T+3 涨停概率 + 席位画像 + 每日验证重训） | 东方财富/同花顺/腾讯 K线公开接口 | Python 3.10+（pandas/scikit-learn） | 首次 init 约 10–15 分钟，其后 daily 每条命令约 1–3 分钟 |
 
 ---
 
@@ -147,6 +150,9 @@ d:\ai_work\skills\
 └── a-stock-operator-v2/
     ├── SKILL.md                      # A 股行情复盘 + 个股诊断技能规范（v1.17，Python 管线）
     └── scripts/                      # 全流程管线（collect_all.py 一键采集→检查→模型→报告）
+└── lhb-t3-recommender/
+    ├── SKILL.md                      # 龙虎榜 T+3 涨停推荐与自进化模型规范（v1.3，Python 管线）
+    └── scripts/                      # 全流程管线（run.py init/daily/optimize 等 12 个脚本）
 ```
 
 ---
@@ -1503,6 +1509,33 @@ py312 scripts/collect_all.py --skip collect_news.py  # 跳过指定步骤
 
 ---
 
+### 14. lhb-t3-recommender — 龙虎榜 T+3 涨停推荐与自进化模型
+
+把「龙虎榜上榜个股 → 后期（T+1~T+3）仍有涨停冲高」做成可复用的可解释概率模型：每天收盘后自动出候选，每天用「昨日推荐 vs 今日实际涨停」验证并把新结果喂回训练，模型版本按时间外 AUC 不劣则 +1，越用越准。
+
+**核心能力：**
+
+| 模块 | 说明 |
+|------|------|
+| 盘后推荐 | 每交易日 17:00 后抓当日龙虎榜，对全部上榜股输出 `P(T+3涨停)` 排序，给出「纳入观察」候选 |
+| 三维归因 | 个股技术 × 席位操作手法 × 行情研判，逻辑回归评分卡可解释 |
+| 席位画像 | 游资席位打板/低吸/接力风格聚类 + EB 收缩综评 + 紫阳东路专项解读 |
+| 自进化 | 时间衰减样本权重 + walk-forward 防过拟合复合门控 + 真实 T+3 结果回馈 |
+| HTML 报告 | 方法论文/赢家共性/席位手法/评估/评分卡/实战验证/进化轨迹/买入策略八章 |
+
+**用法（自包含，已相对化路径）：**
+
+```bash
+py scripts/run.py init                     # 首次全量构建（近 90 天龙虎榜 + K线 + 首版模型，约 10–15 分钟）
+py scripts/run.py daily                    # 每日盘后：抓榜 → 推荐 → 验证 → 进化 → 报告
+py scripts/run.py optimize                 # 手动触发自我进化重训
+py scripts/run.py recommend 2026-08-31     # 单日推荐（用缓存，不抓数据）
+```
+
+产物统一落在技能目录 `runtime/` 下（数据快照、`model_t3.joblib`、`model_history.json`、`recommend_{日期}.csv`、HTML 报告）；`runtime/` 为运行时产物，分发时仅打包 `SKILL.md` + `scripts/`。依赖 pandas / scikit-learn / requests / joblib。
+
+---
+
 ## 通用注意事项
 
 1. **文件持久化（关键）**：视频生成类技能生成的 MP4 文件需立即设置只读属性，防止工作区自动清空为 0 字节。
@@ -1576,6 +1609,7 @@ py312 scripts/collect_all.py --skip collect_news.py  # 跳过指定步骤
 | A 股行情复盘（板块轮动+情绪温度计） | `a-stock-operator-v2` | 一键管线 + 情绪温度计 + 近一月板块轮动 + 资金四象限 |
 | A 股个股诊断（短线/中线双权重） | `a-stock-operator-v2` | 六维双权重评分 + 个股诊断报告生成 |
 | 从需求到代码的完整开发流程编排 | `dev-lifecycle` | 5 阶段 + HITL 确认 + SOP 6 步开发 |
+| A 股龙虎榜后期涨停预判 / T+3 候选 | `lhb-t3-recommender` | 逻辑回归概率模型 + 席位画像 + 每日验证自进化 |
 
 ---
 
