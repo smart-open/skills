@@ -1,13 +1,13 @@
 #!/usr/bin/env node
 // -*- coding: utf-8 -*-
 /**
- * Volc Wedding - AI Cross-Era Wedding Movie Generator
+ * Timeless Wedding Volc - AI Cross-Era Wedding Movie Generator
  * ====================================================
  * Main CLI entry point. Orchestrates the full pipeline:
  *   portraits → scenes → videos → merge
  *
  * Usage:
- *   node volc_wedding.js --male-photo <path> --female-photo <path> --dynasties <ids> [options]
+ *   node timeless_wedding_volc.js --male-photo <path> --female-photo <path> --dynasties <ids> [options]
  */
 
 const fs = require("fs");
@@ -97,10 +97,10 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log(
-    "Volc Wedding - AI Cross-Era Wedding Movie Generator\n" +
+    "Timeless Wedding Volc - AI Cross-Era Wedding Movie Generator\n" +
     "====================================================\n\n" +
     "Usage:\n" +
-    "  node volc_wedding.js --male-photo <path> --female-photo <path> --dynasties <ids> [options]\n\n" +
+    "  node timeless_wedding_volc.js --male-photo <path> --female-photo <path> --dynasties <ids> [options]\n\n" +
     "Required:\n" +
     "  --male-photo <path>       Path to groom's photo\n" +
     "  --female-photo <path>     Path to bride's photo\n" +
@@ -175,7 +175,7 @@ class VolcWedding {
   constructor(args) {
     this.args = args;
     this.sessionId = generateSessionId();
-    this.workDir = args.workDir || path.join(process.cwd(), "volc-wedding", "work", this.sessionId);
+    this.workDir = args.workDir || path.join(process.cwd(), "timeless-wedding-volc", "work", this.sessionId);
     this.portraitsDir = path.join(this.workDir, "portraits");
     this.scenesDir = path.join(this.workDir, "scenes");
     this.videosDir = path.join(this.workDir, "videos");
@@ -242,7 +242,7 @@ class VolcWedding {
     }
 
     console.log("\n========================================");
-    console.log("  Volc Wedding - AI Wedding Movie");
+    console.log("  Timeless Wedding Volc - AI Wedding Movie");
     console.log("========================================");
     console.log("Session: " + this.sessionId);
     console.log("Dynasties: " + this.dynasties.map((d) => d.name).join(" → "));

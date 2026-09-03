@@ -69,10 +69,10 @@ echo ==========================================
 echo.
 echo FaceFusion installed at: %INSTALL_DIR%
 echo.
-echo To use with Cross-Era Wedding skill, set environment variable:
+echo To use with Timeless Wedding skill, set environment variable:
 echo   setx FACEFUSION_PATH "%INSTALL_DIR%\run.py"
 echo.
 echo Or pass it directly:
-echo   node cross_era_wedding.js --facefusion-path "%INSTALL_DIR%\run.py" ...
+echo   node timeless_wedding.js --facefusion-path "%INSTALL_DIR%\run.py" ...
 echo.
 pause

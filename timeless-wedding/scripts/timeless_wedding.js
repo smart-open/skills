@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // -*- coding: utf-8 -*-
 /**
- * Cross-Era Wedding - AI Wedding Movie Generator
+ * Timeless Wedding - AI Wedding Movie Generator
  * ================================================
- * Generates a cinematic cross-era wedding movie from two personal photos.
+ * Generates a cinematic timeless wedding movie from two personal photos.
  *
  * Workflow:
  *   1. Generate scene keyframes for each selected dynasty (Agnes t2i)
@@ -146,10 +146,10 @@ function parseArgs(argv) {
 
 function printHelp() {
   console.log(
-    "Cross-Era Wedding Movie Generator\n" +
+    "Timeless Wedding Movie Generator\n" +
     "=================================\n\n" +
     "Usage:\n" +
-    "  node cross_era_wedding.js --male-photo <path> --female-photo <path> --dynasties <ids> [options]\n\n" +
+    "  node timeless_wedding.js --male-photo <path> --female-photo <path> --dynasties <ids> [options]\n\n" +
     "Required:\n" +
     "  --male-photo <path>      Path to groom's photo\n" +
     "  --female-photo <path>    Path to bride's photo\n" +
@@ -298,7 +298,7 @@ class CrossEraWedding {
   constructor(args) {
     this.args = args;
     this.sessionId = generateSessionId();
-    this.workDir = args.workDir || path.join(process.cwd(), "cross-era-wedding", "work", this.sessionId);
+    this.workDir = args.workDir || path.join(process.cwd(), "timeless-wedding", "work", this.sessionId);
     this.framesDir = path.join(this.workDir, "frames");
     this.swappedDir = path.join(this.workDir, "swapped");
     this.videosDir = path.join(this.workDir, "videos");
@@ -749,7 +749,7 @@ class CrossEraWedding {
     if (!this.args.addTitle) return null;
     const titlePath = path.join(this.tempDir, "title.mp4");
     const titleText = "几生几世 跨时空相爱";
-    const subText = "Cross-Era Wedding";
+    const subText = "Timeless Wedding";
     const eraList = this.dynasties.map((d) => d.name).join(" → ");
     const fontOpt = prepareFont(this.tempDir);
 
@@ -987,7 +987,7 @@ class CrossEraWedding {
 
   // ---- Run full pipeline ----
   async run() {
-    console.log("Cross-Era Wedding Movie Generator");
+    console.log("Timeless Wedding Movie Generator");
     console.log("=================================");
     console.log("Session: " + this.sessionId);
     console.log("Dynasties: " + this.dynasties.map((d) => d.name).join(", "));

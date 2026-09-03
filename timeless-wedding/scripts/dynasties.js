@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 /**
- * Cross-Era Wedding - Dynasty Configuration
+ * Timeless Wedding - Dynasty Configuration
  * ==========================================
  * Contains metadata and prompt templates for 13 Chinese dynasties/eras.
  * All image/video prompts are in English for optimal Agnes API performance.

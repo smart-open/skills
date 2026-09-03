@@ -1,9 +1,9 @@
 ---
-name: "volc-wedding"
+name: "timeless-wedding-volc"
 description: "AI 跨时空婚礼电影生成器。上传男女照片，选择中国朝代，自动生成电影质感的跨时代婚礼视频。当用户想要制作 AI 婚礼视频、跨朝代爱情电影、上传照片生成视频时调用此 Skill。"
 ---
 
-# Volc Wedding - AI 跨时空婚礼电影生成器
+# Timeless Wedding Volc - AI 跨时空婚礼电影生成器
 
 基于 **Volcengine Ark（豆包）** 平台的 AI 婚礼电影生成 Skill。用户上传男女两张照片，选择 2-5 个中国朝代，即可自动生成一部跨越时空的 cinematic 婚礼电影。
 
@@ -42,13 +42,13 @@ description: "AI 跨时空婚礼电影生成器。上传男女照片，选择中
 
 ```powershell
 # 标准版（默认，无需指定 --video-model）
-node volc_wedding.js --dynasties "tang,ming" --male-photo ... --female-photo ...
+node timeless_wedding_volc.js --dynasties "tang,ming" --male-photo ... --female-photo ...
 
 # Mini 快速版（预览效果）
-node volc_wedding.js --dynasties "tang,ming" --video-model doubao-seedance-2-0-mini-260615 --male-photo ... --female-photo ...
+node timeless_wedding_volc.js --dynasties "tang,ming" --video-model doubao-seedance-2-0-mini-260615 --male-photo ... --female-photo ...
 
 # Fast 极速版（最快验证）
-node volc_wedding.js --dynasties "tang,ming" --video-model doubao-seedance-2-0-fast-260128 --male-photo ... --female-photo ...
+node timeless_wedding_volc.js --dynasties "tang,ming" --video-model doubao-seedance-2-0-fast-260128 --male-photo ... --female-photo ...
 ```
 
 ## 环境要求
@@ -104,9 +104,9 @@ $env:ARK_API_KEY = "your-ark-api-key"
 ### 基础用法
 
 ```powershell
-cd .trae/skills/volc-wedding/scripts
+cd .trae/skills/timeless-wedding-volc/scripts
 
-node volc_wedding.js `
+node timeless_wedding_volc.js `
   --male-photo "C:\Photos\groom.jpg" `
   --female-photo "C:\Photos\bride.jpg" `
   --dynasties "tang,song,ming,modern" `
@@ -195,7 +195,7 @@ work/
 
 | 文件 | 行数 | 职责 |
 |------|------|------|
-| `volc_wedding.js` | 432 | 主入口 CLI，状态机，流水线编排 |
+| `timeless_wedding_volc.js` | 432 | 主入口 CLI，状态机，流水线编排 |
 | `ark_client.js` | 151 | Ark API 通信封装，指数退避重试 |
 | `dynasties.js` | 536 | 13 朝代配置，英文 prompt，时间分段剧本 |
 | `image_pipeline.js` | 221 | Seedream i2i 肖像 + multi-i2i 场景 |

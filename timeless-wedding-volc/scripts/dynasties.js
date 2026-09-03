@@ -1,6 +1,6 @@
 // -*- coding: utf-8 -*-
 /**
- * Dynasty Configurations for Volc Wedding Skill
+ * Dynasty Configurations for Timeless Wedding Volc Skill
  * =============================================
  * 13 Chinese dynasties with cinematic prompts for Seedream + Seedance.
  * Each dynasty is a "micro-script" with time-segmented video descriptions.

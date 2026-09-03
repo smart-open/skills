@@ -1,9 +1,9 @@
 ---
-name: "cross-era-wedding"
+name: "timeless-wedding"
 description: "AI 跨时空婚礼电影生成器（免费 API 版）。基于 Agnes 免费图片/视频 API，上传男女照片穿越 2-4 个中国历史朝代生成电影级婚礼短片。当用户想要免费制作 AI 婚礼视频、跨朝代爱情电影、或 dynasty-themed couple video with face-swap enhancement 时调用此 Skill。"
 ---
 
-# Cross-Era Wedding - AI 跨时空婚礼电影生成器（免费 API 版）
+# Timeless Wedding - AI 跨时空婚礼电影生成器（免费 API 版）
 
 > **核心优势**：基于 **Agnes 免费图片/视频 API**，零成本生成跨时空婚礼电影。上传两张个人照片，穿越 2–4 个中国历史朝代，生成一段"几生几世跨时空相爱"的电影级婚礼短片。
 
@@ -65,7 +65,7 @@ cd facefusion
 python install.py --onnxruntime cpu
 
 # 方式2：使用附带脚本（如果存在）
-.\.trae\skills\cross-era-wedding\scripts\install_facefusion.bat
+.\.trae\skills\timeless-wedding\scripts\install_facefusion.bat
 ```
 
 安装后设置环境变量：
@@ -78,7 +78,7 @@ $env:FACEFUSION_PATH="C:\facefusion\run.py"
 ### 基本用法（2–4 个朝代）
 
 ```bash
-node .trae/skills/cross-era-wedding/scripts/cross_era_wedding.js \
+node .trae/skills/timeless-wedding/scripts/timeless_wedding.js \
   --male-photo "D:\photos\groom.jpg" \
   --female-photo "D:\photos\bride.jpg" \
   --dynasties tang,song,ming,modern \
@@ -88,7 +88,7 @@ node .trae/skills/cross-era-wedding/scripts/cross_era_wedding.js \
 ### 完整参数示例
 
 ```bash
-node .trae/skills/cross-era-wedding/scripts/cross_era_wedding.js \
+node .trae/skills/timeless-wedding/scripts/timeless_wedding.js \
   --male-photo "D:\photos\groom.jpg" \
   --female-photo "D:\photos\bride.jpg" \
   --dynasties tang,song,ming,modern \
@@ -105,7 +105,7 @@ node .trae/skills/cross-era-wedding/scripts/cross_era_wedding.js \
 如果中途中断，使用 `--resume` 从上次状态继续：
 
 ```bash
-node .trae/skills/cross-era-wedding/scripts/cross_era_wedding.js \
+node .trae/skills/timeless-wedding/scripts/timeless_wedding.js \
   --resume \
   --work-dir "D:\...\work\20250101-120000-xxxx"
 ```
@@ -113,7 +113,7 @@ node .trae/skills/cross-era-wedding/scripts/cross_era_wedding.js \
 ### 重生成单个朝代
 
 ```bash
-node .trae/skills/cross-era-wedding/scripts/cross_era_wedding.js \
+node .trae/skills/timeless-wedding/scripts/timeless_wedding.js \
   --resume \
   --work-dir "D:\...\work\20250101-120000-xxxx" \
   --regenerate tang
@@ -124,7 +124,7 @@ node .trae/skills/cross-era-wedding/scripts/cross_era_wedding.js \
 如果不安装 FaceFusion，使用 `--no-face-swap` 运行。面部相似度约 50–60%，流程仍然完整：
 
 ```bash
-node .trae/skills/cross-era-wedding/scripts/cross_era_wedding.js \
+node .trae/skills/timeless-wedding/scripts/timeless_wedding.js \
   --male-photo "D:\photos\groom.jpg" \
   --female-photo "D:\photos\bride.jpg" \
   --dynasties tang,song,ming,modern \

@@ -1,4 +1,4 @@
-# Volc Wedding - AI 跨时空婚礼电影生成器
+# Timeless Wedding Volc - AI 跨时空婚礼电影生成器
 
 > 上传两张照片，穿越千年，生成属于你们的跨时空爱情电影。
 
@@ -47,10 +47,10 @@ winget install Gyan.FFmpeg
 $env:ARK_API_KEY = "your-ark-api-key"
 
 # 进入脚本目录
-cd .trae/skills/volc-wedding/scripts
+cd .trae/skills/timeless-wedding-volc/scripts
 
 # 运行（选择4个朝代，带片头片尾）
-node volc_wedding.js `
+node timeless_wedding_volc.js `
   --male-photo "C:\Photos\groom.jpg" `
   --female-photo "C:\Photos\bride.jpg" `
   --dynasties "warring,tang,ming,modern" `
@@ -80,11 +80,11 @@ node volc_wedding.js `
 ## 文件结构
 
 ```
-volc-wedding/
+timeless-wedding-volc/
 ├── SKILL.md              # Skill 定义文档
 ├── README.md             # 本文件
 └── scripts/
-    ├── volc_wedding.js   # 主入口（CLI + 状态机）
+    ├── timeless_wedding_volc.js   # 主入口（CLI + 状态机）
     ├── ark_client.js     # Ark API 通信层
     ├── dynasties.js       # 13 朝代 prompt 配置
     ├── image_pipeline.js  # 图片生成流水线
@@ -99,7 +99,7 @@ volc-wedding/
 生成过程中断后，使用 `--resume` 从上次进度继续：
 
 ```powershell
-node volc_wedding.js `
+node timeless_wedding_volc.js `
   --male-photo "C:\Photos\groom.jpg" `
   --female-photo "C:\Photos\bride.jpg" `
   --dynasties "warring,tang,ming,modern" `
@@ -110,7 +110,7 @@ node volc_wedding.js `
 对某个朝代不满意？单独重生成：
 
 ```powershell
-node volc_wedding.js `
+node timeless_wedding_volc.js `
   --dynasties "warring,tang,ming,modern" `
   --work-dir "work\20260716-143022-a1b2" `
   --regenerate "tang"
@@ -129,10 +129,10 @@ node volc_wedding.js `
 
 ```powershell
 # 使用 Mini 快速版预览
-node volc_wedding.js --dynasties "tang,ming" --video-model doubao-seedance-2-0-mini-260615 ...
+node timeless_wedding_volc.js --dynasties "tang,ming" --video-model doubao-seedance-2-0-mini-260615 ...
 
 # 使用 Fast 极速版
-node volc_wedding.js --dynasties "tang,ming" --video-model doubao-seedance-2-0-fast-260128 ...
+node timeless_wedding_volc.js --dynasties "tang,ming" --video-model doubao-seedance-2-0-fast-260128 ...
 ```
 
 > Mini/Fast 模型不支持 `resolution` 参数，代码会自动处理。

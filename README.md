@@ -59,8 +59,8 @@
 |------|-----------|---------|---------|---------|
 | `agnes-image-gen-2` | Agnes Image 2.5 Flash 电影级图片生成（文生图 / 图生图） | Agnes Image API | Node.js 12+ | 单张约 10–30 秒 |
 | `agnes-video-gen-2` | Agnes Video 2.5 Flash 电影级视频生成（4 种工作流） | Agnes Video API | Node.js 12+ | 单段约 1–5 分钟 |
-| `cross-era-wedding` | 跨时空婚礼电影生成器（Agnes + FaceFusion 换脸） | Agnes API + FaceFusion + FFmpeg | Node.js 12+、Python 3.10+（可选）、FFmpeg 4.4+ | 2 朝代约 10–15 分钟，4 朝代约 20–30 分钟 |
-| `volc-wedding` | 基于 Volcengine Ark 的跨时空婚礼电影生成器 | 火山方舟 Ark API + FFmpeg | Node.js 12+、FFmpeg 4.4+ | 4 朝代约 15–25 分钟 |
+| `timeless-wedding` | 跨时空婚礼电影生成器（Agnes + FaceFusion 换脸） | Agnes API + FaceFusion + FFmpeg | Node.js 12+、Python 3.10+（可选）、FFmpeg 4.4+ | 2 朝代约 10–15 分钟，4 朝代约 20–30 分钟 |
+| `timeless-wedding-volc` | 基于 Volcengine Ark 的跨时空婚礼电影生成器 | 火山方舟 Ark API + FFmpeg | Node.js 12+、FFmpeg 4.4+ | 4 朝代约 15–25 分钟 |
 | `suno-cn-music` | Suno.cn AI 音乐创作助手（8 个 REST API） | Suno.cn API | 无（HTTP REST 调用） | 单首约 1–3 分钟 |
 | `talkshow` | 爆款舞台美女脱口秀视频生成器（剧本优化 + TTS + Wav2Lip 口型同步） | Agnes Text/Image/Video API + Edge TTS + Wav2Lip + FFmpeg | Node.js 12+、Python、FFmpeg 4.4+、PyTorch（可选） | 单场景约 3–8 分钟 |
 | `talkshow-studio` | 生产级脱口秀视频工坊（Agnes 全模态 + 原生口型语音） | Agnes 全模态 API + FFmpeg | Node.js 12+、FFmpeg 4.4+ | 单场景约 3–8 分钟 |
@@ -90,17 +90,17 @@ skills/
 ├── agnes-video-gen-2/                 # 电影级视频生成
 │   ├── SKILL.md
 │   └── scripts/agnes_video_gen.js
-├── cross-era-wedding/                 # 跨时空婚礼电影（Agnes + FaceFusion）
+├── timeless-wedding/                 # 跨时空婚礼电影（Agnes + FaceFusion）
 │   ├── SKILL.md
 │   └── scripts/
-│       ├── cross_era_wedding.js
+│       ├── timeless_wedding.js
 │       ├── dynasties.js               # 13 朝配置
 │       └── install_facefusion.bat
-├── volc-wedding/                      # 跨时空婚礼电影（火山方舟 Ark）
+├── timeless-wedding-volc/                      # 跨时空婚礼电影（火山方舟 Ark）
 │   ├── README.md                      # 产品说明
 │   ├── SKILL.md
 │   └── scripts/                       # 6 文件，约 2,070 行
-│       ├── volc_wedding.js
+│       ├── timeless_wedding_volc.js
 │       ├── ark_client.js
 │       ├── dynasties.js
 │       ├── image_pipeline.js
@@ -179,8 +179,8 @@ skills/
 │
 └── demo/                              # 各技能生成效果示例（不纳入版本控制）
     ├── comedy_show.mp4
-    ├── cross_era_wedding_movie.mp4
-    ├── volc_wedding_movie.mp4
+    ├── timeless_wedding_movie.mp4
+    ├── timeless_wedding_volc_movie.mp4
     ├── corp-site/                     # 企业门户示例
     └── mingzhong-machinery/           # 企业门户示例（制造业）
 ```
@@ -202,8 +202,8 @@ cd skills
 
 ```powershell
 # Windows PowerShell
-$env:agnes-api-key = "sk-xxxx"        # Agnes 图片/视频/cross-era-wedding/talkshow
-$env:ARK_API_KEY = "your-ark-key"     # volc-wedding
+$env:agnes-api-key = "sk-xxxx"        # Agnes 图片/视频/timeless-wedding/talkshow
+$env:ARK_API_KEY = "your-ark-key"     # timeless-wedding-volc
 $env:SUNO_CN_API_KEY = "sk-xxxx"      # suno-cn-music
 ```
 
@@ -228,7 +228,7 @@ node agnes-video-gen-2/scripts/agnes_video_gen.js \
   --output "cat.mp4"
 
 # 生成跨时空婚礼电影（火山方舟版）
-node volc-wedding/scripts/volc_wedding.js \
+node timeless-wedding-volc/scripts/timeless_wedding_volc.js \
   --male-photo "groom.jpg" --female-photo "bride.jpg" \
   --dynasties "tang,song,ming,modern" --add-title --add-ending
 
@@ -257,8 +257,8 @@ node talkshow/scripts/talkshow.js \
 
 | 技能 | 环境变量 | 命令行参数 | 获取方式 |
 |------|---------|-----------|---------|
-| agnes-image-gen-2 / agnes-video-gen-2 / cross-era-wedding / talkshow / talkshow-studio | `agnes-api-key` 或 `AGNES_API_KEY` | `--api-key` | Agnes 平台 |
-| volc-wedding | `ARK_API_KEY` | `--api-key` | [火山方舟控制台](https://console.volcengine.com/ark) |
+| agnes-image-gen-2 / agnes-video-gen-2 / timeless-wedding / talkshow / talkshow-studio | `agnes-api-key` 或 `AGNES_API_KEY` | `--api-key` | Agnes 平台 |
+| timeless-wedding-volc | `ARK_API_KEY` | `--api-key` | [火山方舟控制台](https://console.volcengine.com/ark) |
 | suno-cn-music | `SUNO_CN_API_KEY` | — | https://www.suno.cn/home/#/mcp |
 | talkshow-studio-kling | `KLING_API_KEY` | `--api-key` | 可灵（Kling）平台 |
 
@@ -268,9 +268,9 @@ node talkshow/scripts/talkshow.js \
 
 | 依赖 | 版本 | 用途 | 适用技能 | 安装方式 |
 |------|------|------|---------|---------|
-| Python | 3.10+ | FaceFusion / A 股技能运行环境 | cross-era-wedding / a-stock-* | [python.org](https://www.python.org/) |
-| FaceFusion | 最新 | 真实面部替换，80%+ 面部复刻 | cross-era-wedding | `scripts/install_facefusion.bat` 或 `git clone https://github.com/facefusion/facefusion.git` |
-| Git | 任意 | FaceFusion 安装需要 | cross-era-wedding | [git-scm.com](https://git-scm.com/) |
+| Python | 3.10+ | FaceFusion / A 股技能运行环境 | timeless-wedding / a-stock-* | [python.org](https://www.python.org/) |
+| FaceFusion | 最新 | 真实面部替换，80%+ 面部复刻 | timeless-wedding | `scripts/install_facefusion.bat` 或 `git clone https://github.com/facefusion/facefusion.git` |
+| Git | 任意 | FaceFusion 安装需要 | timeless-wedding | [git-scm.com](https://git-scm.com/) |
 | edge-tts | 最新 | 中文语音合成（TTS） | talkshow | `pip install edge-tts` |
 | PyTorch（CPU 版） | 最新 | Wav2Lip 推理运行环境 | talkshow | `pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu` |
 | Wav2Lip | 最新 | 口型同步后处理 | talkshow | `git clone https://github.com/Rudrabha/Wav2Lip` |
@@ -349,7 +349,7 @@ node agnes-video-gen-2/scripts/agnes_video_gen.js \
 
 ### 婚礼电影
 
-#### 3. cross-era-wedding — 跨时空婚礼电影（Agnes + FaceFusion）
+#### 3. timeless-wedding — 跨时空婚礼电影（Agnes + FaceFusion）
 
 从两张个人照片出发，穿越 2–4 个中国历史朝代，生成"几生几世跨时空相爱"的电影级婚礼短片。
 
@@ -372,7 +372,7 @@ node agnes-video-gen-2/scripts/agnes_video_gen.js \
 
 **基本用法：**
 ```bash
-node cross-era-wedding/scripts/cross_era_wedding.js \
+node timeless-wedding/scripts/timeless_wedding.js \
   --male-photo "groom.jpg" \
   --female-photo "bride.jpg" \
   --dynasties tang,song,ming,modern \
@@ -383,19 +383,19 @@ node cross-era-wedding/scripts/cross_era_wedding.js \
 **断点续跑 / 重生成 / 禁用换脸：**
 ```bash
 # 断点续跑
-node cross-era-wedding/scripts/cross_era_wedding.js --resume --work-dir "work/20250101-120000-xxxx"
+node timeless-wedding/scripts/timeless_wedding.js --resume --work-dir "work/20250101-120000-xxxx"
 
 # 重生成单个朝代
-node cross-era-wedding/scripts/cross_era_wedding.js --resume --work-dir "..." --regenerate tang
+node timeless-wedding/scripts/timeless_wedding.js --resume --work-dir "..." --regenerate tang
 
 # 禁用换脸（纯 Agnes 模式，面部相似度约 50–60%）
-node cross-era-wedding/scripts/cross_era_wedding.js --male-photo "groom.jpg" --female-photo "bride.jpg" \
+node timeless-wedding/scripts/timeless_wedding.js --male-photo "groom.jpg" --female-photo "bride.jpg" \
   --dynasties tang,song,ming,modern --no-face-swap --output "wedding.mp4"
 ```
 
 ---
 
-#### 4. volc-wedding — 跨时空婚礼电影（Volcengine Ark）
+#### 4. timeless-wedding-volc — 跨时空婚礼电影（Volcengine Ark）
 
 基于 **火山方舟 Ark** 平台，使用 **Seedream 5.0 Pro** 生成朝代 AI 肖像与场景，**Seedance 2.0** 生成电影质感动态视频。无需 Python，画质更精细。
 
@@ -416,7 +416,7 @@ FFmpeg 合并 → 朝代标题卡 → 视频 → 片头片尾
 ```powershell
 $env:ARK_API_KEY = "your-ark-api-key"
 
-node volc-wedding/scripts/volc_wedding.js `
+node timeless-wedding-volc/scripts/timeless_wedding_volc.js `
   --male-photo "groom.jpg" `
   --female-photo "bride.jpg" `
   --dynasties "warring,tang,ming,modern" `
@@ -427,7 +427,7 @@ node volc-wedding/scripts/volc_wedding.js `
 
 **视频模型：** 标准版 `doubao-seedance-2-0-260128`（默认）/ Mini `doubao-seedance-2-0-mini-260615` / Fast `doubao-seedance-2-0-fast-260128`
 
-> 详见 `volc-wedding/README.md` 产品说明，或 `volc-wedding/SKILL.md` 完整规范。
+> 详见 `timeless-wedding-volc/README.md` 产品说明，或 `timeless-wedding-volc/SKILL.md` 完整规范。
 
 ---
 
@@ -686,9 +686,9 @@ python scripts/run.py recommend 2026-08-31 # 单日推荐（用缓存）
 
 ## 朝代列表
 
-cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
+timeless-wedding 和 timeless-wedding-volc 均支持以下 13 个中国历史朝代：
 
-| ID | 朝代 | 核心主题 | 年代 | 故事概述（volc-wedding） |
+| ID | 朝代 | 核心主题 | 年代 | 故事概述（timeless-wedding-volc） |
 |----|------|---------|------|--------------------------|
 | `xia` | 夏 | 华夏初光 / 上古盟誓 | c.2070–1600 BCE | — |
 | `xizhou` | 西周 | 礼乐天下 / 礼乐婚典 | 1046–771 BCE | — |
@@ -704,7 +704,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | `minguo` | 民国 | 十里洋场 | 1912–1949 | — |
 | `modern` | 现代 | 永恒誓言 | 1949–Present | 山海之间的永恒承诺 |
 
-> volc-wedding 中带"故事概述"的朝代已配置完整的电影级时间分段分镜剧本（0–2s / 2–5s / 5–8s）。
+> timeless-wedding-volc 中带"故事概述"的朝代已配置完整的电影级时间分段分镜剧本（0–2s / 2–5s / 5–8s）。
 
 ---
 
@@ -712,7 +712,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 
 两个婚礼电影技能各有优势，根据需求选择：
 
-| 维度 | cross-era-wedding | volc-wedding |
+| 维度 | timeless-wedding | timeless-wedding-volc |
 |------|-------------------|--------------|
 | AI 平台 | Agnes Image/Video | Volcengine Ark（豆包） |
 | 图片模型 | Agnes Image 2.5 Flash | Seedream 5.0 Pro |
@@ -748,7 +748,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 
 5. **API Key 安全**：如上下文中直接给出 Key，通过 `--api-key` 参数传入，不要写入环境变量文件或代码中。
 
-6. **断点续跑**：cross-era-wedding 和 volc-wedding 均通过 `state.json` 支持中断后恢复，使用 `--resume` + `--work-dir` 继续。
+6. **断点续跑**：timeless-wedding 和 timeless-wedding-volc 均通过 `state.json` 支持中断后恢复，使用 `--resume` + `--work-dir` 继续。
 
 7. **照片建议**：婚礼电影类技能使用正面清晰照片，光线均匀，面部无遮挡，效果最佳。
 
@@ -765,7 +765,7 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | `FFmpeg not found` | 未安装 FFmpeg | Windows: `winget install Gyan.FFmpeg` |
 | `Request body size exceeds 64MB` | 照片文件过大 | 压缩照片至 2MB 以下 |
 | 视频任务 `failed` | 首帧敏感内容 / API 限流 | 用 `--regenerate <id>` 重试 |
-| 面部保留度低 | 照片角度 / 光线不佳 | 使用正面高清照片，volc-wedding 尝试 `--mode multimodal` |
+| 面部保留度低 | 照片角度 / 光线不佳 | 使用正面高清照片，timeless-wedding-volc 尝试 `--mode multimodal` |
 | 朝代标题卡片乱码 | 缺少中文字体 | 确认 `C:\Windows\Fonts\simhei.ttf` 存在 |
 | 断点续跑找不到目录 | 工作目录路径错误 | 用 `--work-dir` 指定之前的完整工作目录路径 |
 | 生成的 MP4 变为 0 字节 | 未设只读属性 | 下载后立即 `IsReadOnly=$true` 或 `chmod 444` |
@@ -791,10 +791,10 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | 生成一段 AI 视频 | `agnes-video-gen-2` | 4 种工作流，灵活选择 |
 | 创作一首 AI 音乐 | `suno-cn-music` | 8 个 API，全流程覆盖 |
 | 下载已有歌曲（MP3 + 歌词） | `music-downloader` | 5 平台回退，批量下载，自动歌词 |
-| 婚礼电影 — 需高面部相似度 | `cross-era-wedding` | FaceFusion 换脸 80%+ |
-| 婚礼电影 — 无需 Python，快速生成 | `volc-wedding` | Seedream i2i 保留五官，零额外依赖 |
-| 婚礼电影 — 需要分镜剧本 | `volc-wedding` | 战国/唐/明/现代已配置时间分段剧本 |
-| 婚礼电影 — 朝代较多（5 个） | `volc-wedding` | 支持 2–5 个朝代 |
+| 婚礼电影 — 需高面部相似度 | `timeless-wedding` | FaceFusion 换脸 80%+ |
+| 婚礼电影 — 无需 Python，快速生成 | `timeless-wedding-volc` | Seedream i2i 保留五官，零额外依赖 |
+| 婚礼电影 — 需要分镜剧本 | `timeless-wedding-volc` | 战国/唐/明/现代已配置时间分段剧本 |
+| 婚礼电影 — 朝代较多（5 个） | `timeless-wedding-volc` | 支持 2–5 个朝代 |
 | 脱口秀 — 段子自动优化 + Wav2Lip 口型 | `talkshow` | 剧本优化 + TTS + Wav2Lip，最灵活 |
 | 脱口秀 — 免 Python，原生口型 | `talkshow-studio` | Agnes 原生音画同步，生产级 SOP |
 | 脱口秀 — 可灵生态 | `talkshow-studio-kling` | Kling Video 3.0，720P 原生口型 |
