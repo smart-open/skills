@@ -12,10 +12,10 @@ import time
 import urllib.request
 from datetime import datetime, timedelta
 
-from _common import (BASE, load_json, dump_json_guard, today_ymd,
+from _common import (BASE, DATA_DIR, load_json, dump_json_guard, today_ymd,
                      THS_BOARD_KEYWORDS)
 
-boards = load_json(os.path.join(BASE, "data/boards_15d.json"))
+boards = load_json(os.path.join(DATA_DIR, "boards_15d.json"))
 all_dates = set()
 for v in boards.values():
     for d, _ in v:
@@ -40,7 +40,7 @@ kw_map = dict(THS_BOARD_KEYWORDS)
 for name in boards.keys():
     if name:
         kw_map.setdefault(name, [name])
-_hs = load_json(os.path.join(BASE, f"data/hot_sectors_{today_ymd()}.json"))
+_hs = load_json(os.path.join(DATA_DIR, f"hot_sectors_{today_ymd()}.json"))
 for s in (_hs.get("hot_sectors") or []):
     nm = s.get("name")
     if nm:
@@ -92,8 +92,8 @@ if total_stocks == 0:
     print("  !! 全部日期涨停股为 0，疑似同花顺接口失败，保留旧数据")
     sys.exit(1)
 
-ok1 = dump_json_guard(result, os.path.join(BASE, "data/zt_15d.json"), "涨停板块计数")
-ok2 = dump_json_guard(pools, os.path.join(BASE, "data/zt_pool_15d.json"), "涨停池个股")
+ok1 = dump_json_guard(result, os.path.join(DATA_DIR, "zt_15d.json"), "涨停板块计数")
+ok2 = dump_json_guard(pools, os.path.join(DATA_DIR, "zt_pool_15d.json"), "涨停池个股")
 if not (ok1 and ok2):
     sys.exit(1)
 print(f"\n完成，共 {len(result)} 个交易日 -> data/zt_15d.json（板块计数）+ data/zt_pool_15d.json（涨停池个股，供赚钱效应）")

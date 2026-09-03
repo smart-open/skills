@@ -6,7 +6,7 @@ import os, argparse
 from datetime import datetime
 from collections import defaultdict
 
-from _common import (BASE, load_json, dump_json, safe_float,
+from _common import (BASE, DATA_DIR, load_json, dump_json, safe_float,
                       today_ymd, seal_break_rates, BOARD_FALLBACK_COLOR,
                       trend_tag, bridge_ths_name, boards_chg_lookup)
 
@@ -19,10 +19,10 @@ LB = _args.lookback
 
 
 # ===== 1. 加载数据 =====
-market = load_json(os.path.join(BASE, f"data/market_{TD}.json"))
-hot = load_json(os.path.join(BASE, f"data/hot_sectors_{TD}.json"))
-boards = load_json(os.path.join(BASE, "data/boards_15d.json"))
-zt = load_json(os.path.join(BASE, "data/zt_15d.json"))
+market = load_json(os.path.join(DATA_DIR, f"market_{TD}.json"))
+hot = load_json(os.path.join(DATA_DIR, f"hot_sectors_{TD}.json"))
+boards = load_json(os.path.join(DATA_DIR, "boards_15d.json"))
+zt = load_json(os.path.join(DATA_DIR, "zt_15d.json"))
 
 hot_sectors = hot.get("hot_sectors", [])
 total_up = market.get("limit_up", {}).get("total", 0)
@@ -30,7 +30,7 @@ total_zb = market.get("broken", {}).get("total", 0)
 seal_rate, _ = seal_break_rates(total_up, total_zb)
 
 # 真实板块资金流历史（fund_15d）；缺失时四象限/趋势多因子退化为涨停/涨幅代理
-fund_hist = load_json(os.path.join(BASE, "data/fund_15d.json"))
+fund_hist = load_json(os.path.join(DATA_DIR, "fund_15d.json"))
 
 # 反向桥：同花顺短名 → 东财名（供 Model 06 从 boards_15d 短名回查真实资金流）
 _ths_to_em = {}
@@ -242,7 +242,7 @@ result = {
     "summary": summary,
 }
 
-out_path = os.path.join(BASE, f"data/rotation_{TD}.json")
+out_path = os.path.join(DATA_DIR, f"rotation_{TD}.json")
 # 空结果保护：热点与趋势榜均空说明上游失败，不落盘（保留旧文件）
 if not hot_sectors and not trend_board:
     print("!! hot_sectors 与趋势榜均为空（上游可能失败），不落盘")

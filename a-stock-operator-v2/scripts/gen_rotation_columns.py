@@ -7,7 +7,7 @@ import argparse
 from datetime import datetime
 from collections import Counter
 
-from _common import BASE, REPORT_ROOT, load_json, read_text, write_text, trend_tag, bridge_ths_name
+from _common import BASE, DATA_DIR, REPORT_ROOT, load_json, read_text, write_text, trend_tag, bridge_ths_name
 
 ap = argparse.ArgumentParser(description="插入近一月板块轮动章（默认真实今日）")
 ap.add_argument("--date", default=datetime.now().strftime("%Y%m%d"),
@@ -15,8 +15,8 @@ ap.add_argument("--date", default=datetime.now().strftime("%Y%m%d"),
 _args = ap.parse_args()
 TD = _args.date
 
-data = load_json(os.path.join(BASE, "data/boards_15d.json"))
-zt_all = load_json(os.path.join(BASE, "data/zt_15d.json"))
+data = load_json(os.path.join(DATA_DIR, "boards_15d.json"))
+zt_all = load_json(os.path.join(DATA_DIR, "zt_15d.json"))
 
 # ===== 动态热点色板（Model 01）：优先读 hot_sectors_{date}.json，回退同花顺 14 短名 =====
 FALLBACK_COLORS = {
@@ -25,7 +25,7 @@ FALLBACK_COLORS = {
     "减肥药": "#9b6bff", "重组蛋白": "#b58cff", "稀土永磁": "#ff6bb5", "青蒿素": "#3ddbd9",
     "机器人": "#2dd4a8", "光刻机": "#9aa5b5",
 }
-_hot_path = os.path.join(BASE, f"data/hot_sectors_{TD}.json")
+_hot_path = os.path.join(DATA_DIR, f"hot_sectors_{TD}.json")
 _hs = load_json(_hot_path).get("hot_sectors", [])
 dyn_order = [s["name"] for s in _hs]
 dyn_colors = {s["name"]: s["color"] for s in _hs}
@@ -116,7 +116,7 @@ legend_html = "".join(
 
 # ===== P1：资金轮动四象限（Model 03）+ 板块多因子趋势（Model 06）=====
 # 优先读 rotation_{date}.json；缺失则回退旧版「轮动节奏 4 卡片 + 15 日涨幅趋势榜」。
-_rot_path = os.path.join(BASE, f"data/rotation_{TD}.json")
+_rot_path = os.path.join(DATA_DIR, f"rotation_{TD}.json")
 rot = load_json(_rot_path)
 
 Q_META = [

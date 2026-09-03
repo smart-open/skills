@@ -1,6 +1,7 @@
 # 运行时产物（视频、音频、图片、中间文件）
 work/
 */work/
+.workbuddy
 
 # 最终输出视频（生成产物，不纳入版本控制）
 *.mp4
@@ -17,11 +18,20 @@ demo/
 Thumbs.db
 .DS_Store
 
-# a-stock-operator-v2 运行时产物（数据快照、报告输出、Python 缓存）
-a-stock-operator-v2/data/
-a-stock-operator-v2/output/
+# Python 缓存
 **/__pycache__/
 *.pyc
 
-# lhb-t3-recommender 运行时产物（数据快照、模型、历史、推荐 CSV、HTML 报告）
-lhb-t3-recommender/runtime/
+# 各 A 股技能运行时产物（数据快照、报告、模型、历史、CSV）
+a-stock-operator-v2/data/
+a-stock-operator-v2/output/
+a-stock-lhb-rec/data/
+a-stock-lhb-rec/model/
+a-stock-lhb-rec/recommend_*.csv
+a-stock-lhb-rec/verify_history.csv
+a-stock-lhb-rec/model_history.json
+a-stock-yiyangzhi/data/
+a-stock-yiyangzhi/output/
+
+# 编辑器/IDE 目录
+.trae/

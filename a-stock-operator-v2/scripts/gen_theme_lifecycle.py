@@ -7,7 +7,7 @@ import os, argparse
 from datetime import datetime
 from collections import Counter
 
-from _common import (BASE, load_json, dump_json, safe_float, today_ymd,
+from _common import (BASE, DATA_DIR, load_json, dump_json, safe_float, today_ymd,
                       bridge_ths_name, boards_chg_lookup)
 
 ap = argparse.ArgumentParser(description="题材生命周期定位")
@@ -18,7 +18,7 @@ TD = _args.date
 LB = _args.lookback
 
 # ===== 1. 加载热点数据 =====
-hot_path = os.path.join(BASE, f"data/hot_sectors_{TD}.json")
+hot_path = os.path.join(DATA_DIR, f"hot_sectors_{TD}.json")
 if not os.path.exists(hot_path):
     raise SystemExit(f"热点数据不存在: {hot_path}，请先运行 gen_hot_sectors.py")
 
@@ -30,7 +30,7 @@ if not hot_sectors:
     raise SystemExit(1)
 
 # ===== 2. 加载涨停 15 日数据（按板块的每日涨停家数） =====
-zt_path = os.path.join(BASE, "data/zt_15d.json")
+zt_path = os.path.join(DATA_DIR, "zt_15d.json")
 if not os.path.exists(zt_path):
     print("!! zt_15d.json 不存在，生命周期将仅基于当日数据估算")
     zt_data = {}
@@ -42,17 +42,17 @@ all_dates = sorted(zt_data.keys(), reverse=True) if zt_data else [TD]
 lookback_dates = all_dates[:LB]
 
 # ===== 3. 加载板块 15 日涨幅数据（用于资金趋势代理） =====
-boards_path = os.path.join(BASE, "data/boards_15d.json")
+boards_path = os.path.join(DATA_DIR, "boards_15d.json")
 if not os.path.exists(boards_path):
     boards_data = {}
 else:
     boards_data = load_json(boards_path)
 
 # ===== 3b. 加载真实板块资金流历史（fund_15d，缺失时资金趋势退化为涨幅代理） =====
-fund_data = load_json(os.path.join(BASE, "data/fund_15d.json"))
+fund_data = load_json(os.path.join(DATA_DIR, "fund_15d.json"))
 
 # ===== 3c. 加载全市场涨停总数（用于生命周期阶段阈值相对化） =====
-mkt = load_json(os.path.join(BASE, f"data/market_{TD}.json"))
+mkt = load_json(os.path.join(DATA_DIR, f"market_{TD}.json"))
 zt_total = safe_float(mkt.get("limit_up", {}).get("total", 0))
 
 # ===== 4. 为每个热点判定生命周期阶段 =====
@@ -198,7 +198,7 @@ result = {
 }
 
 # ===== 6. 落盘 =====
-out_path = os.path.join(BASE, f"data/theme_lifecycle_{TD}.json")
+out_path = os.path.join(DATA_DIR, f"theme_lifecycle_{TD}.json")
 dump_json(result, out_path)
 print(f"✅ 题材生命周期定位完成 → {out_path}")
 print(f"   {result['summary']}")

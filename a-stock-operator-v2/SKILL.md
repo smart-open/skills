@@ -1,14 +1,13 @@
 ---
 name: a-stock-operator-v2
 description: |
-  生成 A 股「行情复盘报告」与「个股诊断报告」（金融数据终端深色主题 HTML，红涨绿跌，结论前置）。
+  生成 A 股「行情复盘报告」与「个股诊断报告」（Markdown 文档，带日期，红涨绿跌，结论前置）。
   行情模式：市场全景（指数 sparkline / 情绪周期定位 / 连板 / 主线题材 / 政策 / 热点）+ 近一月板块轮动专题（日期列头 × 每日 Top7 板块、动态色标记轮动、全量标注涨幅% 与涨停数 ×N + 资金轮动四象限 + 板块多因子趋势榜）。
   情绪周期定位：基于「情绪温度计」（Model 04，温度+风险双维、五阶段、仓位建议）研判情绪阶段（冰点/启动/发酵/高潮/分歧）+ 短线操作建议 + 仓位参考；主线题材采用「动态热点发现引擎」（Model 01，五因子评分 + 每日动态 Top N，新热点自动纳入）+ 题材生命周期定位（Model 02，萌芽/启动/发酵/高潮/退潮五阶段 + 短线/中线策略）；板块轮动采用「资金轮动四象限」（Model 03，主线/接力/脉冲/退潮 + 轮动速度 + 扩散指数）与「板块趋势多因子」（Model 06，15日涨幅+5日动量+资金持续+涨停持续加权，标记启动/加速/减速/回落）。
   个股模式：单只个股六维诊断（评分 / SWOT / 估值 / 龙虎榜 / 筹码 / 关键价位）+ 最终诊断操作建议（渐变环形评分 + 关键价位双栏 + 操作策略 3 卡 + 避坑提示），卡片化、有层次。
-  自包含：脚本/数据/输出全在技能目录内，相对路径免配置；「今日」默认真实交易日（--date 可覆盖），联网实时采集。
+  自包含：脚本全在技能目录内，相对路径免配置；产物（采集数据/过程脚本）默认写到**当前会话/工作目录**下的 `<cwd>/a-stock-operator-v2/` 子目录，**报告统一输出为 Markdown（带日期）写到 `<cwd>` 根目录**（`A_STOCK_WORK`/`A_STOCK_OUT` 可指定工程目录），不写回技能目录；「今日」默认真实交易日（--date 可覆盖），联网实时采集。
   加载后先让用户选择模式。适用：行情复盘、个股诊断、生成股票报告、板块轮动、情绪周期、短线/中线操作建议、重新生成报告。
 agent_created: true
-version: 1.17.0
 display_name: A股行情与个股报告生成器 v2
 display_name_en: A-Share Market & Stock Report Generator v2
 description_zh: A股行情复盘与个股诊断报告生成器（自包含 + 默认真实今日 + 双模式）
@@ -19,18 +18,17 @@ disable-model-invocation: false
 
 # A股行情与个股报告生成器 v2（a-stock-operator-v2）
 
-> 自包含版本（v1.14.0）：全部采集/组装/加工脚本与数据资源已打包进本技能目录，脚本用相对路径（`BASE = 脚本自身位置的技能根目录`）免配置；「今日」默认取真实交易日（`datetime.now()`，`--date` 可覆盖），联网实时采集；行情报告定性内容（定调/主线/热点/推荐/轮动节奏）已数据驱动，**换日期重跑即自动更新**。新增「情绪周期定位」（短线辅助）与「板块中线趋势榜」（中线辅助）。**P0（v1.6.0）上线「动态热点发现引擎」（Model 01）与「题材生命周期定位」（Model 02）**：主线题材/热点板块不再写死，改为五因子（涨停家数/主力资金/涨幅/连板高度/扩散度）实时聚类每日 Top N 热点，并对每个热点判定萌芽→启动→发酵→高潮→退潮五阶段与短线/中线策略。**P1（v1.7.0）上线「资金轮动四象限」（Model 03）与「板块趋势多因子」（Model 06）**：按「资金净流入 × 趋势一致性」将热点板块切分为主线/接力/脉冲/退潮四象限（附轮动速度与扩散指数），并用 15 日涨幅 40% + 5 日动量 30% + 资金持续 20% + 涨停持续 10% 加权出趋势分、标记启动/加速/减速/回落。**P2（v1.8.0）上线「情绪温度计」（Model 04）**：将情绪周期定位升级为「温度 + 风险」双维量化——温度由五因子（涨停家数 25% + 封板率 25% + 连板高度 20% + 连板家数 15% + 市场宽度 15%）合成 0~100，风险由四因子（炸板率 30% + 亏钱效应 30% + 过热 20% + 背离 20%）合成 0~100，据此判定冰点/启动/发酵/高潮/分歧五阶段并给出 0~10 成仓位区间建议；报告情绪卡升级为温度计 + 风险条 + 8 指标 + 仓位建议。**P3（v1.9.0）健壮性全面加固与代码去重**：修复 17 项审查问题（P0×5 崩溃级 / P1×6 数据一致性 / P2×6 可维护性）——① 统一 `sectors` 结构（dict/list 归一化）并兼容 `leader_name`/`leader` 键，只跑第一步采集不再崩溃；② `recommend_{date}.json`、`index_klines.json` 等缺失时优雅降级；③ 空 `indexes` 列表 `max()` 用 `default` 兜底；④ 个股诊断报告全字段 `.get()` 防御化；⑤ 新增 `scripts/_common.py` 共享工具（BASE / load_json / dump_json / read_text / write_text / safe_float / sparkline），统一用 `with` 关闭文件句柄（消除 15+ 处句柄泄漏）并消除 BASE/safe_float/sparkline 多处重复定义；⑥ 情绪阈值常量化、生命周期「高潮/发酵」区间去重、轮动每日 Top7 缓存等。采集/生成脚本已做健壮性防御：单个数据项采集失败时报告**优雅降级**（空章节）而非崩溃。**P4（v1.10.0）情绪周期精细化 + 个股诊断联动（E1/E2/L1）**：① E1——情绪卡新增「温度因子 · 权重加权」与「风险因子 · 权重加权」两组分解条（温度五因子 25/25/20/15/15、风险四因子 30/30/20/20，逐条标注权重% 与数值）；② E2——情绪温度计刻度补全为「冰点/启动/发酵/高潮/分歧」五档并**高亮当前阶段**（`.gs-on`）；③ L1——个股推荐卡片在对应诊断报告存在时自动注入「查看个股诊断 →」跳转链接（`output/{name}_个股诊断_{date}.html`），无诊断报告时优雅降级为纯文本标题。**P5（v1.11.0）分歧阈值滑动 + 仓位进度条（E3/E4）**：① E3——分歧风险阈值由三段式硬阈值（55/60/65）改为**温度滑动线**（温度≥65 → 55、温度≤45 → 65、中间线性插值），温度越高越易触发分歧，消除边缘跳跃；背离因子由二元跳变（0/60/55）改为**连续梯度**（宽度背离与炸板背离分别连续计分 0~100 取较大者，越严重背离分越高）；② E4——情绪卡新增**仓位进度条**，用 `position_min`/`position_max` 映射 0~10 成区间并在轨道上高亮建议档位（`position_min/max` 缺失时优雅降级为纯文本仓位）。**P6（v1.12.0）提取重复常量与硬编码（P2 低优先级收尾）**：将跨脚本重复的常量与公式集中到 `scripts/_common.py` 单一来源——① 配色常量（`UP_COLOR`/`DOWN_COLOR`/`WARN_COLOR`/`MUTED_COLOR`/`GOLD_COLOR`/`ACC_COLOR`/`ACC2_COLOR`/`BOARD_FALLBACK_COLOR` 八色），报告 CSS `:root` 调色板改为由 Python 常量插值渲染，消除 Python 逻辑与 CSS 两处各写一套调色板；② 情绪周期五阶段 `EMOTION_STAGES` 与阶段配色 `EMOTION_STAGE_COLORS`；③ 温度/风险因子权重 `TEMPERATURE_W`/`RISK_W` 与因子标签 `TEMP_FACTOR_LABELS`/`RISK_FACTOR_LABELS`；④ 工具函数 `today_ymd()`（统一 `--date` 默认值）与 `seal_break_rates(total_up, total_zb)`（统一封板率/炸板率公式，消除 gen_hot_sectors / gen_rotation_v2 / gen_emotion_cycle / generate_report_v3 四处重复实现）。已接入 Model 01/02/03/04/06 与主报告脚本，端到端验证无误。**P7（v1.13.0）贴合热点·行情轮动的资金维度升级**：① 新增 `scripts/collect_fund_15d.py`——从东财 `push2his` 板块资金流日线接口采集近 15 日「行业+概念」板块主力净流入历史，落地 `data/fund_15d.json`（`{板块名: {日期: 主力净流入亿}}`），为题材生命周期（Model 02）、资金轮动四象限（Model 03）+ 板块多因子（Model 06）提供真实资金趋势维度，取代原先的「涨幅代理」；② 修正「板块池数据源」错误——`gen_hot_sectors.py` 此前误把 `fund_rank`（个股主力资金）当作板块池，现改为优先从 `sectors`（东财行业/概念板块，含每板块 `main_net_yi` 资金流）构建板块池，`hybk`（涨停股行业板块）补充、`fund_rank` 仅极端降级兜底，热点名与资金流全部来自真实板块；③ `collect_v2.py` 不再用新浪行业板块覆盖东财板块资金流，新浪数据改存 `sina_sectors` 键、仅当 `sectors` 缺失时兜底，保住板块级 `main_net_yi`；④ `generate_report_v3.py` 板块涨幅榜对 dict/list 两种 `sectors` 结构统一按涨幅排序；⑤ 趋势状态标签统一为 `启动/加速/减速/回落`（`trend_tag`），修正「反转」歧义。**P8（v1.14.0）命名桥接·补齐历史涨停/涨幅维度**：修复「动态热点名（东财板块名，如 CPO概念/机器人概念）与历史数据短名（同花顺，如 CPO/机器人）匹配不上」的系统性偏差——① 在 `_common.py` 新增 `THS_BOARD_KEYWORDS`（14 同花顺短名 × 匹配关键词，单一来源）与 `bridge_ths_name()`（东财名 → 同花顺短名）；② `collect_zt_15d.py` 改为复用该单一来源（消除本地重复字典）；③ `gen_theme_lifecycle.py`（Model 02）的涨停趋势/涨幅趋势经桥接对齐，动态热点不再退化为「单点估算」；④ `gen_rotation_v2.py`（Model 03/06）四象限的涨停/涨幅趋势一致性、趋势榜的资金持续性经桥接取到真实 `fund_15d` 资金流（此前 `name in fund_map` 对同花顺短名恒为 False、资金持续性永远走涨幅代理）。至此「热点发现（Model 01）→ 生命周期（Model 02）→ 资金轮动（Model 03）→ 趋势多因子（Model 06）」的涨停/涨幅/资金三维历史全部对齐到动态热点名。**P9（v1.15.0）短线赚钱效应 + 双权重 + 全量板块覆盖**：① 新增「赚钱效应」温度因子（昨日涨停池今日晋级率，权重 20%，`collect_zt_15d.py` 产出 `zt_pool_15d.json`）；② `collect_boards_15d.py` 重写为动态采集东财「行业+概念」全量板块近 15 日涨幅历史（键=东财板块名，消除原 14 同花顺板块覆盖上限，新热点自动纳入）；③ 个股六维诊断新增短线/中线双权重（`DIM_SHORT_W`/`DIM_MID_W` + `dim_weight()`），报告按持仓周期切换评分口径。**P10（v1.16.0）采集链路全面加固（防失败/防旧数据）**：① 空数据保护——所有采集脚本统一 `dump_json_guard()`，请求全失败时不再写空 `{}` 覆盖好数据（保留旧文件并 exit 1）；② `collect_data.py` 改合并模式——本次失败项沿用旧文件值（`stale_kept` 标记），重跑不再挤掉上次成功数据；`breadth` 分页中断/全失败视为异常（交新浪兜底）；③ `collect_zt_15d.py` 关键词动态化（THS 14 短名 + boards_15d 全板块名 + 当日热点名），boards 缺失时按工作日日历兜底回溯 15 日；④ 新增 `scripts/collect_all.py` 一键编排 7 个采集脚本 + 15 项健康检查（完整性/新鲜度/步骤失败，任何关键产物缺失或过期 → 汇总报告 + exit 1，杜绝静默生成空报告）；⑤ 修复 `gen_rotation_columns.py` ×N 涨停数桥接 bug（东财板块名直查 `zt_15d` 同花顺短名恒为 0，现经 `bridge_ths_name()` 兜底）。**P11（v1.17.0）健壮性二轮加固 + 全流程管线（每次取最新）**：① `collect_all.py` 升级为全流程入口——「采集 → 16 项严格健康检查 + 2 类警告 → 模型 → 报告」一条命令，默认全量重采（本地已有文件不跳过），模型/报告仅在数据校验全过后执行，杜绝「重采数据但忘跑模型」的陈旧报告；新增 `--no-models` 选项，`--skip` 兼容模型脚本；健康检查新增 market 数据日期一致（trade_date==TD）与 recommend 当日新鲜两项严格校验，stale_kept（同日早间值）与步骤级失败降为警告（产物新鲜度才是唯一闸门，避免盘中偶发风控导致管线永远无法完成）；② `recommend.py` 加固——market 缺失/涨停池空/数据日期不符早退 exit 1（避免无效网络请求与空推荐）、新浪涨幅榜停牌行 float 解析安全跳过（原 `float(None)` 崩溃风险）、行字段 `.get()` 防御、腾讯 K 线单次重试、新浪首页失败显式告警；③ 模型脚本空结果不落盘——`gen_hot_sectors`（board_scores 空 exit 1）、`gen_theme_lifecycle`（hot_sectors 空 exit 1）、`gen_rotation_v2`（热点+趋势榜均空 exit 1），防止上游失败时空文件覆盖旧结果；④ 数据日期校验——`gen_hot_sectors`/`recommend` 对 market 内 trade_date 与目标日不符直接拒绝，`gen_emotion_cycle` 给出旧数据警告；⑤ `gen_hot_sectors` 涨停池行按 code/name 有效性过滤 + 全字段 `.get()` 防御。
 
 ## 能力说明
 
-本技能生成两份深色「金融数据终端」风格 HTML 报告（红涨绿跌、结论前置、卡片化布局）：
+本技能生成两份 **Markdown 报告**（带日期，红涨绿跌语义、结论前置、结构化列表/表格布局），输出到**当前会话根目录**：
 
 - **行情分析模式**：市场全景复盘（核心指数 sparkline / 市场情绪 + **情绪周期定位** / 连板梯队 / 主线题材 / 重点政策消息 / 热点可持续板块）+ **近一月板块轮动**专题（日期为列头 × 每日 Top7 板块，动态色标记轮动轨迹，全量标注涨幅% 与涨停数 ×N，底部含颜色图例 + **资金轮动四象限** + **板块多因子趋势榜**）。
   - **情绪温度计（Model 04 · 短线择时）**：将情绪周期定位升级为「温度 + 风险」双维量化。**情绪温度**（0~100）由五因子合成——涨停家数 25% / 封板率 25% / 连板高度 20% / 连板家数（≥2 板）15% / 市场宽度（上涨占比）15%；**风险度**（0~100）由四因子合成——炸板率 30% / 亏钱效应（大面率+跌停强度）30% / 过热（高温+极端连板）20% / 背离（涨停多但宽度差或炸板高，连续梯度 0~100）20%。据此判定 冰点/启动/发酵/高潮/分歧 五阶段——**分歧阈值随温度滑动**（温度≥65 → 阈值 55、≤45 → 阈值 65、中间线性插值，温度越高越易分歧），并输出 0~10 成仓位区间建议（冰点 0-2 成 / 启动 2-3 成 / 发酵 4-6 成 / 高潮 3-5 成 / 分歧 2-4 成）。报告情绪卡渲染温度计（刻度含五档并**高亮当前阶段**）+ 风险条 + 8 指标（涨停/连板高度/连板家数/封板率/炸板率/跌停/涨跌家数/大面家数）+ **温度/风险因子分解条**（逐条标注权重% 与数值）+ 仓位建议 + **仓位进度条**（用 `position_min`/`position_max` 映射 0~10 成并高亮建议档位）；`emotion_{date}.json` 缺失时**优雅降级**为旧版 5 指标情绪卡。
   - **主线题材（贴合热点 · 动态引擎）**：由「动态热点发现引擎」实时聚类当日 Top N 热点（五因子加权：涨停家数 0.30 / 主力净流入 0.25 / 板块涨幅 0.15 / 连板高度 0.15 / 扩散度 0.15），**不再写死题材词典，新热点自动纳入**；配合「题材生命周期定位」标注每个热点的萌芽/启动/发酵/高潮/退潮阶段与短线/中线策略。
   - **资金轮动四象限（Model 03 · 短线择时）**：按「资金净流入 × 趋势一致性」把热点板块切入主线（流入+趋势一致）/ 接力（流入但未确认或新热点）/ 脉冲（流出但当日涨）/ 退潮（流出+转弱）四象限，输出轮动速度与扩散指数，辅助判断资金切换方向与快慢。
   - **板块多因子趋势榜（Model 06 · 中线选板块）**：对全量板块按 15 日涨幅 40% + 5 日动量 30% + 资金持续 20% + 涨停持续 10% 加权出 0~1 趋势分并排名，标记启动/加速/减速/回落状态，辅助判断板块趋势方向与持续性。
-  - **个股诊断联动（L1）**：行情报告「个股推荐」卡片（07 章）在对应诊断报告 `output/{name}_个股诊断_{date}.html` 存在时，自动把个股标题改为跳转链接并追加「查看个股诊断 →」按钮，实现行情 → 个股诊断交叉导航；诊断报告缺失时优雅降级为纯文本标题。
+  - **个股诊断联动（L1）**：行情报告「个股推荐」卡片（07 章）在对应诊断报告 `{name}_个股诊断_{date}.md` 存在时，自动把个股标题改为跳转链接，实现行情 → 个股诊断交叉导航；诊断报告缺失时优雅降级为纯文本标题。
 - **个股诊断模式**：单只个股六维诊断（综合评分 / SWOT / 估值分情景 / 龙虎榜席位 / 筹码与股东结构 / 关键价位）+ **最终诊断操作建议**（渐变描边环形评分 + 关键价位止损/目标双栏 + 操作策略 3 卡：回踩观察/突破确认/回避情形 + 避坑提示警示卡），层次清晰、不堆积。
 
 ## 何时使用
@@ -43,13 +41,13 @@ disable-model-invocation: false
 
 | 依赖 | 说明 |
 |------|------|
-| Python 3.12+ | 运行 `scripts/*.py`。可用系统 `python`，或 `C:/Users/tianw/AppData/Local/Programs/Python/Python312/python.exe` |
+| Python 3.12+ | 运行 `scripts/*.py`。任意 Python 3.12+ 解释器均可（系统 `python` / `python3` / `py`） |
 | 脚本 | **本技能目录内** `scripts/*.py`（已相对化，`BASE` 由 `__file__` 自动推导，无需改路径） |
-| 数据 | **本技能目录内** `data/*.json`（行情 `market_{date}.json`、个股 `tdhl_*.json`、轮动 `boards_15d.json` / `zt_15d.json`、指数 `index_klines.json`） |
-| 输出 | **本技能目录内** `output/*.html` |
+| 数据 | 采集/分析数据写到**当前会话/工作目录**下的 `<cwd>/a-stock-operator-v2/data/*.json`（行情 `market_{date}.json`、个股 `*_analysis.json`、轮动 `boards_15d.json` / `zt_15d.json` / `fund_15d.json`、指数 `index_klines.json`）；可用 `A_STOCK_WORK` 指定到某工程目录。**不写回技能目录** |
+| 输出 | 生成的 **Markdown 报告写到当前会话/工作目录根**（`REPORT_ROOT` = 当前工作目录，可用环境变量 `A_STOCK_OUT` 指定到某工程目录），**不写回技能目录** |
 | 联网 | 生成「今日真实数据」时需联网（东方财富 / 腾讯 / 新浪 / 同花顺公开接口）；已有数据可离线重跑 |
 
-> **无需 `cd` 到特定目录**：脚本用 `BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))` 定位技能根目录，任意位置运行皆可。建议 `cd` 到技能目录以简化相对引用。
+> **无需 `cd` 到特定目录**：脚本代码用 `BASE`（由 `__file__` 推导）定位技能根目录下的 `scripts/`；但**采集数据(data/)**默认写到 `<cwd>/a-stock-operator-v2/data`，**报告(Markdown)**默认写到 `<cwd>` 根目录（`DATA_DIR`=`<cwd>/a-stock-operator-v2/data`、`REPORT_ROOT`=`<cwd>`，可用 `A_STOCK_WORK`/`A_STOCK_OUT` 指向固定工程目录），技能库只保留代码、保持纯净。
 
 ## 第一步：模式选择（必做）
 
@@ -67,9 +65,9 @@ disable-model-invocation: false
 ## 模式 A：行情分析
 
 ### A.1 数据采集（联网，生成真实今日数据时执行）
-> **采集脚本依赖 `requests`**：默认 `python`（WorkBuddy 托管 3.13）未装 requests，请用系统 Python 3.12：`C:/Users/tianw/AppData/Local/Programs/Python/Python312/python.exe`（下称 `py312`）。生成脚本无此依赖，任意 `python` 均可。
+> **采集脚本依赖 `requests`**：若默认 `python` 未装 requests，请换用已装 requests 的 Python 3.12+ 解释器（下称 `py312`，任意环境，如 conda/venv/系统 Python 均可）。生成脚本无此依赖，任意 `python` 均可。
 >
-> **推荐入口（v1.17.0）——全流程管线，每次运行都取最新数据**：
+> **推荐入口——全流程管线，每次运行都取最新数据**：
 > ```bash
 > py312 scripts/collect_all.py            # 采集 → 健康检查 → 模型 → 报告，一条命令全流程
 > py312 scripts/collect_all.py --only-check   # 仅健康检查（诊断数据是否缺失/过期）
@@ -81,7 +79,7 @@ disable-model-invocation: false
 >
 > 逐个采集（collect_all 内部即按此顺序执行，通常无需单跑）：
 ```bash
-cd C:/Users/tianw/.workbuddy/skills/a-stock-operator-v2
+cd <你的工作目录>   # 产物(data/、Markdown 报告)落在这里，不写回技能目录
 py312 scripts/collect_data.py          # 东财：指数/涨停池/炸板池/跌停池/涨跌家数/热因 -> market_{今日}.json（合并模式：失败项沿用旧值，关键项缺失 exit 1）
 py312 scripts/collect_v2.py            # 新浪：涨跌家数(含涨跌幅榜)+行业板块 东财资金 -> 合并进 market_{今日}.json（空结果不合并）
 py312 scripts/collect_news.py          # 东财快讯 -> news_{今日}.json（空结果不覆盖旧文件，exit 1）
@@ -95,16 +93,16 @@ python scripts/gen_theme_lifecycle.py --date 20260818   # 题材生命周期定�
 python scripts/gen_emotion_cycle.py --date 20260818     # 情绪温度计（Model 04）-> emotion_{date}.json（依赖 market_{date}.json）
 ```
 > **「今日」= 真实交易日**：各采集/生成脚本默认 `datetime.now()`，`--date YYYYMMDD` 可覆盖。`collect_boards_15d.py` / `collect_zt_15d.py` / `collect_index_klines.py` 为滚动采集（自动取最新），无需传日期。
-> 联网采集可能遇 429/断连/东财 IP 风控（push2/push2his 全系列 `RemoteDisconnected`，约 20 小时自动解除，换网络即刻恢复）。**v1.16.0 起失败不再污染数据**：空结果不落盘/不覆盖旧文件、失败项沿用旧值（`stale_kept` 标记）、关键项缺失 exit 1；重跑 `collect_all.py` 或换网络后再跑即可。`collect_news.py` 盘中采集只含开盘至今快讯、收盘后采集才完整。
+> 联网采集可能遇 429/断连/东财 IP 风控（push2/push2his 全系列 `RemoteDisconnected`，约 20 小时自动解除，换网络即刻恢复）。**失败不再污染数据**：空结果不落盘/不覆盖旧文件、失败项沿用旧值（`stale_kept` 标记）、关键项缺失 exit 1；重跑 `collect_all.py` 或换网络后再跑即可。`collect_news.py` 盘中采集只含开盘至今快讯、收盘后采集才完整。
 
 ### A.2 生成报告
 ```bash
-cd C:/Users/tianw/.workbuddy/skills/a-stock-operator-v2
+cd <你的工作目录>   # 产物(data/、Markdown 报告)落在这里，不写回技能目录
 python scripts/gen_hot_sectors.py --date 20260818     # 必须先跑：产出 hot_sectors_{date}.json
 python scripts/gen_theme_lifecycle.py --date 20260818 # 依赖上一步：产出 theme_lifecycle_{date}.json
 python scripts/gen_rotation_v2.py --date 20260818    # P1：资金四象限 + 多因子趋势 -> rotation_{date}.json（供轮动章节引用）
 python scripts/gen_emotion_cycle.py --date 20260818 # P2：情绪温度计 -> emotion_{date}.json（供情绪卡引用，缺失回退旧情绪卡）
-python scripts/generate_report_v3.py --date 20260818 # 基础 8 章（主线题材/热点板块引用动态热点+生命周期，情绪卡引用温度计）-> output/行情复盘_{date}.html
+python scripts/generate_report_v3.py --date 20260818 # 基础 8 章（主线题材/热点板块引用动态热点+生命周期，情绪卡引用温度计）-> 行情复盘_{date}.md（<cwd> 根目录）
 python scripts/gen_rotation_columns.py --date 20260818 # 插入 07「近一月板块轮动」（资金四象限 + 多因子趋势榜，日期降序）并重编号 -> 9 章
 ```
 > **动态热点引擎是主线题材/热点板块的数据源**：`generate_report_v3.py` 会尝试读取 `hot_sectors_{date}.json` 与 `theme_lifecycle_{date}.json`；若文件缺失则相应章节降级为空（旧版写死的 20+ 题材词典已移除），故生成报告前必须保证这两个文件已产出。
@@ -113,13 +111,13 @@ python scripts/gen_rotation_columns.py --date 20260818 # 插入 07「近一月�
 
 ### A.3 坑点
 - `gen_rotation_columns.py` 为**插入模式**：基础报告无轮动章节时，插入到「个股推荐」前并自动重编号 07→08、08→09。若基础已含 07 轮动则走替换模式，幂等安全。
-- **数据链路依赖（已防御化）**：`generate_report_v3.py` 依赖 `market_{date}.json` 与 `recommend_{date}.json`、`index_klines.json`，但**均已做缺失兜底**（v1.9.0）：`sectors` 兼容 dict/list 两种结构、`breadth.top_gainers/top_losers` 缺失时降级为空表、`recommend`/`index_klines` 缺失时不报错。`collect_data.py`（东财）产出不含正确的 `sectors` 涨跌幅榜与 `top_gainers`，**建议仍跑 `collect_v2.py`（新浪）合并**以补齐板块与涨跌幅榜数据（不跑不再崩溃，但相应章节数据为空）。
+- **数据链路依赖（已防御化）**：`generate_report_v3.py` 依赖 `market_{date}.json` 与 `recommend_{date}.json`、`index_klines.json`，但**均已做缺失兜底**：`sectors` 兼容 dict/list 两种结构、`breadth.top_gainers/top_losers` 缺失时降级为空表、`recommend`/`index_klines` 缺失时不报错。`collect_data.py`（东财）产出不含正确的 `sectors` 涨跌幅榜与 `top_gainers`，**建议仍跑 `collect_v2.py`（新浪）合并**以补齐板块与涨跌幅榜数据（不跑不再崩溃，但相应章节数据为空）。
 - **政策章节依赖 `news_{date}.json`**：05 章「重点政策/消息」由 `generate_report_v3.py` 内的 `build_policies()` 从 `data/news_{date}.json`（`collect_news.py` 产出）按关键词加权筛选 Top5。**若无该文件则 05 章为空**（不报错），跑一次 `collect_news.py --date {date}` 即可补齐。
 - **定性内容已数据驱动**：verdict 定调 / 副标题 / 主线题材 / 热点板块 / 推荐 pick / 轮动节奏解读 均从 `market` / `recommend` / `boards_15d` 数据自动生成，**换日期重跑即自动更新，无需手改脚本**。
 - **动态热点色板**：`gen_rotation_columns.py` 的板块池与配色已动态化——优先读 `hot_sectors_{date}.json` 中的热点名+颜色，未覆盖的 `boards_15d.json` 板块自动补色（回退旧 14 板块固定色 CPO=红 / F5G=橙红 / 光纤=橙黄 / 铜缆高速连接=琥珀 / 液冷服务器=青 / 存储芯片=蓝绿 / 创新药=蓝 / CRO=浅蓝 / 减肥药=靛 / 重组蛋白=紫 / 稀土永磁=粉 / 青蒿素=绿 / 机器人=青绿 / 光刻机=洋红）。热点跑出越频繁，颜色越稳定；新热点自动获得颜色并纳入图例。
-- **板块池数据源（v1.13.0 修正）**：热点板块池不再来自 `fund_rank`（那是「个股」主力资金排行，误当板块会用股票名污染聚类），现改为 `sectors`（东财行业/概念板块，含每板块 `main_net_yi`）+ `hybk`（涨停股行业板块）补充，`fund_rank` 仅极端降级兜底。`collect_v2.py` 的新浪行业板块改存 `sina_sectors` 键、仅当 `sectors` 缺失时兜底填充，不再覆盖以保住板块级资金流。
+- **板块池数据源**：热点板块池不再来自 `fund_rank`（那是「个股」主力资金排行，误当板块会用股票名污染聚类），现改为 `sectors`（东财行业/概念板块，含每板块 `main_net_yi`）+ `hybk`（涨停股行业板块）补充，`fund_rank` 仅极端降级兜底。`collect_v2.py` 的新浪行业板块改存 `sina_sectors` 键、仅当 `sectors` 缺失时兜底填充，不再覆盖以保住板块级资金流。
 - **资金维度历史来源 `fund_15d.json`**：`gen_theme_lifecycle.py`（生命周期资金正天数）与 `gen_rotation_v2.py`（趋势一致性/资金持续性）优先读 `data/fund_15d.json`（`collect_fund_15d.py` 采集，键=东财板块名，与 hot_sectors 动态名对齐）；缺失时优雅降级为涨停/涨幅代理（已验证不崩溃）。
-- **命名桥接（v1.14.0 引入，v1.15.0 起全量动态）**：`boards_15d.json` 由 `collect_boards_15d.py` 动态采集东财「行业+概念」全量板块（键=东财板块名），新热点自动纳入涨幅历史，无覆盖上限；`zt_15d.json` 关键词 = THS 14 短名（`_common.py` 单一来源）+ boards 全量板块名 + 当日热点名。历史遗留的同花顺短名数据经 `bridge_ths_name()` 桥接兼容。`gen_rotation_columns.py` 的 ×N 涨停数查询已做双路兜底（东财名直查 → 短名桥接）。
+- **命名桥接**：`boards_15d.json` 由 `collect_boards_15d.py` 动态采集东财「行业+概念」全量板块（键=东财板块名），新热点自动纳入涨幅历史，无覆盖上限；`zt_15d.json` 关键词 = THS 14 短名（`_common.py` 单一来源）+ boards 全量板块名 + 当日热点名。历史遗留的同花顺短名数据经 `bridge_ths_name()` 桥接兼容。`gen_rotation_columns.py` 的 ×N 涨停数查询已做双路兜底（东财名直查 → 短名桥接）。
 - **绝不**对 `<style>` 做 `.replace("{{","{").replace("}}","}")` 全局替换——这会破坏合法的嵌套结尾 `}}`（如 `@media{...{...}}`），导致 CSS 语法错误、布局全乱。如必须修双花括号，改用「重跑基础 + 重新插入」策略。
 
 ## 模式 B：个股诊断（用户提供 股票全称 / 代码 / 成本价）
@@ -138,7 +136,7 @@ python scripts/gen_rotation_columns.py --date 20260818 # 插入 07「近一月�
 ### B.1 数据准备（可选）
 若目标股票的分析 JSON 缺失 / 需刷新，按对应采集脚本更新后写入该 JSON。已有数据时跳过。
 ```bash
-cd C:/Users/tianw/.workbuddy/skills/a-stock-operator-v2
+cd <你的工作目录>   # 产物(data/、Markdown 报告)落在这里，不写回技能目录
 # 通鼎互联样例（默认）：data/tdhl_analysis.json + data/tdhl_kline.json
 # 其他股票：自备 <名称>_analysis.json（结构见下方「分析 JSON 字段结构」）
 ```
@@ -200,48 +198,37 @@ cd C:/Users/tianw/.workbuddy/skills/a-stock-operator-v2
 
 ### B.2 生成报告（参数化）
 ```bash
-cd C:/Users/tianw/.workbuddy/skills/a-stock-operator-v2
+cd <你的工作目录>   # 产物(data/、Markdown 报告)落在这里，不写回技能目录
 python scripts/generate_stock_report.py \
   --name 通鼎互联 --code 002491 --exchange SZ \
-  --data data/tdhl_analysis.json --kline data/tdhl_kline.json --date 20260818
-python scripts/rewrite_advice_v5.py \
-  --path output/通鼎互联_个股诊断_20260818.html \
-  --data data/tdhl_analysis.json --cost 18.50
+  --data data/tdhl_analysis.json --kline data/tdhl_kline.json --date 20260818 \
+  --cost 18.50
 ```
 - `--name/--code/--exchange`：来自 B.0 用户输入，**两者至少提供一个**（脚本会校验，缺失则报错）；`--data/--kline` 缺省时按 name/code 智能推导 `data/{name|code}_*.json`，再回退通鼎样例。
 - `--date`：默认真实今日（`datetime.now()`），用于文件名与页脚标注。
-- `--cost` 只传给 **v5（07 操作建议）**，基础报告不接收成本价（成本仅作用于操作建议章节）。不给 `--cost` 则不显示持仓盈亏。
-- `--path`：基础报告输出路径（文件名格式 `{name}_个股诊断_{date}.html`，随名称/日期变化）。
-- 输出文件名、报告标题、页眉代码、持仓盈亏全部随参数动态生成。
+- `--cost`：**可选**，持仓成本价。传入则在 07「最终诊断操作建议」的综合评级处追加「持仓成本 / 盈亏%」一行；不给则不显示持仓盈亏。
+- 输出为 **Markdown**（`{name}_个股诊断_{date}.md`，落到 `<cwd>` 根目录），文件名、标题、代码、持仓盈亏全部随参数动态生成。
 
 ### B.3 坑点（关键！）
-- **基础报告 `generate_stock_report.py` 重跑只产 6 章，不含 07 章节。** `rewrite_advice_v5.py` 已改造为「正则匹配替换优先 + footer 前插入兜底」，能稳定补建 07 章节，重跑可复现。
-- v5 脚本**不再做任何全局 `{{`→`{` 替换**（避免破坏合法嵌套 CSS）；它只：① 清除旧 advice CSS 块（幂等）② 从 `--data` 的 `advice` 段构建 07 章节 ③ 注入 DV-CSS（带 `/*DV-CSS-START/END*/` 哨兵，幂等不膨胀）。
+- 个股报告已**一次生成完整 7 章**（含 07「最终诊断操作建议」），无需再跑单独的 advice 后处理脚本。
 - 持仓成本价盈亏 = `(现价 - 成本) / 成本`，现价取分析 JSON 内 `price_panel.price`，故盈亏随数据基准日计算。
-- **环形评分居中约束**：`.dv-ring` 必须为 `display:flex; flex-direction:column; align-items:center; justify-content:center`，否则 `5.15` 与 `/10` 会落回圆环左上角（曾因此返工）。`.dv-num` 额外 `margin-top:-6px` 做光学居中，改动此布局时务必保留。
 
 ## 通用坑点与修复（必读）
 
-1. **CSS 双花括号失效 bug（最隐蔽）**：追加章节的脚本用**普通字符串**写 CSS 时，必须用单花括号 `{ }`。误用 `{{ }}`（那是 f-string 才需要的转义）会导致注入的 CSS **整段无效**，卡片布局「看起来没生效、文本堆积、没层次感」——这正是反复返工的根因。基础报告用 f-string（`{{` 正确转义为 `{`），正常。
-2. **采集两步不可省**：`collect_data.py`（东财）产出缺少正确 `sectors`/涨跌幅榜，**必须接 `collect_v2.py`（新浪）合并**。
-3. **重跑前先备份成品**：`cp output/xxx.html output/xxx.bak`，避免覆盖后丢失追加章节。
-4. **CSS 注入幂等**：所有追加 CSS 必须带哨兵注释（`ROT-CSS-START/END`、`DV-CSS-START/END`），重复运行不膨胀。
-5. **校验三件套**（每次生成后必须执行）：① div 开/闭数量相等 ② `<style>` 内 `{`/`}` 数量相等且无 `{{` 残留 ③ 关键章节/类存在。
+1. **数据采集两步不可省**：`collect_data.py`（东财）产出缺少正确 `sectors`/涨跌幅榜，**必须接 `collect_v2.py`（新浪）合并**。
+2. **重跑前先备份成品**：`cp 行情复盘_{date}.md 行情复盘_{date}.md.bak`，避免覆盖后丢失内容。
+3. **报告为原生 Markdown**：行情与个股报告均已重写为原生 Markdown（表格/列表/引用块），**无 HTML/CSS 残留**，无需再跑任何 HTML 后处理或 CSS 注入脚本。
 
 ## 校验清单（每次生成后执行）
 
 ```python
-import re
 def verify(fn, kws):
     t = open(fn, encoding='utf-8').read()
-    st = t[t.find('<style>'):t.find('</style>')]
-    o = len(re.findall(r'<div[^>]*>', t)); c = len(re.findall(r'</div>', t))
-    print('div', o, c, '平衡' if o == c else '不平衡!',
-          '| CSS', st.count('{'), st.count('}'), '双括号', st.count('{{'))
+    print('MD 行数', len(t.splitlines()), '| 空行', t.count('\n\n'))
     for k in kws:
         print('  ', k, k in t)
-# 行情：verify(f'output/行情复盘_{date}.html', ['近一月板块轮动','板块颜色图例','轮动节奏解读','bcell','×N'])
-# 个股：verify(f'output/{name}_个股诊断_{date}.html', ['最终诊断操作建议','dv-hero','dv-risk','避坑提示','观察评级','持仓成本' if cost else 'dv-ind'])
+# 行情：verify(f'行情复盘_{date}.md', ['近一月板块轮动','轮动节奏解读','资金轮动四象限'])
+# 个股：verify(f'{name}_个股诊断_{date}.md', ['最终诊断操作建议','避坑提示','观察评级','持仓成本' if cost else '综合评级'])
 ```
 
 ## 文件索引
@@ -249,7 +236,7 @@ def verify(fn, kws):
 | 用途 | 路径 |
 |------|------|
 | 共享工具库 | `scripts/_common.py`（BASE / load_json / dump_json / dump_json_guard / read_text / write_text / safe_float / sparkline + 公共常量：八色配色 / 情绪五阶段与配色 / 温度与风险因子权重与标签，以及 today_ymd、latest_trade_day、seal_break_rates、trend_tag、THS_BOARD_KEYWORDS、bridge_ths_name 工具函数，供全部脚本复用） |
-| 一键采集+健康检查 | `scripts/collect_all.py`（v1.16.0，按序编排 7 个采集脚本 + 15 项完整性/新鲜度校验，失败汇总 + exit 1；`--only-check` 仅检查、`--skip` 跳步） |
+| 一键采集+健康检查 | `scripts/collect_all.py`（按序编排 7 个采集脚本 + 15 项完整性/新鲜度校验，失败汇总 + exit 1；`--only-check` 仅检查、`--skip` 跳步） |
 | 行情基础采集（东财） | `scripts/collect_data.py`（指数/涨停/炸板/跌停/涨跌家数/热因；合并模式：失败项沿用旧值 stale_kept，关键项缺失 exit 1） |
 | 行情补充采集（新浪+资金） | `scripts/collect_v2.py`（涨跌幅榜/行业板块/主力资金，合并进 market；空结果不合并） |
 | 政策快讯采集 | `scripts/collect_news.py`（东财快讯 -> `news_{date}.json`，供 05 章筛选；空结果不覆盖） |
@@ -264,20 +251,20 @@ def verify(fn, kws):
 | 情绪温度计 | `scripts/gen_emotion_cycle.py`（Model 04，温度+风险双维 + factors 因子分解 + 分歧阈值温度滑动 + 背离连续化 -> `emotion_{date}.json`） |
 | 行情基础报告 | `scripts/generate_report_v3.py`（情绪卡优先读 `emotion_{date}.json`，渲染温度/风险因子分解条 + 五档刻度高亮 + 仓位进度条(position_min/max) + 推荐跳转，缺失回退硬编码） |
 | 轮动章节插入 | `scripts/gen_rotation_columns.py`（引用 `rotation_{date}.json` 渲染四象限/多因子，缺失回退旧节奏卡） |
-| 个股基础报告 | `scripts/generate_stock_report.py` |
-| 个股操作建议美化 | `scripts/rewrite_advice_v5.py` |
+| 个股基础报告 | `scripts/generate_stock_report.py`（含 07 操作建议章节，`--cost` 可选） |
+> 以下 `data/…` 指**运行时当前工作目录**下 `<cwd>/a-stock-operator-v2/data`，`*.md` 报告指 `<cwd>` 根目录下的产物（主流程脚本已通过 `_common.DATA_DIR`/`REPORT_ROOT` 落到 `<cwd>`；见「运行要求」），不再落在技能安装目录。
 | 个股分析数据(样例) | `data/tdhl_analysis.json`（六维/SWOT/龙虎榜/价位/操作建议，通鼎互联） |
 | 个股 K 线数据 | `data/tdhl_kline.json`（含 closes 列表，用于 sparkline） |
-| 输出·行情复盘 | `output/行情复盘_{date}.html` |
-| 输出·个股诊断 | `output/{name}_个股诊断_{date}.html`（文件名随名称/日期动态生成） |
+| 输出·行情复盘 | `行情复盘_{date}.md`（= `<cwd>` 根目录） |
+| 输出·个股诊断 | `{name}_个股诊断_{date}.md`（= `<cwd>` 根目录，文件名随名称/日期动态生成） |
 
-> 另有历史/备用脚本（`generate_report.py` / `generate_report_v2.py`、`gen_heatmap*.py`、`rewrite_advice_v1~v4.py`、`gen_policy_section.py`、`gen_recommend_section.py`、`gen_sector_rotation*.py`、`fix_rotation_section.py`、`gen_advice_section.py`、`polish_*.py` 等）一并打包在 `scripts/` 内，已做路径相对化（`BASE` 自动推导），非主流程，按需取用。历史废弃采集脚本 `collect_news.py` / `collect_sector_15d*.py` / `collect_sector_month.py` 已被主流程替代，未打包进本技能（留在开发工作区 `D:\ai_work\stock-report\scripts\` 作历史存档）。
+> **脚本清单已清理**：`scripts/` 仅保留生产主流程脚本（上表 18 个）。历史一次性/废弃脚本（`generate_report.py` / `generate_report_v2.py`、`gen_heatmap*.py`、`rewrite_advice.py`/`_v3`/`_v4`、`gen_policy_section.py`、`gen_recommend_section.py`、`gen_sector_rotation*.py`、`fix_rotation_section.py`、`gen_advice_section.py`、`polish_dots.py`、`polish_reports.py`，以及被 `collect_boards_15d.py` 取代的 `collect_sector_15d.py`/`collect_sector_15d_v2.py`/`collect_sector_month.py`）均已删除，产物路径也已统一外置（见「运行要求」），不再写回技能安装目录。`collect_news.py` 为现行生产脚本（政策快讯采集，被 `collect_all` 调度），保留。
 
 ## 数据基准说明
 
 - **「今日」= 真实交易日**：所有采集/生成脚本默认取 `datetime.now()` 的日期；`--date YYYYMMDD` 可指定任意交易日覆盖。
 - `collect_boards_15d.py` / `collect_zt_15d.py` / `collect_index_klines.py` 为**滚动采集**（自动取最新 N 日），无日期参数。
-- `market_{date}.json`、`recommend_{date}.json`、`output/*_{date}.html` 的文件名均随日期动态生成。
+- `market_{date}.json`、`recommend_{date}.json`、`*_{date}.md` 的文件名均随日期动态生成。
 - 若仅做**离线重跑 / 美化 / 换股诊断**，无需联网，直接用现有 `data/` 内数据即可（`--date` 指向已存在数据的日期）。
 - **日日自动生成（数据驱动）**：verdict 定调、副标题、主线题材、热点板块、推荐 pick、轮动节奏解读均已数据驱动，`--date` 换日期重跑即自动更新，**无需手改脚本**。唯一例外是 05 章「重点政策/消息」依赖 `news_{date}.json`（`collect_news.py` 按关键词规则筛选 Top5，语义质量弱于人工精选，属可接受的自动化折中）；轮动表头日期为**降序**（最近交易日排最前）。
 

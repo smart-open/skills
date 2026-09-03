@@ -1,7 +1,6 @@
 ---
 name: suno-cn-music
 description: Suno.cn AI 音乐创作助手，生成歌曲、查询任务、上传参考音频、续写音乐、生成歌词。当用户需要 AI 作曲或音乐生成时调用。
-version: 1.3.2
 metadata:
   openclaw:
     requires:
@@ -987,21 +986,3 @@ Retry-After: 60
 `
 
 ⚠️ 详细日志仅供技术排查，不要让普通用户误解。先展示用户友好提示，再展示详细日志。
-
----
-
-## 版本声明
-
-- **Skill 版本**: 1.3.2
-- **API 版本**: 以 https://mcp.suno.cn/mcp/skill/version 返回为准
-- **兼容性**: 不假设 API 格式固定，以实际响应为准
-
-如果 API 响应包含未预期的字段，原样展示，不要报错。
-
----
-
-## 版本检查
-
-GET https://mcp.suno.cn/mcp/skill/version
-
-如果 latest_version 高于 1.3.2，告知用户有新版本。

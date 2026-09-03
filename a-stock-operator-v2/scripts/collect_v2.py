@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 import os
 import sys
-from _common import BASE, load_json, dump_json
+from _common import BASE, DATA_DIR, load_json, dump_json
 """补充采集：新浪涨跌家数/涨跌幅榜/行业板块 + 东财资金排行(重试)"""
 import json
 import time
@@ -138,7 +138,7 @@ def main():
     safe("fund_rank", fetch_fund_rank)
 
     # 合并到已有 JSON（仅覆盖成功项，缺文件时明确提示）
-    path = os.path.join(BASE, f"data/market_{TD}.json")
+    path = os.path.join(DATA_DIR, f"market_{TD}.json")
     if not os.path.exists(path):
         print(f"!! 未找到 {path}，请先运行 collect_data.py")
         sys.exit(1)

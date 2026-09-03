@@ -5,7 +5,7 @@
 import os, argparse
 from datetime import datetime
 
-from _common import (BASE, load_json, dump_json, safe_float,
+from _common import (BASE, DATA_DIR, load_json, dump_json, safe_float,
                       TEMPERATURE_W, RISK_W, PROFIT_FULL, today_ymd, seal_break_rates)
 
 ap = argparse.ArgumentParser(description="情绪温度计 Model 04")
@@ -41,7 +41,7 @@ POS_FERM = (4, 6)
 POS_HIGH = (3, 5)
 POS_DIVERGE = (2, 4)
 
-market_path = os.path.join(BASE, f"data/market_{TD}.json")
+market_path = os.path.join(DATA_DIR, f"market_{TD}.json")
 if not os.path.exists(market_path):
     print(f"⚠️ 缺少 data/market_{TD}.json，情绪温度计跳过")
     raise SystemExit(0)
@@ -67,7 +67,7 @@ big_loss_cnt = sum(1 for x in zb if safe_float(x.get("chg_pct")) < -5)
 # ===== 赚钱效应（Model 04 新增因子）：昨日涨停池 → 今日晋级率 =====
 # 数据源：zt_pool_15d.json（collect_zt_15d 采的同花顺每日涨停池个股 code）。
 # 取 TD 之前最近一个交易日的池，与今日涨停池（market 的 limit_up list）做 code 交集。
-zt_pool = load_json(os.path.join(BASE, "data/zt_pool_15d.json"))
+zt_pool = load_json(os.path.join(DATA_DIR, "zt_pool_15d.json"))
 _prev_dates = sorted([dd for dd in zt_pool if dd < TD])
 _prev_date = _prev_dates[-1] if _prev_dates else None
 prev_codes = {str(it.get("code", "")).zfill(6) for it in zt_pool.get(_prev_date, [])} if _prev_date else set()
@@ -181,7 +181,7 @@ result = {
     },
 }
 
-out_path = os.path.join(BASE, f"data/emotion_{TD}.json")
+out_path = os.path.join(DATA_DIR, f"emotion_{TD}.json")
 dump_json(result, out_path)
 print(f"✅ 情绪温度计完成 → {out_path}")
 print(f"   情绪={stage} 温度={temperature:.1f} 风险={risk:.1f} 仓位={position}")

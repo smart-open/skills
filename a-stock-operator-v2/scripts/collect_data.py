@@ -11,7 +11,7 @@ import requests
 import argparse
 from datetime import datetime
 
-from _common import BASE, load_json, dump_json
+from _common import BASE, DATA_DIR, load_json, dump_json
 
 ap = argparse.ArgumentParser(description="A股行情数据采集（默认真实今日，可用 --date 覆盖）")
 ap.add_argument("--date", default=datetime.now().strftime("%Y%m%d"),
@@ -213,7 +213,7 @@ def main():
     safe("hot_reason", fetch_hot_reason)
 
     result["errors"] = errors
-    path = os.path.join(BASE, f"data/market_{TRADE_DATE}.json")
+    path = os.path.join(DATA_DIR, f"market_{TRADE_DATE}.json")
 
     # 合并模式：本次失败的项保留旧文件值（标记 stale_kept），避免重跑挤掉上次成功数据
     prev = load_json(path, {}) if os.path.exists(path) else {}

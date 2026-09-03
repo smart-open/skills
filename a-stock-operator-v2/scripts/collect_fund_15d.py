@@ -12,7 +12,7 @@ import time
 import argparse
 import urllib.request
 
-from _common import BASE, dump_json, dump_json_guard
+from _common import BASE, DATA_DIR, dump_json, dump_json_guard
 
 ap = argparse.ArgumentParser(description="采集东财板块主力资金流历史")
 ap.add_argument("--top", type=int, default=40, help="采集资金活跃度前 N 的板块（默认 40）")
@@ -125,7 +125,7 @@ def main():
     if result and len(result) < len(boards) * 0.3:
         print(f"  !! 成功率过低（{len(result)}/{len(boards)}），疑似接口风控，保留旧数据")
         sys.exit(1)
-    if not dump_json_guard(result, os.path.join(BASE, "data/fund_15d.json"), "板块资金流历史"):
+    if not dump_json_guard(result, os.path.join(DATA_DIR, "fund_15d.json"), "板块资金流历史"):
         sys.exit(1)
     print(f"\n完成：共 {len(result)} 个板块 → data/fund_15d.json")
 

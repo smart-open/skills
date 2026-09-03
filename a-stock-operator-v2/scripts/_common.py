@@ -4,9 +4,16 @@ import os
 import json
 from datetime import datetime
 
-BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-# 最终 HTML 报告输出根 = 当前工程目录（BASE 的父目录），避免埋在技能子目录；可用环境变量 A_STOCK_OUT 覆盖
-REPORT_ROOT = os.environ.get("A_STOCK_OUT") or os.path.dirname(BASE)
+BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 技能安装目录(脚本所在根)
+# 会话工作根：所有可写产物（数据/过程脚本）收敛到「当前会话/工作目录(os.getcwd())」下的
+# <技能名>/ 子目录，不埋进技能安装目录。优先级：A_STOCK_WORK（技能工作区根）> 当前工作目录。
+_SKILL_NAME = "a-stock-operator-v2"
+WORK_DIR = os.environ.get("A_STOCK_WORK") or os.path.join(os.getcwd(), _SKILL_NAME)
+# 采集/分析数据根 = <WORK_DIR>/data  （data/*.json：market_/recommend_/boards_15d/zt_15d/fund_15d/index_klines 等）
+DATA_DIR = os.path.join(WORK_DIR, "data")
+# 最终报告输出根 = 「当前会话/工作目录」根（Markdown，带日期，不放进技能名子目录）。
+# 历史兼容字段 A_STOCK_OUT 仍生效：指向固定报告目录。
+REPORT_ROOT = os.environ.get("A_STOCK_OUT") or os.getcwd()
 
 # ===== 公共配色（A股约定：涨红 / 跌绿 / 中性灰 / 板块默认灰）=====
 UP_COLOR = "#ff4d5e"

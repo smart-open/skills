@@ -13,7 +13,7 @@ import argparse
 import urllib.request
 from datetime import datetime, timedelta
 
-from _common import BASE, dump_json, dump_json_guard, safe_float
+from _common import BASE, DATA_DIR, dump_json, dump_json_guard, safe_float
 
 ap = argparse.ArgumentParser(description="采集东财行业+概念板块近15日涨幅历史")
 ap.add_argument("--top", type=int, default=0, help="仅采集按今日主力净流入绝对值前 N 的板块（0=全部）")
@@ -116,7 +116,7 @@ def main():
     if result and len(result) < len(boards) * 0.3:
         print(f"  !! 成功率过低（{len(result)}/{len(boards)}），疑似接口风控，保留旧数据")
         sys.exit(1)
-    if not dump_json_guard(result, os.path.join(BASE, "data/boards_15d.json"), "板块涨幅历史"):
+    if not dump_json_guard(result, os.path.join(DATA_DIR, "boards_15d.json"), "板块涨幅历史"):
         sys.exit(1)
     print(f"\n完成：共 {len(result)}/{len(boards)} 个板块 → data/boards_15d.json")
 

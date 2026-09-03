@@ -7,7 +7,7 @@ import os, math, argparse
 from datetime import datetime
 from collections import defaultdict, Counter
 
-from _common import BASE, load_json, dump_json, safe_float, today_ymd, seal_break_rates
+from _common import BASE, DATA_DIR, load_json, dump_json, safe_float, today_ymd, seal_break_rates
 
 ap = argparse.ArgumentParser(description="动态热点发现引擎")
 ap.add_argument("--date", default=today_ymd(), help="目标交易日 YYYYMMDD")
@@ -17,7 +17,7 @@ TD = _args.date
 TOP_N = _args.top
 
 # ===== 1. 加载数据 =====
-market_path = os.path.join(BASE, f"data/market_{TD}.json")
+market_path = os.path.join(DATA_DIR, f"market_{TD}.json")
 if not os.path.exists(market_path):
     raise SystemExit(f"数据文件不存在: market_{TD}.json，请先运行 collect_data.py + collect_v2.py")
 
@@ -248,7 +248,7 @@ result = {
 if not board_scores:
     print("!! 未发现任何有效板块（sectors 与涨停池可能采集失败），不落盘")
     raise SystemExit(1)
-out_path = os.path.join(BASE, f"data/hot_sectors_{TD}.json")
+out_path = os.path.join(DATA_DIR, f"hot_sectors_{TD}.json")
 dump_json(result, out_path)
 print(f"✅ 动态热点发现完成 → {out_path}")
 print(f"   共发现 {len(board_scores)} 个有效板块，取 Top {len(hot_sectors)}")

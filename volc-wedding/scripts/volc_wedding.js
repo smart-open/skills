@@ -175,7 +175,7 @@ class VolcWedding {
   constructor(args) {
     this.args = args;
     this.sessionId = generateSessionId();
-    this.workDir = args.workDir || path.join(SKILL_DIR, "..", "work", this.sessionId);
+    this.workDir = args.workDir || path.join(process.cwd(), "volc-wedding", "work", this.sessionId);
     this.portraitsDir = path.join(this.workDir, "portraits");
     this.scenesDir = path.join(this.workDir, "scenes");
     this.videosDir = path.join(this.workDir, "videos");

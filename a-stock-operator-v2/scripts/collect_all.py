@@ -14,7 +14,12 @@ import subprocess
 import argparse
 from datetime import datetime, timedelta
 
-from _common import BASE, load_json, latest_trade_day
+from _common import BASE, DATA_DIR, load_json, latest_trade_day
+
+# collect_all 被启动时的用户工作目录：作为子进程产物根传给 _common（A_STOCK_WORK/A_STOCK_OUT）。
+# 子进程在 cwd=scripts 下运行仅为了让 `from _common import` 能定位到共享库；
+# 若不显式注入，子进程 os.getcwd()==scripts/ 会把数据/报告写回技能目录 —— 必须用启动目录覆盖。
+LAUNCH_CWD = os.getcwd()
 
 # (标签, 脚本, 传 --date TD 与否)  采集段按依赖顺序执行
 COLLECT_STEPS = [
@@ -42,6 +47,12 @@ def run_step(py, with_date, td):
     if with_date:
         cmd += ["--date", td]
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+    # 产物根统一指向 collect_all 启动目录（用户显式设 A_STOCK_WORK 时优先尊重之），
+    # 否则子进程会因 cwd=scripts 而把数据/报告写回技能安装目录。
+    # 注意：只注入 A_STOCK_WORK 即可 —— _common.REPORT_ROOT = A_STOCK_OUT or WORK_DIR，
+    # 报告会自动落到 WORK_DIR(=A_STOCK_WORK)；若再注入 A_STOCK_OUT=LAUNCH_CWD 反而会
+    # 覆盖该 fallback，导致「只设 A_STOCK_WORK 时报告落点与直接跑子脚本不一致」。
+    env.setdefault("A_STOCK_WORK", LAUNCH_CWD)
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                        errors="ignore", env=env, cwd=os.path.join(BASE, "scripts"))
     for line in (r.stdout or "").strip().splitlines()[-6:]:
@@ -81,7 +92,7 @@ def main():
                 print(f"    ✗ 步骤失败（exit != 0）")
 
     print("\n===== 数据健康检查 =====")
-    D = os.path.join(BASE, "data")
+    D = DATA_DIR
     checks = []
     warnings = []
 

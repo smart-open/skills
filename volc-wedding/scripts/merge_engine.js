@@ -9,6 +9,7 @@
 
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const { execSync } = require("child_process");
 
 // ---- Full FFmpeg path detection ----
@@ -16,8 +17,8 @@ const { execSync } = require("child_process");
 // We detect the winget-installed full build and prefer it.
 const FULL_FFMPEG_CANDIDATES = [
   process.env["FFMPEG_PATH"],
-  "C:\\Users\\tianw\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.1-full_build\\bin\\ffmpeg.exe",
-  "C:\\Users\\tianw\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1\\bin\\ffmpeg.exe",
+  path.join(os.homedir(), "AppData", "Local", "Microsoft", "WinGet", "Packages", "Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe", "ffmpeg-8.1.1-full_build", "bin", "ffmpeg.exe"),
+  path.join(os.homedir(), "AppData", "Local", "Microsoft", "WinGet", "Packages", "Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe", "ffmpeg-8.1", "bin", "ffmpeg.exe"),
   "C:\\ffmpeg\\bin\\ffmpeg.exe",
 ];
 

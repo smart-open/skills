@@ -12,7 +12,7 @@ import uuid
 import argparse
 import requests
 
-from _common import BASE, dump_json
+from _common import BASE, DATA_DIR, dump_json
 
 ap = argparse.ArgumentParser(description="采集目标交易日东财快讯 -> data/news_{date}.json")
 ap.add_argument("--date", default=datetime.datetime.now().strftime("%Y%m%d"),
@@ -68,7 +68,7 @@ print(f"共拉取 {len(all_news)} 条，去重后 {len(uniq)} 条")
 day_news = [n for n in uniq if n["showTime"].startswith(DATE_STR)]
 print(f"{DATE_STR} 当天 {len(day_news)} 条")
 
-out = os.path.join(BASE, f"data/news_{TD}.json")
+out = os.path.join(DATA_DIR, f"news_{TD}.json")
 if not day_news:
     # 空结果不覆盖旧文件（接口失败或翻页中断），交由健康检查兜底
     if os.path.exists(out):

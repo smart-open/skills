@@ -23,6 +23,7 @@ const https = require("https");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
+const os = require("os");
 const { execSync, spawn } = require("child_process");
 
 // ---- FFmpeg path detection ----
@@ -30,8 +31,8 @@ const { execSync, spawn } = require("child_process");
 // We detect the winget-installed full build and prefer it.
 const FULL_FFMPEG_CANDIDATES = [
   process.env["FFMPEG_PATH"],
-  "C:\\Users\\tianw\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1.1-full_build\\bin\\ffmpeg.exe",
-  "C:\\Users\\tianw\\AppData\\Local\\Microsoft\\WinGet\\Packages\\Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe\\ffmpeg-8.1\\bin\\ffmpeg.exe",
+  path.join(os.homedir(), "AppData", "Local", "Microsoft", "WinGet", "Packages", "Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe", "ffmpeg-8.1.1-full_build", "bin", "ffmpeg.exe"),
+  path.join(os.homedir(), "AppData", "Local", "Microsoft", "WinGet", "Packages", "Gyan.FFmpeg_Microsoft.Winget.Source_8wekyb3d8bbwe", "ffmpeg-8.1", "bin", "ffmpeg.exe"),
   "C:\\ffmpeg\\bin\\ffmpeg.exe",
 ];
 
@@ -297,7 +298,7 @@ class CrossEraWedding {
   constructor(args) {
     this.args = args;
     this.sessionId = generateSessionId();
-    this.workDir = args.workDir || path.join(SKILL_DIR, "..", "work", this.sessionId);
+    this.workDir = args.workDir || path.join(process.cwd(), "cross-era-wedding", "work", this.sessionId);
     this.framesDir = path.join(this.workDir, "frames");
     this.swappedDir = path.join(this.workDir, "swapped");
     this.videosDir = path.join(this.workDir, "videos");

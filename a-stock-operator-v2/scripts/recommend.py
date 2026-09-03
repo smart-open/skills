@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 import os
-from _common import BASE, load_json, dump_json, safe_float
+from _common import BASE, DATA_DIR, load_json, dump_json, safe_float
 """个股推荐计算 — 基于 a-stock-operator 方法论
 输出一：主板首板·低位突破（5只）
 输出二：主板突破+放量+热点（5只，涨幅5%~9.9%非涨停）
@@ -21,7 +21,7 @@ ap.add_argument("--date", default=datetime.now().strftime("%Y%m%d"),
 _args = ap.parse_args()
 TD = _args.date
 
-mkt_path = os.path.join(BASE, f"data/market_{TD}.json")
+mkt_path = os.path.join(DATA_DIR, f"market_{TD}.json")
 if not os.path.exists(mkt_path):
     raise SystemExit(f"!! 数据文件不存在: market_{TD}.json，请先运行 collect_data.py")
 d = load_json(mkt_path)
@@ -192,7 +192,7 @@ result = {
     "first_board": fb_sorted[:8],   # 多给几个候选
     "breakout": gb_sorted[:8],
 }
-dump_json(result, os.path.join(BASE, f"data/recommend_{TD}.json"))
+dump_json(result, os.path.join(DATA_DIR, f"recommend_{TD}.json"))
 
 print("\n===== 主板首板·低位突破候选 =====")
 for x in fb_sorted[:8]:

@@ -9,7 +9,7 @@ import json
 import argparse
 import requests
 
-from _common import BASE, load_json
+from _common import BASE, DATA_DIR, load_json
 
 INDEXES = {
     "sh000001": "上证指数",
@@ -56,7 +56,7 @@ def main():
         closes = fetch_closes(code, args.days)
         result[code] = closes
         print(f"  {name}({code}): {len(closes)} 个交易日, 最新 {closes[-1] if closes else '-'}")
-    out = os.path.join(BASE, "data/index_klines.json")
+    out = os.path.join(DATA_DIR, "index_klines.json")
     # 失败指数保留旧文件数据，避免空列表覆盖好数据
     old = load_json(out, {})
     for k in list(result.keys()):
