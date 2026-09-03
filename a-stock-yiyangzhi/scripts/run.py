@@ -4,6 +4,7 @@
   py scripts/run.py scan [YYYY-MM-DD] [--live] [--minpct 3] [--maxpct 8] [--force]
   py scripts/run.py judge <代码或名称> [YYYY-MM-DD]
   py scripts/run.py optimize [--codes a,b,c] [--top 60] [--min-samples 30]
+  py scripts/run.py verify [--date YYYYMMDD]
 """
 from __future__ import annotations
 import os, sys, subprocess
@@ -46,6 +47,8 @@ def main(argv):
         status = subprocess.call([_py(), os.path.join(SP, "judge.py")] + rest)
     elif cmd == "optimize":
         status = subprocess.call([_py(), os.path.join(SP, "optimize.py")] + rest)
+    elif cmd == "verify":
+        status = subprocess.call([_py(), os.path.join(SP, "verify.py")] + rest)
     else:
         print(f"未知命令: {cmd}")
         print(__doc__)

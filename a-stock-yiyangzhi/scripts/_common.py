@@ -67,6 +67,19 @@ WARN_COLOR = "#f0c040"
 MUTED = "#8b93a7"
 GOLD = "#f0b45a"
 
+# 自学习回写参数（optimize.py 产出 params_best.json，覆盖上面常量；缺省回落默认）
+PARAMS_PATH = os.path.join(DATA, "params_best.json")
+PARAM_KEYS = ["TURN_VOL_MIN", "OPEN_VOL_MIN"]  # 当前支持自动搜索的战法阈值
+
+
+def _apply_params():
+    """读取 params_best.json，将合法阈值覆盖到模块常量。"""
+    p = load_json(PARAMS_PATH, {})
+    for k in PARAM_KEYS:
+        v = p.get(k)
+        if isinstance(v, (int, float)) and v > 0:
+            globals()[k] = float(v)
+
 
 def limit_pct(code):
     """涨停幅度：科创/创业 20%，北交所(8/4/920) 30%，主板 10%"""
@@ -90,6 +103,15 @@ def is_limit_up(chg, code):
         return False
 
 
+# 暴雷名称关键词（与共享 _risk_gate 同源，短线风险放大：ST/退市一票剔除）
+_RISK_NAME_KEYWORDS = ["ST", "*ST", "退"]
+
+
+def is_risk_name(name):
+    n = str(name or "").upper()
+    return any(k in n for k in _RISK_NAME_KEYWORDS)
+
+
 def stock_prefix(code):
     c = str(code)
     if c.startswith(("8", "4", "920")):
@@ -109,6 +131,10 @@ def load_json(path, default=None):
             return json.load(f)
     except Exception:
         return default
+
+
+# 模块加载末尾：读 params_best.json 覆盖战法阈值（load_json 已定义）
+_apply_params()
 
 
 def dump_json(path, obj):
@@ -236,7 +262,7 @@ def fetch_universe(min_pct=3.0, max_pct=8.0, top_n=2000):
     for code, d in rows.items():
         chg = safe_float(d.get("f3"))
         name = str(d.get("f14", ""))
-        if "ST" in name.upper():        # ST/*ST（5%涨跌停）剔除，避免以≈5%干扰一阳指筛选
+        if is_risk_name(name):        # ST/*ST/退市（5%或特殊涨跌停）剔除，避免干扰一阳指筛选
             continue
         if min_pct <= chg <= max_pct:
             out.append({

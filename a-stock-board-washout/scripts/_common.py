@@ -12,6 +12,10 @@ from datetime import datetime, timedelta
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
+# 自学习闭环产物（放 BASE/data 下，与 screen_*.json 同级）
+VERIFY_PATH = os.path.join(BASE, "data", "verify_history.csv")
+PARAMS_PATH = os.path.join(BASE, "data", "params_best.json")
+
 
 def _out_dir():
     """报告输出目录：env WASHOUT_OUT > 当前会话根目录(cwd)。"""
@@ -47,6 +51,19 @@ def is_main_board(code):
 def is_st(name):
     n = (name or "").upper()
     return "ST" in n or "退" in n
+
+
+# 暴雷关键词（原因/公告文本命中即剔除），与共享 _risk_gate 同源
+_RISK_REASON_KEYWORDS = [
+    "立案", "调查", "违规", "处罚", "问询", "关注函", "警示函",
+    "退市", "暂停上市", "终止上市", "业绩预亏", "预亏", "商誉减值",
+    "财务造假", "诉讼", "质押爆仓", "停牌", "一字跌停",
+]
+
+
+def is_risk_reason(reason):
+    r = str(reason or "")
+    return any(k in r for k in _RISK_REASON_KEYWORDS)
 
 
 def tencent_code(code):
@@ -112,3 +129,30 @@ def safe_float(v, default=0.0):
 
 def round1(x):
     return round(safe_float(x), 1)
+
+
+def fetch_kline(code, n=130):
+    """腾讯前复权日K线，返回 [{d,o,c,h,l,v}, ...]（升序旧→新）。复用 collect_stocks 同源镜像 host。"""
+    import time
+    import requests
+    tc = ("sh" if code.startswith(("6", "9")) else "sz") + code
+    url = f"https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get?param={tc},day,,,{n},qfq"
+    ua = ("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+          "Chrome/117.0.0.0 Safari/537.36")
+    for _ in range(2):
+        try:
+            data = requests.get(url, headers={"User-Agent": ua}, timeout=12).json() \
+                .get("data", {}).get(tc, {})
+            rows = data.get("qfqday") or data.get("day") or []
+            out = []
+            for r in rows:
+                if len(r) < 6:
+                    continue
+                out.append({
+                    "d": str(r[0]), "o": safe_float(r[1]), "c": safe_float(r[2]),
+                    "h": safe_float(r[3]), "l": safe_float(r[4]), "v": safe_float(r[5]),
+                })
+            return out
+        except Exception:
+            time.sleep(0.6)
+    return []

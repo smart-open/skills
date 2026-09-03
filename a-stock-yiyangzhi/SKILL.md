@@ -19,7 +19,8 @@ disable-model-invocation: false
 ## 能力
 - **全市场扫描**：每天（盘后或盘中 `--live`）识别当日涨幅约 5%（默认 3%~8% 带）且符合「一阳指·转势」「一阳指·开门」的个股，输出 **Markdown 报告 + CSV + JSON**（含逐只原因、买点、止损、卖点监控）。并识别当日市场热点板块，对每只候选打「热点 / 中期主线 / 边缘偶发」主线标签，**自动剔除边缘偶发股**（如公司公告、冷门题材），保留市场热点、中长期主线与超跌板块个股。
 - **个股单查**：输入股票代码或名称 + 日期，逐条判定是否符合两种战法，给出理由与买卖点/止损。
-- **模型可靠性 + 阈值优化**：对历史日K逐日回放，统计信号触发后 T+5 涨幅≥5% 的历史命中率，并按命中率校准量比阈值，输出 Markdown 可靠性报告。
+- **模型可靠性 + 阈值优化**：对历史日K逐日回放，统计信号触发后 **T+1/T+3/T+5 三档涨幅≥5%** 的历史命中率（短线主看 T+3），并按命中率校准量比阈值，**自动回写 `params_best.json`**（下次 scan/judge 自动加载覆盖常量），输出 Markdown 可靠性报告。
+- **历史推荐验证（自学习闭环）**：`verify` 子命令用实际 K 线回填已出信号标的的真实 T+1/T+3/T+5 收盘/最高涨幅与涨停，累计 `verify_history.csv`，用于持续观察模型命中率是否随样本累积而稳定。
 
 ## 环境
 - Python 3.12+，依赖 `numpy`、`requests`（任意 Python 3.12+ 解释器，如 `python` / `python3` / `py`，需已预装 numpy/requests）。
@@ -41,8 +42,11 @@ py scripts\run.py scan --live --minpct 4 --maxpct 7
 py scripts\run.py judge 002491
 py scripts\run.py judge 通鼎互联 2026-09-02
 
-:: 模型可靠性 & 阈值优化（联网用 --top N 扩样本；或直接用缓存）
+:: 模型可靠性 & 阈值优化（联网用 --top N 扩样本；或直接用缓存；自动回写 params_best.json）
 py scripts\run.py optimize --top 60 --min-samples 30
+
+:: 历史推荐验证（回填 T+1/T+3/T+5 真实命中，累计 verify_history.csv）
+py scripts\run.py verify
 ```
 切换解释器：把 `py` 换成你环境里已装 numpy/requests 的任意 Python 3.12+ 解释器全路径即可（如 `py312`、`python3`、conda/venv 的 python）。
 `scripts\run.py` 内的相对路径已按脚本自身位置解析，从任何目录运行 `py <技能绝对路径>\scripts\run.py ...` 亦可。

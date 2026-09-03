@@ -41,6 +41,9 @@ def main():
     run("筛选评分", "screen_washout.py", None)
     if not _a.no_report:
         run("渲染报告", "generate_report.py", None)
+    # 自学习闭环（盘后）：验证历史推荐 -> 反推权重回写 params_best.json
+    run("验证回填", "verify.py", None)
+    run("权重自学习", "evolve.py", None)
     print("\n===== 全流程完成 =====")
 
 

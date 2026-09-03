@@ -10,7 +10,7 @@ import sys
 import argparse
 import statistics
 
-from _common import (BASE, load_json, dump_json, safe_float)
+from _common import (BASE, PARAMS_PATH, load_json, dump_json, safe_float)
 
 ap = argparse.ArgumentParser(description="两策略筛选评分 + 操作建议")
 ap.add_argument("--date", default=None, help="目标交易日 YYYYMMDD")
@@ -367,6 +367,17 @@ FACTOR_WEIGHTS = {
     "S1": {"washout": 0.30, "trend": 0.20, "fund": 0.14, "vol": 0.10, "pos": 0.16, "liq": 0.10},
     "S2": {"washout": 0.36, "trend": 0.16, "fund": 0.18, "vol": 0.12, "pos": 0.10, "liq": 0.08},
 }
+
+# 自学习回写覆盖：evolve.py 产出的 params_best.json 若含合法权重（键齐全），覆盖先验并精确归一化
+_evolved = load_json(PARAMS_PATH, {})
+for _stg in ("S1", "S2"):
+    _w = (_evolved or {}).get(_stg, {})
+    if isinstance(_w, dict) and _w.get("ok") and _w.get("weights"):
+        _wts = _w["weights"]
+        if set(_wts.keys()) == set(FACTOR_WEIGHTS[_stg].keys()):
+            _tot = sum(_wts.values())
+            if _tot > 0:
+                FACTOR_WEIGHTS[_stg] = {k: round(v / _tot, 6) for k, v in _wts.items()}
 
 # 权重和必须为 1（集中配置便于调参/回测，运行期自检防误改）
 for _stg, _wts in FACTOR_WEIGHTS.items():

@@ -28,6 +28,7 @@ disable-model-invocation: false
   - **主线题材（贴合热点 · 动态引擎）**：由「动态热点发现引擎」实时聚类当日 Top N 热点（五因子加权：涨停家数 0.30 / 主力净流入 0.25 / 板块涨幅 0.15 / 连板高度 0.15 / 扩散度 0.15），**不再写死题材词典，新热点自动纳入**；配合「题材生命周期定位」标注每个热点的萌芽/启动/发酵/高潮/退潮阶段与短线/中线策略。
   - **资金轮动四象限（Model 03 · 短线择时）**：按「资金净流入 × 趋势一致性」把热点板块切入主线（流入+趋势一致）/ 接力（流入但未确认或新热点）/ 脉冲（流出但当日涨）/ 退潮（流出+转弱）四象限，输出轮动速度与扩散指数，辅助判断资金切换方向与快慢。
   - **板块多因子趋势榜（Model 06 · 中线选板块）**：对全量板块按 15 日涨幅 40% + 5 日动量 30% + 资金持续 20% + 涨停持续 10% 加权出 0~1 趋势分并排名，标记启动/加速/减速/回落状态，辅助判断板块趋势方向与持续性。
+  - **次日轮动主线推荐（强化自学习）**：融合「位置(趋势)/资金/强度(涨停家数)/情绪(封板率)/热度(扩散度)」五维打分，输出次日轮动主线题材/板块推荐（**主线/接力/潜伏**三层 + 依据 + 风险提示）；自学习闭环「推荐 → 次日验证 → 反推权重 → 回写 → 更准」，权重随样本累积自动校准。
   - **个股诊断联动（L1）**：行情报告「个股推荐」卡片（07 章）在对应诊断报告 `{name}_个股诊断-{YYYY-MM-DD}.md` 存在时，自动把个股标题改为跳转链接，实现行情 → 个股诊断交叉导航；诊断报告缺失时优雅降级为纯文本标题。
 - **个股诊断模式**：单只个股六维诊断（综合评分 / SWOT / 估值分情景 / 龙虎榜席位 / 筹码与股东结构 / 关键价位）+ **最终诊断操作建议**（渐变描边环形评分 + 关键价位止损/目标双栏 + 操作策略 3 卡：回踩观察/突破确认/回避情形 + 避坑提示警示卡），层次清晰、不堆积。
 
@@ -100,12 +101,17 @@ cd <你的工作目录>   # 产物(data/、Markdown 报告)落在这里，不写
 python scripts/gen_hot_sectors.py --date 20260818     # 必须先跑：产出 hot_sectors_{date}.json
 python scripts/gen_theme_lifecycle.py --date 20260818 # 依赖上一步：产出 theme_lifecycle_{date}.json
 python scripts/gen_rotation_v2.py --date 20260818    # P1：资金四象限 + 多因子趋势 -> rotation_{date}.json（供轮动章节引用）
+python scripts/recommend_rotation.py --date 20260818 # 新增：次日轮动主线题材/板块推荐（主线/接力/潜伏三层）-> 次日轮动主线推荐-{date}.md
 python scripts/gen_emotion_cycle.py --date 20260818 # P2：情绪温度计 -> emotion_{date}.json（供情绪卡引用，缺失回退旧情绪卡）
 python scripts/generate_report_v3.py --date 20260818 # 生成 9 章（含 07 近一月板块轮动：轮动矩阵 + 资金四象限 + 多因子趋势榜）-> 行情复盘-2026-08-18.md（<cwd> 根目录）
+python scripts/rotation_verify.py --date 20260903   # 新增：回填推荐板块次日真实涨幅 -> rotation_history.csv
+python scripts/rotation_evolve.py --min-samples 20  # 新增：反推五维因子权重 -> rotation_params.json
+python scripts/emotion_calibrate.py                 # 新增：情绪温度计权重观测校准（温度↔次日晋级率相关性）-> 情绪温度计权重校准-{date}.md
 ```
 > **动态热点引擎是主线题材/热点板块的数据源**：`generate_report_v3.py` 会尝试读取 `hot_sectors_{date}.json` 与 `theme_lifecycle_{date}.json`；若文件缺失则相应章节降级为空（旧版写死的 20+ 题材词典已移除），故生成报告前必须保证这两个文件已产出。
 > **P2 情绪温度计数据源**：`generate_report_v3.py` 优先读取 `emotion_{date}.json`（`gen_emotion_cycle.py` 产出）渲染温度计/风险条/8 指标/仓位建议；若该文件缺失则**优雅降级**为旧版硬编码 5 指标情绪卡，不报错。
 > **P1 资金四象限/多因子趋势数据源**：`generate_report_v3.py` 内置 `_build_rotation_md()` 读取 `rotation_{date}.json`（`gen_rotation_v2.py` 产出）渲染「板块轮动矩阵 + 资金轮动四象限 + 板块多因子趋势榜」；若该文件缺失则相应小节降级为「数据暂缺」，不报错。
+> **次日轮动主线推荐（强化自学习）**：`recommend_rotation.py` 融合「位置(趋势)/资金/强度(涨停家数)/情绪(封板率)/热度(扩散度)」五维打分，输出次日轮动主线题材/板块推荐（**主线/接力/潜伏**三层 + 推荐依据 + 风险提示）。自学习闭环：`rotation_verify.py` 回填推荐板块次日真实涨幅累计 `rotation_history.csv` → `rotation_evolve.py` 用 Spearman 秩相关反推五维权重、EMA 平滑后回写 `rotation_params.json` → `recommend_rotation.py` 下次自动加载覆盖内置先验（样本<20 维持先验）。
 
 ### A.3 坑点
 - **数据链路依赖（已防御化）**：`generate_report_v3.py` 依赖 `market_{date}.json` 与 `recommend_{date}.json`，但**均已做缺失兜底**：`sectors` 兼容 dict/list 两种结构、`breadth.top_gainers/top_losers` 缺失时降级为空表、`recommend` 缺失时不报错。`collect_data.py`（东财）产出不含正确的 `sectors` 涨跌幅榜与 `top_gainers`，**建议仍跑 `collect_v2.py`（新浪）合并**以补齐板块与涨跌幅榜数据（不跑不再崩溃，但相应章节数据为空）。

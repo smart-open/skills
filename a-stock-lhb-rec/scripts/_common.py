@@ -227,3 +227,27 @@ FAMOUS = [
     "兴业证券陕西", "国盛证券", "上海源深路", "国新证券北京分公司",
     "上海江苏路", "银河证券北京中关村", "上海分公司", "东莞证券湖北",
 ]
+
+# ===== 暴雷过滤（与共享 _risk_gate 同源，短线风险放大）=====
+_RISK_NAME_KEYWORDS = ["ST", "*ST", "退"]
+_RISK_REASON_KEYWORDS = [
+    "立案", "调查", "违规", "处罚", "问询", "关注函", "警示函",
+    "退市", "暂停上市", "终止上市", "业绩预亏", "预亏", "商誉减值",
+    "财务造假", "诉讼", "质押爆仓", "停牌", "一字跌停",
+]
+
+
+def is_risk_name(name):
+    n = str(name or "").upper()
+    return any(k in n for k in _RISK_NAME_KEYWORDS)
+
+
+def is_risk_reason(reason):
+    r = str(reason or "")
+    return any(k in r for k in _RISK_REASON_KEYWORDS)
+
+
+def risk_level(name, reason=""):
+    if is_risk_name(name) or is_risk_reason(reason):
+        return "red"
+    return "ok"

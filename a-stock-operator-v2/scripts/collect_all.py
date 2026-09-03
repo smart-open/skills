@@ -35,8 +35,11 @@ MODEL_STEPS = [
     ("热点发现", "gen_hot_sectors.py"),
     ("题材生命周期", "gen_theme_lifecycle.py"),
     ("资金轮动四象限", "gen_rotation_v2.py"),
+    ("次日轮动主线推荐", "recommend_rotation.py"),
     ("情绪温度计", "gen_emotion_cycle.py"),
     ("行情复盘报告", "generate_report_v3.py"),
+    ("轮动推荐验证", "rotation_verify.py"),
+    ("轮动权重自学习", "rotation_evolve.py"),
 ]
 
 

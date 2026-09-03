@@ -13,8 +13,8 @@ import _common as C
 import indicators as IND
 
 
-def _iter_historical(rows, code="000001"):
-    """逐日回放 measures; 返回列表 of (kind,i,score,chg,fwd)"""
+def _iter_historical(rows, code="000001", horizon=5):
+    """逐日回放; 返回列表 of (kind,date,score,chg,fwd1,fwd3,fwd5)"""
     import numpy as np
     df = {
         "date": [r[0] for r in rows],
@@ -27,25 +27,41 @@ def _iter_historical(rows, code="000001"):
     ind = IND.compute(df)
     n = len(df["close"])
     out = []
-    for i in range(22, n - 5):
+    for i in range(22, n - horizon):
         chg = (df["close"][i] / df["close"][i - 1] - 1) * 100
-        fwd = (df["close"][i + 5] / df["close"][i] - 1) * 100
+        fwd1 = (df["close"][i + 1] / df["close"][i] - 1) * 100 if i + 1 < n else None
+        fwd3 = (df["close"][i + 3] / df["close"][i] - 1) * 100 if i + 3 < n else None
+        fwd5 = (df["close"][i + horizon] / df["close"][i] - 1) * 100 if i + horizon < n else None
         t = IND.judge_turn(ind, i)
         o = IND.judge_open(ind, i, code=code)
         if not t.get("insufficient") and t["signal"]:
-            out.append(("turn", df["date"][i], t["score"], chg, fwd))
+            out.append(("turn", df["date"][i], t["score"], chg, fwd1, fwd3, fwd5))
         if not o.get("insufficient") and o["signal"]:
-            out.append(("open", df["date"][i], o["score"], chg, fwd))
+            out.append(("open", df["date"][i], o["score"], chg, fwd1, fwd3, fwd5))
     return out
 
 
 def _metric(samples):
+    """三档命中口径：T+1/T+3/T+5 各算命中率(≥5%)，主口径用 T+3。"""
     if not samples:
         return None
-    fwd = [s[3] for s in samples]
-    hit = sum(1 for x in fwd if x >= 5.0)
-    return {"n": len(fwd), "hit_rate": hit / len(fwd), "avg": sum(fwd) / len(fwd),
-            "median": sorted(fwd)[len(fwd) // 2]}
+    def _rate(seq):
+        seq = [x for x in seq if x is not None]
+        if not seq:
+            return 0.0, 0
+        return sum(1 for x in seq if x >= 5.0) / len(seq), len(seq)
+    f1 = [s[4] for s in samples]
+    f3 = [s[5] for s in samples]
+    f5 = [s[6] for s in samples]
+    h1, n1 = _rate(f1)
+    h3, n3 = _rate(f3)
+    h5, n5 = _rate(f5)
+    fwd = [s[5] for s in samples if s[5] is not None]  # T+3 作主口径
+    return {"n": len(samples), "n3": n3,
+            "hit1": round(h1, 4), "hit3": round(h3, 4), "hit5": round(h5, 4),
+            "hit_rate": h3,  # 兼容旧字段（=T+3命中率）
+            "avg": sum(fwd) / len(fwd) if fwd else 0.0,
+            "median": sorted(fwd)[len(fwd) // 2] if fwd else 0.0}
 
 
 def collect_universe(top_n=0, codes=None):
@@ -76,16 +92,16 @@ def _scan_threshold(kind, cands, rows_map):
         setattr(C, attr, v)
         samples = []
         for code, rows in rows_map.items():
-            for k, d, score, chg, fwd in _iter_historical(rows, code):
-                if k == kind:
-                    samples.append((d, score, chg, fwd))
+            for rec in _iter_historical(rows, code):
+                if rec[0] == kind:
+                    samples.append(rec)
         records[v] = _metric(samples)
     setattr(C, attr, dflt)  # 恢复
     return dflt, records
 
 
 def _pick_best(dflt, records, min_samples):
-    """在 records 中选命中率最高且样本≥min_samples 的阈值；提升不足 2pp 则维持默认"""
+    """在 records 中选 T+3 命中率最高且样本≥min_samples 的阈值；提升不足 2pp 则维持默认"""
     base_hit = (records[dflt] or {}).get("hit_rate", 0) if records.get(dflt) else 0
     best_v, best_hit = dflt, base_hit
     for v, m in records.items():
@@ -96,6 +112,16 @@ def _pick_best(dflt, records, min_samples):
     if best_v != dflt and best_hit <= base_hit + 0.02:
         best_v = dflt
     return best_v
+
+
+def _write_params(chosen):
+    """将优化结果回写 params_best.json（供 _common._apply_params 下次加载覆盖常量）。"""
+    path = C.PARAMS_PATH
+    p = C.load_json(path, {})
+    p.update(chosen)
+    p["updated"] = C.latest_trade_date(sep="-")
+    C.dump_json(path, p)
+    return path
 
 
 def optimize(min_samples=30, horizon=5, top_n=0, codes=None, min_top_n=60):
@@ -121,7 +147,10 @@ def optimize(min_samples=30, horizon=5, top_n=0, codes=None, min_top_n=60):
     chosen_turn = _pick_best(dflt_turn, turn_records, min_samples)
     chosen_open = _pick_best(dflt_open, open_records, min_samples)
 
-    return {"ok": True, "n_codes": len(rows_map),
+    # 自动回写 params_best.json（供下次 scan/judge 覆盖常量）
+    write_path = _write_params({"TURN_VOL_MIN": chosen_turn, "OPEN_VOL_MIN": chosen_open})
+
+    return {"ok": True, "n_codes": len(rows_map), "params_path": write_path,
             "turn": {"default": dflt_turn, "chosen": chosen_turn,
                      "changed": chosen_turn != dflt_turn, "records": turn_records},
             "open": {"default": dflt_open, "chosen": chosen_open,
@@ -157,22 +186,25 @@ def main(argv):
              f"（{'已调整' if res['turn']['changed'] else '维持默认：提升不足或样本不足'}）")
     L.append(f"- **开门** 量比阈值 `{res['open']['default']}` → 优化后 `{res['open']['chosen']}`"
              f"（{'已调整' if res['open']['changed'] else '维持默认：提升不足或样本不足'}）")
+    L.append(f"- 已回写参数文件 `{res.get('params_path','')}`（下次 scan/judge 自动加载覆盖常量）")
     L.append("")
 
     for key, label, thr in (("turn", "转势", "TURN_VOL_MIN"), ("open", "开门", "OPEN_VOL_MIN")):
         rec = res[key]["records"]
         chosen = res[key]["chosen"]
-        L.append(f"## {label} · 阈值档位表现（命中=触发后T+5涨幅≥5%，校准 `{thr}`）\n")
-        L.append(f"| {thr} | 信号样本数 | 命中率 | 平均T+5% | 中位T+5% |")
-        L.append("|:---:|:---:|:---:|:---:|:---:|")
+        L.append(f"## {label} · 阈值档位表现（三档命中口径，主看 T+3，校准 `{thr}`）\n")
+        L.append(f"| {thr} | 信号样本数 | T+1命中 | T+3命中 | T+5命中 | 平均T+3% |")
+        L.append("|:---:|:---:|:---:|:---:|:---:|:---:|")
         for v in sorted(rec.keys()):
-            m = rec[v] or {"n": 0, "hit_rate": 0, "avg": 0, "median": 0}
+            m = rec[v] or {"n": 0, "hit1": 0, "hit3": 0, "hit5": 0, "avg": 0}
             mark = " ◀" if v == chosen else ""
-            L.append(f"| {v}{mark} | {m['n']} | {m['hit_rate']*100:.1f}% | {m['avg']:+.1f}% | {m['median']:+.1f}% |")
+            L.append(f"| {v}{mark} | {m['n']} | {m['hit1']*100:.1f}% | {m['hit3']*100:.1f}% | "
+                     f"{m['hit5']*100:.1f}% | {m['avg']:+.1f}% |")
         L.append("")
     L.append("## 结论与说明")
+    L.append("- 命中口径：触发后 T+N 收盘涨幅≥5% 记为命中；短线以 **T+1/T+3** 为主参考，T+5 仅作趋势延续参考。")
     L.append("- 命中率受样本量与题材环境波动影响；随每日 `scan` 累积更多历史K线，'模型可靠性'会逐步趋于稳定(可重跑 optimize)。")
-    L.append("- 阈值仅用于观察，如命中率最优档位明显偏离默认值，可回写 `_common.py` 中 `TURN_VOL_MIN`/`OPEN_VOL_MIN`。")
+    L.append("- 阈值择优后已**自动回写** `params_best.json`，下次运行 `scan`/`judge` 自动加载生效（缺省回落 `_common.py` 默认值）。")
     L.append("- 本校验基于价格逐日回放，不含基本面/题材/情绪，仅从纯量价视角评估『一阳指』信号的可信度。")
     L.append("- 供复盘参考，不构成投资建议。")
     L.append("")

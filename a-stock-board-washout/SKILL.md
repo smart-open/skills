@@ -31,6 +31,7 @@ disable-model-invocation: false
 - **因子覆盖度自适应降权**：某因子有效样本不足（<2 只 或 占比<20%，如炸板池资金 90% 缺失）则**自动让位、权重按比例重分配给其余因子**，防止噪声因子硬占权重；报告"模型·因子权重"栏灰显落马因子，卡片"量化因子分解"逐因子展示原始值/分位/权重/贡献。
 - 每只候选渲染：**日 K 线蜡烛图**（含 MA5/10/20）+ **量能曲线**（量柱）+ **当日分时图**（价格线/均价线VWAP/量柱，策略二标注涨停价/昨收/炸板回落段），全部由 Python 生成**内联 SVG**，自包含无外链。
 - 输出：`首板炸板洗盘-{YYYY-MM-DD}.md`（Markdown 报告，落在当前会话根目录 cwd）。报告结构：概览 → 策略一/二精选（各含**完整第二日操作建议**：结论·操作方式·触发条件·目标位·止损位·仓位）→ 备选池（第4~6名，附简要操作建议）→ 邻近达标观察（附操作建议 tag）。
+- **自学习闭环（盘后，`all.py` 自动串联）**：① `verify.py` 用实际 K 线回填历史推荐的 T+1/T+2/T+3 收盘涨幅、最高涨幅、涨停（命中口径=任一 T+1~T+3 收盘≥5% 或涨停，规避一字/高开不可买陷阱），累计 `data/verify_history.csv`；② `evolve.py` 用累计样本对六因子做 Spearman 秩相关，方向正确则放大、方向错误则削弱，EMA 平滑后回写 `data/params_best.json`；③ `screen_washout.py` 启动时读 `params_best.json` 覆盖 `FACTOR_WEIGHTS` 并精确归一化（缺省回落先验权重）。样本不足（<30）维持先验不强行调参。
 
 ## 何时使用
 
@@ -65,6 +66,8 @@ python scripts/collect_pools.py                  # 拉 T0、T 的涨停/炸板/�
 python scripts/collect_stocks.py                 # 每候选：腾讯日K + 当日分时 -> data/stocks_{T}.json
 python scripts/screen_washout.py                 # 两策略筛选评分 + 操作建议 -> data/screen_{T}.json
 python scripts/generate_report.py                # 渲染 Markdown 报告 -> {cwd}/首板炸板洗盘-{T}.md
+python scripts/verify.py                         # 盘后：回填历史推荐 T+1~T+3 表现 -> data/verify_history.csv
+python scripts/evolve.py --min-samples 30        # 自学习：反推六因子权重 -> data/params_best.json
 ```
 
 > **「最近结束交易日」判定**：默认从今日起，若非交易日（周六/周日）回退到周五；再用「当日涨停池 total 非空」校验，空则回溯到最近有涨停池的日期（兜底 ~12 天）。上一交易日 T0 = 从 T 回溯到最近有涨停池的日期（自动跳过周末/节假日）。`--date YYYYMMDD` 可覆盖 T。

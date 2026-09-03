@@ -186,7 +186,10 @@ def _auc_on(art, te):
         return None
 
 
-def train_full(df, C_=1.0):
+def train_full(df, C_=1.0, prefer_gb=None):
+    """训练全量生产模型。prefer_gb=None 时按时间外 AUC 自动择优：LR vs GBDT 谁在
+    时间外测试集 AUC 更高就用谁（GB 在样本充足时通常更准，样本稀疏时 LR 更稳）。
+    返回 (model, scaler, feats, coef_or_None, n, pos_rate, wsum, model_kind)"""
     d = pd.get_dummies(df, columns=[CAT])
     feats = _feat_cols(d)
     X = d[feats].fillna(0).values; y = d["T3_ZT"].values.astype(int)
@@ -195,7 +198,20 @@ def train_full(df, C_=1.0):
     m = LogisticRegression(class_weight="balanced", max_iter=3000, C=C_, random_state=42)
     m.fit(sc.transform(X), y, sample_weight=w)
     coef = pd.DataFrame({"feature": feats, "coef": m.coef_[0], "odds": np.exp(m.coef_[0])}).sort_values("coef", ascending=False)
-    return m, sc, feats, coef, len(d), float(y.mean()), float(w.sum())
+    return m, sc, feats, coef, len(d), float(y.mean()), float(w.sum()), "lr"
+
+
+def _gb_auc_on(tr, te, feats, C_=1.0):
+    """GBDT 在时间外测试集上的 AUC（用于与 LR 择优）。样本不足返回 None。"""
+    try:
+        sc = StandardScaler().fit(tr[feats].fillna(0).values)
+        gb = GradientBoostingClassifier(random_state=42)
+        gb.fit(sc.transform(tr[feats].fillna(0).values), tr["T3_ZT"].values.astype(int),
+               sample_weight=_time_weights(tr))
+        p = gb.predict_proba(sc.transform(te[feats].fillna(0).values))[:, 1]
+        return round(float(roc_auc_score(te["T3_ZT"].values.astype(int), p)), 4)
+    except Exception:
+        return None
 
 
 def main(force=False):
@@ -246,11 +262,26 @@ def main(force=False):
         print(f"[train] 真实结果回馈(近{REALIZED_WINDOW}个已验证日): "
               f"{realized['days']}日内 {realized['n']} 条: T1命中 {realized['t1_hit']}% / T3命中 {realized['t3_hit']}%")
 
-    # 全量模型
-    m_full, sc_full, feats_full, coef, n, pos, wsum = train_full(df, best_c)
-    coef.to_csv(os.path.join(C.DATA, "model_coef_t3.csv"), index=False, encoding="utf-8-sig")
+    # 全量模型（LR vs GBDT 时间外择优：GB 样本充足时更准，稀疏时回落 LR）
+    m_full, sc_full, feats_full, coef, n, pos, wsum, model_kind = train_full(df, best_c)
+    gb_auc_on_te = _gb_auc_on(tr, te, feats_full, best_c)
+    lr_auc_on_te = auc_temporal  # evaluate() 已算的 LR 时间外 AUC
+    if gb_auc_on_te is not None and gb_auc_on_te > lr_auc_on_te + 0.005 and len(df) >= 300:
+        # GB 明显更优且样本充足 → 用 GB 作生产模型
+        sc_gb = StandardScaler().fit(d_all[feats_full].fillna(0).values)
+        m_gb = GradientBoostingClassifier(random_state=42)
+        m_gb.fit(sc_gb.transform(d_all[feats_full].fillna(0).values), ya,
+                 sample_weight=_time_weights(df))
+        m_full, sc_full, model_kind, coef = m_gb, sc_gb, "gb", None
+        print(f"[train] 模型择优: GBDT 时间外AUC {gb_auc_on_te:.3f} > LR {lr_auc_on_te:.3f}, 采用 GBDT")
+    else:
+        print(f"[train] 模型择优: 采用 LR（LR时间外AUC {lr_auc_on_te:.3f}"
+              f"{', GB '+format(gb_auc_on_te,'.3f') if gb_auc_on_te is not None else ''}，GB优势不足或样本不足）")
+    if coef is not None:
+        coef.to_csv(os.path.join(C.DATA, "model_coef_t3.csv"), index=False, encoding="utf-8-sig")
     new_art = {"model": m_full, "scaler": sc_full, "feats": feats_full,
                "cat_cols": [c for c in feats_full if c.startswith(CAT + "_")],
+               "model_kind": model_kind,
                "auc_random": auc_random, "auc_temporal": auc_temporal, "auc_gb": auc_gb,
                "wf": wf_agg, "wsum": round(float(wsum), 1),
                "n": n, "pos_rate": pos}
@@ -293,15 +324,17 @@ def main(force=False):
         joblib.dump(new_art, C.MODEL_PATH)
         json.dump({"n": n, "pos_rate": round(pos * 100, 1), "auc_random": auc_random,
                    "auc_temporal": round(auc_temporal, 3), "auc_gb": auc_gb,
-                   "C": best_c, "wf": wf_agg, "wsum": round(float(wsum), 1),
+                   "model_kind": model_kind, "C": best_c, "wf": wf_agg,
+                   "wsum": round(float(wsum), 1),
                    "overfit_gap": overfit_gap, "realized": realized,
-                   "feats": feats_full, "coef": coef.round(4).to_dict("records"),
+                   "feats": feats_full, "coef": (coef.round(4).to_dict("records") if coef is not None else []),
                    "temporal_top": top, "temporal_base": base,
                    "temporal_test_dates": [te["TRADE_DATE"].min(), te["TRADE_DATE"].max()]},
                   open(C.MODEL_META, "w", encoding="utf-8"), ensure_ascii=False, indent=1, default=str)
     new_ver = cur_ver + (1 if accepted else 0)
     rec = {"version": new_ver, "date": pd.Timestamp.now().strftime("%Y-%m-%d %H:%M"),
            "n": n, "pos_rate": round(pos * 100, 1), "wsum": round(float(wsum), 1),
+           "model_kind": model_kind,
            "auc_random": auc_random, "auc_temporal": round(auc_temporal, 3),
            "auc_gb": auc_gb, "C": best_c, "overfit_gap": overfit_gap,
            "full_te_auc": new_full_auc, "old_auc": old_auc, "top20": top["top20"], "base": base,

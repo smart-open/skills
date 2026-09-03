@@ -12,7 +12,7 @@ import argparse
 import requests
 
 from _common import (BASE, load_json, dump_json, safe_float, tencent_code,
-                     fmt_dash, is_main_board, is_st)
+                     fmt_dash, is_main_board, is_st, is_risk_reason)
 
 ap = argparse.ArgumentParser(description="采集候选个股日K线 + T日分时")
 ap.add_argument("--date", default=None, help="目标交易日 YYYYMMDD（缺省读 pools 推断）")
@@ -188,8 +188,10 @@ def candidates_from_pools(p):
     zb_t = {r["code"]: r for r in pool_list("T_pool", "broken") if r.get("code")}
 
     def ok(r):
-        # 仅主板，且剔除 ST/退
-        return is_main_board(r.get("code") or "") and not is_st(r.get("name") or "")
+        # 仅主板，剔除 ST/退，剔除暴雷（立案/退市风险等）
+        return (is_main_board(r.get("code") or "")
+                and not is_st(r.get("name") or "")
+                and not is_risk_reason(r.get("reason") or r.get("fbt") or ""))
 
     cands = {}
     # 策略一：T0 首板 & 不在 T 涨停池
