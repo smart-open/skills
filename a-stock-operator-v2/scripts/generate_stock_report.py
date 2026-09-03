@@ -11,7 +11,7 @@
   --name  股票全称（如「通鼎互联」）。与 --code 至少提供一个，用于确定诊断目标。
   --code  股票代码（如 002491）。与 --name 至少提供一个。
   --exchange 交易所前缀（SZ / SH），默认取 JSON，再默认 SZ
-  --date  报告基准日期（默认真实今日 YYYYMMDD，仅用于文件名与页脚标注）
+  --date  报告基准日期（默认真实今日 YYYY-MM-DD，仅用于文件名与页脚标注）
   --data  个股分析 JSON（六维/SWOT/龙虎榜/筹码/价位/操作建议等）。
           缺省时按 name/code 推导 data/{name|code}_analysis.json，再回退 tdhl 样例。
   --kline 个股 K 线 JSON（含 closes 列表）。
@@ -32,7 +32,7 @@ ap = argparse.ArgumentParser(description="个股诊断报告生成器")
 ap.add_argument("--name", default=None, help="股票全称；与 --code 至少提供一个，用于确定诊断目标")
 ap.add_argument("--code", default=None, help="股票代码；与 --name 至少提供一个")
 ap.add_argument("--exchange", default=None)
-ap.add_argument("--date", default=datetime.now().strftime("%Y%m%d"), help="报告基准日期 YYYYMMDD，默认真实今日，仅用于文件名与页脚标注")
+ap.add_argument("--date", default=datetime.now().strftime("%Y-%m-%d"), help="报告基准日期 YYYY-MM-DD，默认真实今日，仅用于文件名与页脚标注")
 ap.add_argument("--data", default=None, help="个股分析 JSON；缺省按 name/code 推导 data/{name|code}_analysis.json，再回退 tdhl 样例")
 ap.add_argument("--kline", default=None, help="个股 K 线 JSON；缺省按 name/code 推导，再回退 tdhl 样例")
 ap.add_argument("--outdir", default=REPORT_ROOT)
@@ -286,7 +286,7 @@ md = f'''# {name}（{exchange} {code}）个股诊断报告
 '''
 
 os.makedirs(args.outdir, exist_ok=True)
-out = os.path.join(args.outdir, f"{name}_个股诊断_{args.date}.md")
+out = os.path.join(args.outdir, f"{name}_个股诊断-{args.date}.md")
 with open(out, "w", encoding="utf-8") as f:
     f.write(md)
 print("个股 Markdown 报告已生成:", out)

@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-17-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-18-orange)]()
 
 ---
 
@@ -36,7 +36,7 @@
 
 ## 简介
 
-本工程聚合了 **17 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、A 股操盘分析、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、技能数据抓取**。
+本工程聚合了 **18 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、A 股操盘分析、首板洗盘选股、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、技能数据抓取**。
 
 **核心亮点：**
 
@@ -48,7 +48,7 @@
 - **面部复刻**：FaceFusion 换脸（80%+）或 Seedream i2i 保留五官特征
 - **口型同步**：脱口秀视频通过 Wav2Lip 后处理或原生音画同步实现口型对齐
 - **产物外置**：所有运行时产物（数据/报告/视频）跟随**当前会话工作目录**（`os.getcwd()` / `process.cwd()`），不写回技能安装目录，保持技能库纯净
-- **A 股分析**：个股六维诊断、市场选股、行情复盘、龙虎榜 T+3 模型、一阳指战法扫描，报告统一为 Markdown
+- **A 股分析**：个股六维诊断、市场选股、行情复盘、首板洗盘选股、龙虎榜 T+3 模型、一阳指战法扫描，报告统一为 Markdown（`{报告完整中文名称}-{YYYY-MM-DD}.md`）
 - **技能数据抓取**：8 个主流 Skill 市场（Smithery、ClaudeSkills 等）的批量抓取备份工具
 
 ---
@@ -73,6 +73,7 @@
 | `a-stock-operator-v2` | A 股行情复盘 + 个股诊断（情绪温度计 + 板块轮动专题 + 双权重评分） | 东方财富/腾讯/新浪公开 API + 财联社 | Python 3.10+ | 全流程约 5–10 分钟（`collect_all.py` 一条命令） |
 | `a-stock-yiyangzhi` | A 股一阳指战法量化扫描（转势/开门 + 主线标签 + 可靠性优化） | 东方财富/腾讯公开接口 | Python 3.12+（numpy/requests） | 全市场扫描约 3–8 分钟 |
 | `a-stock-lhb-rec` | 龙虎榜 T+3 涨停推荐与自进化模型 | 东方财富/同花顺/腾讯 K 线公开接口 | Python 3.10+（pandas/scikit-learn） | 首次 init 约 10–15 分钟，daily 每条约 1–3 分钟 |
+| `a-stock-board-washout` | A 股首板洗盘 / 炸板洗盘选股器（双策略 + 第二日操作建议） | 东方财富/新浪/腾讯公开接口 | Python 3.10+ | 单次约 2–5 分钟 |
 | `dev-lifecycle` | 端到端软件开发流程编排（5 阶段 + 每阶段 HITL 确认） | 无（纯规范型，仅 SKILL.md） | 无 | 按项目规模而定 |
 | `skill-data-fetcher`（8 子技能） | 主流 Skill 市场批量抓取备份（Smithery / ClaudeSkills 等 8 家） | 各家 Skill 市场 API | Node.js 12+ | 单家约 1–3 分钟 |
 
@@ -163,6 +164,9 @@ skills/
 ├── a-stock-lhb-rec/                   # 龙虎榜 T+3 涨停推荐模型
 │   ├── SKILL.md
 │   └── scripts/                       # run.py init/daily/optimize 等 12 脚本
+├── a-stock-board-washout/             # 首板洗盘 / 炸板洗盘选股器
+│   ├── SKILL.md
+│   └── scripts/                       # 采集 + 筛选 + 出图 + 报告
 │
 ├── dev-lifecycle/                     # 软件开发流程编排（纯规范型）
 │   └── SKILL.md
@@ -581,7 +585,7 @@ python scripts/batch_download_v4.py --excel "歌曲列表.xlsx" -q high
 
 ### A 股量化分析
 
-四个 A 股技能，各有侧重：
+五个 A 股技能，各有侧重：
 
 | 技能 | 核心能力 | 报告格式 |
 |------|---------|---------|
@@ -589,8 +593,11 @@ python scripts/batch_download_v4.py --excel "歌曲列表.xlsx" -q high
 | `a-stock-operator-v2` | 行情复盘 + 个股诊断（情绪温度计 + 板块轮动 + 双权重） | Markdown（带日期） |
 | `a-stock-yiyangzhi` | 一阳指战法量化扫描（转势/开门 + 主线标签） | Markdown + CSV + JSON |
 | `a-stock-lhb-rec` | 龙虎榜 T+3 涨停推荐（逻辑回归模型 + 自进化） | Markdown（带日期） |
+| `a-stock-board-washout` | 首板洗盘 / 炸板洗盘选股（双策略 + 内联 SVG 图） | Markdown（带日期） |
 
-> **产物落点**：四个技能的运行时产物（数据/CSV/JSON）默认写到 `<cwd>/<技能名>/`，报告（Markdown，带日期）写到 `<cwd>` 根目录，均不写回技能安装目录。可用环境变量覆盖（如 `A_STOCK_WORK`/`A_STOCK_OUT`、`LHB_RUNTIME`/`LHB_OUT`、`YZ_RUNTIME`/`YZ_OUT`）。
+> **产物落点**：五个技能的运行时产物（数据/CSV/JSON）默认写到 `<cwd>/<技能名>/`，报告（Markdown，带日期）写到 `<cwd>` 根目录，均不写回技能安装目录。可用环境变量覆盖（如 `A_STOCK_WORK`/`A_STOCK_OUT`、`LHB_RUNTIME`/`LHB_OUT`、`YZ_RUNTIME`/`YZ_OUT`、`WASHOUT_OUT`）。
+>
+> **报告命名规范**：所有 A 股技能报告统一为 `{报告完整中文名称}-{YYYY-MM-DD}.md`（连字符分隔，日期用 `YYYY-MM-DD`），例如 `行情复盘-2026-09-03.md`、`贵州茅台_个股诊断-2026-09-03.md`、`首板炸板洗盘-2026-09-03.md`。
 
 #### 13. a-stock-operator — A 股市场操盘手
 
@@ -618,7 +625,7 @@ A 股市场操盘手技能，提供**个股六维诊断分析**和**市场资讯
 
 **全流程一键管线：**
 ```bash
-python scripts/collect_all.py                    # 采集 → 16 项健康检查 → 模型 → 报告
+python scripts/collect_all.py                    # 采集 → 15 项健康检查 → 模型 → 报告
 python scripts/collect_all.py --only-check       # 仅健康检查
 python scripts/collect_all.py --skip collect_news.py  # 跳过指定步骤
 ```
@@ -663,9 +670,29 @@ python scripts/run.py recommend 2026-08-31 # 单日推荐（用缓存）
 
 ---
 
+#### 17. a-stock-board-washout — A 股首板洗盘 / 炸板洗盘选股器
+
+分析最近一个结束交易日，用两条**首板洗盘**战法精选个股并给出第二日操作建议，输出原生 Markdown 报告（内联 K 线 / 量能 / 分时 SVG 图，红涨绿跌）。
+
+**两条策略：**
+- **策略一 · 首板后放量洗盘**：上一交易日首板（`lbc==1`）、本交易日未涨停，且非科创板/创业板，结合 K 线 + 量能 + 分时 + 热点/资金/位置，推荐 3 只。
+- **策略二 · 炸板洗盘**：本交易日涨停炸板、非科创板/创业板，识别「炸板但强势、次日可低吸」标的，推荐 3 只。
+
+**核心能力：** 质量闸门（流通市值 ≥50 亿 / 换手 ≥5% / 成交额 ≥5 亿 / 非高位）、强洗盘意图四维打分、分时强弱洗盘定级、多因子横截面评分（MAD 去极值 + 均秩分位 + 小样本收缩 + 缺失中性 50）、因子覆盖度自适应降权、每只候选内联 SVG 图（K 线 + 量能 + 分时）。
+
+**用法：**
+```bash
+python scripts/all.py                      # 一键：采集 → 筛选 → 出图 → 报告
+python scripts/generate_report.py          # 渲染 Markdown 报告 -> {cwd}/首板炸板洗盘-{YYYY-MM-DD}.md
+```
+
+> 报告输出到当前会话根目录（Markdown，带日期），`WASHOUT_OUT` 可覆盖输出目录。
+
+---
+
 ### 技能数据抓取
 
-#### 17. skill-data-fetcher — Skill 市场数据抓取工具集
+#### 18. skill-data-fetcher — Skill 市场数据抓取工具集
 
 一组（8 个）批量抓取主流 Skill 市场榜单并备份到本地文件的子技能，每个子技能独立可运行。
 
@@ -806,6 +833,7 @@ timeless-wedding 和 timeless-wedding-volc 均支持以下 13 个中国历史朝
 | A 股行情复盘（板块轮动+情绪温度计） | `a-stock-operator-v2` | 一键管线 + 情绪温度计 + 板块轮动 + 资金四象限 |
 | A 股一阳指战法量化扫描 | `a-stock-yiyangzhi` | 转势/开门判定 + 主线标签 + 可靠性优化 |
 | A 股龙虎榜 T+3 涨停预判 | `a-stock-lhb-rec` | 逻辑回归概率模型 + 席位画像 + 自进化 |
+| A 股首板洗盘 / 炸板洗盘选股 | `a-stock-board-washout` | 双策略洗盘识别 + 内联 K 线/量能/分时 SVG + 第二日操作建议 |
 | 从需求到代码的完整开发流程编排 | `dev-lifecycle` | 5 阶段 + HITL 确认 + SOP 6 步开发 |
 | 批量备份 Skill 市场榜单 | `skill-data-fetcher` | 8 家主流 Skill 市场，独立运行 |
 

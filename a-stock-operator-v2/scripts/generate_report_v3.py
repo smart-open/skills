@@ -10,7 +10,8 @@ from _common import (REPORT_ROOT, BASE, DATA_DIR, load_json as _load_json, safe_
                      GOLD_COLOR, ACC_COLOR, ACC2_COLOR,
                      EMOTION_STAGES, EMOTION_STAGE_COLORS,
                      TEMPERATURE_W, RISK_W, TEMP_FACTOR_LABELS, RISK_FACTOR_LABELS,
-                     today_ymd, seal_break_rates)
+                     today_ymd, seal_break_rates,
+                     bridge_ths_name, boards_chg_lookup, trend_tag, BOARD_FALLBACK_COLOR)
 
 ap = argparse.ArgumentParser(description="A股行情复盘报告生成（默认真实今日）")
 ap.add_argument("--date", default=today_ymd(),
@@ -23,7 +24,6 @@ WEEK_CN = ["星期一", "星期二", "星期三", "星期四", "星期五", "星
 
 d = _load_json(os.path.join(DATA_DIR, f"market_{TD}.json"), {})
 rec = _load_json(os.path.join(DATA_DIR, f"recommend_{TD}.json"), {})
-klines = _load_json(os.path.join(DATA_DIR, "index_klines.json"), {})
 
 # 防御性读取：采集部分失败时降级为空，避免 KeyError 崩溃
 indexes = d.get("indexes", [])
@@ -249,6 +249,93 @@ else:
         stage, stage_tone, stage_advice = "分歧", "情绪分歧", "高位分化，控制仓位，聚焦核心辨识度个股"
     emotion_md = f"### 情绪周期\n\n- 情绪定调：**{stage_tone}**（阶段：{stage}）\n- 核心指标：**{total_up}** 涨停数 · **{max_lbc}板** 连板高度 · **{lianban_cnt}** 连板家数 · **{seal_rate}%** 封板率 · **{break_rate}%** 炸板率\n\n> {stage_advice}"
 
+# ===== 近一月板块轮动（Markdown，替代原 gen_rotation_columns.py 的 HTML 注入） =====
+def _build_rotation_md(td):
+    """从 rotation_{td}.json + boards_15d.json + zt_15d.json 渲染「近一月板块轮动」Markdown 章节。"""
+    rot = _load_json(os.path.join(DATA_DIR, f"rotation_{td}.json"), {})
+    boards = _load_json(os.path.join(DATA_DIR, "boards_15d.json"), {})
+    zt_all = _load_json(os.path.join(DATA_DIR, "zt_15d.json"), {})
+    lines = []
+
+    # ---- 轮动矩阵：日期为列，每日 Top7 板块（涨幅 + 涨停数） ----
+    all_dates = set()
+    for v in boards.values():
+        for d_, _ in v:
+            all_dates.add(d_)
+    dates = sorted(all_dates, reverse=True)[:10]
+
+    def daily_top7(date):
+        rows = []
+        for name, daily in boards.items():
+            kv = dict(daily)
+            if date in kv:
+                rows.append((name, kv[date]))
+        rows.sort(key=lambda x: -x[1])
+        return rows[:7]
+
+    lines.append("### 板块轮动矩阵（近 10 日 Top7）\n")
+    if dates:
+        head = "| 排名 | " + " | ".join(f"{d_[4:6]}-{d_[6:]}" for d_ in dates) + " |"
+        sep = "| --- | " + " | ".join(["---"] * len(dates)) + " |"
+        lines.append(head)
+        lines.append(sep)
+        for rank in range(7):
+            cells = [f"Top{rank+1}"]
+            for d_ in dates:
+                top7 = daily_top7(d_)
+                if rank < len(top7):
+                    name, chg = top7[rank]
+                    zt = zt_all.get(d_, {}).get(name, 0)
+                    if not zt:
+                        ths = bridge_ths_name(name)
+                        if ths:
+                            zt = zt_all.get(d_, {}).get(ths, 0)
+                    zt_s = f" ×{zt}" if zt else ""
+                    cells.append(f"{name} {chg:+.1f}%{zt_s}")
+                else:
+                    cells.append("—")
+            lines.append("| " + " | ".join(cells) + " |")
+        lines.append("")
+    else:
+        lines.append("板块轮动数据暂缺。\n")
+
+    # ---- 资金轮动四象限（rotation_{td}.json） ----
+    quad = rot.get("quadrants", {})
+    Q_CN = [("mainline", "主线", "资金净流入 + 趋势一致，持续性最强，中线可跟踪"),
+            ("relay", "接力", "资金净流入但趋势未确认 / 新热点，短线博弈为主"),
+            ("pulse", "脉冲", "资金流出但当日仍上涨，短促冲高，追高需谨慎"),
+            ("fade", "退潮", "资金流出 + 走势转弱，回避或逢高减仓")]
+    lines.append("### 资金轮动四象限\n")
+    has_quad = any(quad.get(k) for k, _, _ in Q_CN)
+    if has_quad:
+        for key, cn, desc in Q_CN:
+            items = quad.get(key, []) or []
+            if not items:
+                continue
+            names = "、".join(f"{x['name']}（{x.get('fund_net_yi', 0):+.1f}亿 / {x.get('chg_pct', 0):+.1f}%）" for x in items[:6])
+            lines.append(f"- **{cn}**（{len(items)}）：{names}")
+        lines.append("")
+    else:
+        lines.append("资金轮动数据暂缺。\n")
+
+    # ---- 板块多因子趋势榜 ----
+    trend_board = rot.get("trend_board", [])
+    lines.append("### 板块多因子趋势榜（15日40% · 5日30% · 资金20% · 涨停10%）\n")
+    if trend_board:
+        lines.append("| # | 板块 | 趋势分 | 5日 | 15日 | 状态 |")
+        lines.append("|---|---|---|---|---|---|")
+        for i, t in enumerate(trend_board[:16], 1):
+            lines.append(f"| {i} | {t.get('name','')} | {t.get('trend_score',0):.2f} | "
+                         f"{t.get('cum5',0):+.1f}% | {t.get('cum15',0):+.1f}% | {t.get('tag','') or '—'} |")
+        lines.append("")
+    else:
+        lines.append("趋势榜数据暂缺。\n")
+
+    lines.append("> 涨幅数据来自东方财富行业+概念板块指数（近 15 日逐日涨跌）；涨停家数按概念板块关键词从涨停池匹配。")
+    return "\n".join(lines)
+
+rotation_md = _build_rotation_md(TD)
+
 # ================= Markdown 报告 =================
 def _md_table(header, rows):
     head = "| " + " | ".join(header) + " |"
@@ -297,7 +384,7 @@ def stock_lines(picks, source):
         dd = m.get("drawdown")
         dd_text = f"-{dd}%" if dd is not None else "—"
         _nm = m.get("name", "")
-        _diag_file = f"{_nm}_个股诊断_{TD}.md"
+        _diag_file = f"{_nm}_个股诊断-{TRADE_DATE}.md"
         if os.path.exists(os.path.join(REPORT_ROOT, _diag_file)):
             name_md = f"[{_nm}]({_diag_file})"
         else:
@@ -369,7 +456,11 @@ md = f"""# A股行情复盘 · {TRADE_DATE}
 
 {sector_md}
 
-## 07 个股推荐
+## 07 近一月板块轮动
+
+{rotation_md}
+
+## 08 个股推荐
 
 ### ① 主板首板 · 低位突破
 
@@ -379,7 +470,7 @@ md = f"""# A股行情复盘 · {TRADE_DATE}
 
 {break_cards}
 
-## 08 涨跌幅榜 & 炸板
+## 09 涨跌幅榜 & 炸板
 
 ### 涨幅榜 TOP10
 
@@ -400,7 +491,7 @@ md = f"""# A股行情复盘 · {TRADE_DATE}
 > 以上分析基于公开数据，仅供复盘参考，不构成投资建议。股市有风险，投资需谨慎。
 """
 
-out = os.path.join(REPORT_ROOT, f"行情复盘_{TD}.md")
+out = os.path.join(REPORT_ROOT, f"行情复盘-{TRADE_DATE}.md")
 with open(out, "w", encoding="utf-8") as f:
     f.write(md)
 print("Markdown 复盘报告已生成:", out)

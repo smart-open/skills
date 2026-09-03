@@ -120,6 +120,7 @@ def main(argv):
     total = len(results)
     date = (results[0]["date"].replace("-", "") if results and results[0].get("date")
             else C.latest_trade_date())
+    date_disp = f"{date[:4]}-{date[4:6]}-{date[6:8]}"  # YYYY-MM-DD，用于报告文件名与标题展示
 
     # 主线/热点过滤：识别当日热点板块，标注主线标签，剔除边缘/偶发股
     hot_brief = {"热点概念": [], "热点行业": []}
@@ -164,8 +165,8 @@ def main(argv):
     C.dump_json(SCAN_SUMMARY, {"date": date, "live": live, "turn_hit": summary["turn_hit"],
                                "open_hit": summary["open_hit"], "universe": summary["universe"],
                                "kept": summary["kept"], "excluded": summary["excluded"]})
-    md = render_markdown(summary, rows)
-    md_path = os.path.join(C.REPORT_ROOT, f"scan_{date}.md")
+    md = render_markdown(summary, rows, date_disp)
+    md_path = os.path.join(C.REPORT_ROOT, f"一阳指报告-{date_disp}.md")
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(md)
     print(f"\n[scan] 完成 → {csv_path}")
@@ -182,18 +183,19 @@ def main(argv):
     return 0
 
 
-def render_markdown(summary, rows):
+def render_markdown(summary, rows, date_disp=None):
     """候选 → Markdown 报告(结论前置 + 每只原因)"""
     hits = [r for r in rows if r["turn"] or r["open"]]
     live_tag = "· 盘中判定(未收盘, 待复核)" if summary.get("live") else ""
+    _d = date_disp or summary.get("date", "")
     hot_brief = summary.get("hot_boards") or {}
     hot_concepts = hot_brief.get("热点概念") or []
     hot_industries = hot_brief.get("热点行业") or []
     excl = summary.get("excluded_items") or []
     L = []
-    L.append(f"# 一阳指战法 · 全市场扫描报告 {summary['date']} {live_tag}\n")
+    L.append(f"# 一阳指战法 · 全市场扫描报告 {_d} {live_tag}\n")
     L.append("## 概览\n")
-    L.append(f"- 目标交易日：`{summary.get('date','')}`")
+    L.append(f"- 目标交易日：`{_d}`")
     L.append(f"- 候选来源：`{summary.get('source','')}`")
     L.append(f"- 扫描候选（涨幅约5%带）：{summary.get('universe')} 只")
     L.append(f"- 主线/热点过滤：保留 `{summary.get('kept', 0)}` 只，剔除边缘/偶发 `{summary.get('excluded', 0)}` 只")

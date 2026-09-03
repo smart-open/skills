@@ -140,8 +140,8 @@ def main(argv):
         min_samples = int(argv[argv.index("--min-samples") + 1])
 
     res = optimize(min_samples=min_samples, top_n=top_n, codes=codes)
-    date = C.latest_trade_date()
-    md_path = os.path.join(C.REPORT_ROOT, f"模型可靠性_优化_{date}.md")
+    date = C.latest_trade_date(sep="-")  # YYYY-MM-DD，用于报告文件名与标题
+    md_path = os.path.join(C.REPORT_ROOT, f"一阳指模型可靠性_优化-{date}.md")
     if not res.get("ok"):
         md = (f"# 模型可靠性 & 阈值优化报告 {date}\n\n> ⚠ {res['reason']}\n\n"
               "运行 `py scripts/run.py scan` 缓存历史K线后重跑；或 `--top 60` 联网抓取样本。")

@@ -49,8 +49,8 @@ py scripts\run.py optimize --top 60 --min-samples 30
 
 ## 产物位置
 - **报告（Markdown，落 `<cwd>` 根目录）**：
-  - `scan_YYYYMMDD.md`：全市场扫描报告（含当日热点板块与被剔除清单）
-  - `模型可靠性_优化_YYYYMMDD.md`：模型命中率与阈值校准报告
+  - `一阳指报告-YYYY-MM-DD.md`：全市场扫描报告（含当日热点板块与被剔除清单）
+  - `一阳指模型可靠性_优化-YYYY-MM-DD.md`：模型命中率与阈值校准报告
 - **数据/CSV/JSON（落 `<cwd>/a-stock-yiyangzhi/output/`）**：
   - `scan_YYYYMMDD.csv / .json`：候选清单/判定明细（CSV 含 `theme`(主线标签) / `theme_matched`(命中题材) 列）
   - `scan_YYYYMMDD_excluded.csv`：被剔除的边缘/偶发股清单（代码、名称、涨幅、命中剔除词），供复核

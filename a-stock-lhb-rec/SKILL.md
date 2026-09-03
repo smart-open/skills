@@ -57,7 +57,7 @@ py scripts/run.py init
 ```
 - 拉取近 90 天龙虎榜（board / 买卖席位 / 同花顺题材 / 全量日 K线，约 10~15 分钟，增量可断点续跑）
 - 构建席位画像 → 特征集 → 训练首版模型（v1）→ 生成当日推荐 → 生成报告
-- 产物：`a-stock-lhb-rec/data/*` + `a-stock-lhb-rec/model/model_t3.joblib` + `a-stock-lhb-rec/model_history.json` + `龙虎榜T+3涨停推荐模型报告_*.md`（报告落 `<cwd>` 根目录）
+- 产物：`a-stock-lhb-rec/data/*` + `a-stock-lhb-rec/model/model_t3.joblib` + `a-stock-lhb-rec/model_history.json` + `龙虎榜T+3涨停推荐模型报告-*.md`（报告落 `<cwd>` 根目录）
 
 ## 第二步：每日盘后主流程（核心，可自动化）
 
@@ -113,7 +113,7 @@ py scripts/run.py train                   # 仅重训(不抓数据)
 | 每日推荐 | `scripts/recommend.py` → `a-stock-lhb-rec/recommend_{日期}.csv` |
 | 验证 | `scripts/verify.py` → `a-stock-lhb-rec/verify_history.csv` |
 | 自我进化 | `scripts/optimize.py`（抓新数据→重训→版本决策） |
-| 报告 | `scripts/report.py` → `龙虎榜T+3涨停推荐模型报告_{日期}.md`（落 `<cwd>` 根目录） |
+| 报告 | `scripts/report.py` → `龙虎榜T+3涨停推荐模型报告-{YYYY-MM-DD}.md`（落 `<cwd>` 根目录） |
 
 > 产物（数据+模型+历史）落在**运行时当前工作目录**的 `<cwd>/a-stock-lhb-rec/`（可设 `LHB_RUNTIME` 指向任意工程目录），**报告（Markdown）落在 `<cwd>` 根目录**（可设 `LHB_OUT`）；**分发技能时仅打包 `SKILL.md` + `scripts/`**，产物不入技能目录、不打包。
 

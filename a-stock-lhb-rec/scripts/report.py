@@ -3,7 +3,7 @@
 读取: model_meta_t3.json / model_data_t3.csv / model_coef_t3.csv / seat_profile.csv / model_history.json / verify_history.csv
 含: 方法论 / 赢家共性 / 席位手法专题 / 模型评估 / 评分卡 / 实战验证 / 进化轨迹 / 买入策略
 用法: python report.py [DATE]   (DATE 缺省=最新, 用于命名输出)
-输出: 当前会话/工作目录根下 `龙虎榜T+3涨停推荐模型报告_{date}.md`
+输出: 当前会话/工作目录根下 `龙虎榜T+3涨停推荐模型报告-{date}.md`
 """
 import os, json, glob
 import numpy as np
@@ -251,7 +251,7 @@ def main(date=None):
 
 > ⚠️ 基于历史龙虎榜统计回测，**不构成投资建议**。模型强势市命中更高、弱势市失效；席位质量分与题材主线已按因果窗口构建（消除未来泄漏），但样本量有限仍易受阶段行情影响；建议每个交易日运行 optimize 持续自我进化。
 """
-    out = os.path.join(C.REPORT_ROOT, f"龙虎榜T+3涨停推荐模型报告_{date or dmax}.md")
+    out = os.path.join(C.REPORT_ROOT, f"龙虎榜T+3涨停推荐模型报告-{date or dmax}.md")
     open(out, "w", encoding="utf-8").write(MD)
     print(f"[report] 已生成: {out}  ({len(MD)//1024}KB)  赢家 {len(win)} 席位 {n_seat}")
     return out

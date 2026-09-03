@@ -29,7 +29,6 @@ COLLECT_STEPS = [
     ("板块15日涨幅", "collect_boards_15d.py", False),
     ("涨停15日", "collect_zt_15d.py", False),
     ("板块资金15日", "collect_fund_15d.py", False),
-    ("指数K线", "collect_index_klines.py", False),
     ("个股推荐", "recommend.py", True),
 ]
 MODEL_STEPS = [
@@ -38,7 +37,6 @@ MODEL_STEPS = [
     ("资金轮动四象限", "gen_rotation_v2.py"),
     ("情绪温度计", "gen_emotion_cycle.py"),
     ("行情复盘报告", "generate_report_v3.py"),
-    ("板块轮动章节", "gen_rotation_columns.py"),
 ]
 
 
@@ -145,11 +143,6 @@ def main():
     latest_f = max((d_ for v in f.values() for d_ in v), default="")
     check("板块资金15日覆盖", len(f) >= 10, f"{len(f)} 个板块")
     check("板块资金新鲜度", latest_f in (expect, prev_expect), f"最新 {latest_f or '无'}")
-
-    # 6) index_klines.json
-    ik = load_json(os.path.join(D, "index_klines.json"), {})
-    ok_ik = bool(ik) and all(len(v) >= 15 for v in ik.values())
-    check("指数K线", ok_ik, f"{len(ik)} 个指数")
 
     # 7) recommend_{TD}.json（当日新鲜，非旧日残留）
     rc = load_json(os.path.join(D, f"recommend_{TD}.json"), {})

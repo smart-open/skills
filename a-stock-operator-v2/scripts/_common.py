@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-"""共享工具库：BASE 路径、JSON 读写、安全类型转换、sparkline，以及跨脚本公共常量。"""
+"""共享工具库：BASE 路径、JSON 读写、安全类型转换，以及跨脚本公共常量。"""
 import os
 import json
 from datetime import datetime
@@ -9,7 +9,7 @@ BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 技能安
 # <技能名>/ 子目录，不埋进技能安装目录。优先级：A_STOCK_WORK（技能工作区根）> 当前工作目录。
 _SKILL_NAME = "a-stock-operator-v2"
 WORK_DIR = os.environ.get("A_STOCK_WORK") or os.path.join(os.getcwd(), _SKILL_NAME)
-# 采集/分析数据根 = <WORK_DIR>/data  （data/*.json：market_/recommend_/boards_15d/zt_15d/fund_15d/index_klines 等）
+# 采集/分析数据根 = <WORK_DIR>/data  （data/*.json：market_/recommend_/boards_15d/zt_15d/fund_15d 等）
 DATA_DIR = os.path.join(WORK_DIR, "data")
 # 最终报告输出根 = 「当前会话/工作目录」根（Markdown，带日期，不放进技能名子目录）。
 # 历史兼容字段 A_STOCK_OUT 仍生效：指向固定报告目录。
@@ -195,25 +195,3 @@ def safe_float(v, default=0.0):
         return float(v)
     except (TypeError, ValueError):
         return default
-
-
-def sparkline(closes, up, w=116, h=38, dot=False, full_width=False):
-    if not closes or len(closes) < 2:
-        return ""
-    mn, mx = min(closes), max(closes)
-    rng = mx - mn or 1
-    n = len(closes)
-    pts = []
-    for i, v in enumerate(closes):
-        x = i / (n - 1) * w
-        y = h - 2 - (v - mn) / rng * (h - 6)
-        pts.append(f"{x:.1f},{y:.1f}")
-    col = UP_COLOR if up else DOWN_COLOR
-    line = f'<polyline points="{" ".join(pts)}" fill="none" stroke="{col}" stroke-width="1.7" stroke-linejoin="round" stroke-linecap="round"/>'
-    area = f'<polygon points="0,{h} {" ".join(pts)} {w},{h}" fill="{col}" opacity="0.12"/>'
-    wattr = "100%" if full_width else str(w)
-    out = f'<svg viewBox="0 0 {w} {h}" width="{wattr}" height="{h}" preserveAspectRatio="none">{area}{line}'
-    if dot:
-        lx, ly = pts[-1].split(",")
-        out += f'<circle cx="{lx}" cy="{ly}" r="2.2" fill="{col}"/>'
-    return out + "</svg>"
