@@ -2,6 +2,8 @@
 """共享工具库：BASE 路径、JSON 读写、安全类型转换，以及跨脚本公共常量。"""
 import os
 import json
+import time
+import urllib.request
 from datetime import datetime
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # 技能安装目录(脚本所在根)
@@ -195,3 +197,103 @@ def safe_float(v, default=0.0):
         return float(v)
     except (TypeError, ValueError):
         return default
+
+
+# ===== 同花顺板块指数兜底源（东财 push2his 被风控时的备用数据源）=====
+# 同花顺板块代码体系：行业板块 881xxx、概念板块 885xxx（6 位）。
+# 接口：d.10jqka.com.cn/v6/line/bk_{code}/01/last.js —— data 字段为分号分隔日K线，
+#       每条 `日期,开,高,低,收,成交量,成交额,,,,0`，日期为完整 YYYYMMDD。
+_THS_BOARD_CODE_CACHE = None   # {板块名: 同花顺6位代码}，进程内缓存，避免重复抓列表页
+_THS_UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36"
+
+
+def _ths_http_text(url, referer):
+    req = urllib.request.Request(url, headers={"User-Agent": _THS_UA, "Referer": referer})
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            return resp.read().decode("gbk", "ignore")
+    except Exception:
+        return ""
+
+
+def fetch_ths_board_codes():
+    """抓同花顺「概念+行业」板块列表，返回 {板块名: 6位板块指数代码}。
+    - 概念板块：取 gnSection 隐藏 JSON 的 platecode（885xxx 指数代码，详情页 cid 30xxxx 不可用于日线）
+    - 行业板块：详情页 thshy/detail/code/ 的代码即指数代码（881xxx）
+    两页各 ~300/90 板块，失败返回 {}（不阻塞主流程）。结果进程内缓存。"""
+    global _THS_BOARD_CODE_CACHE
+    if _THS_BOARD_CODE_CACHE is not None:
+        return _THS_BOARD_CODE_CACHE
+    import re as _re
+    import html as _html
+    mapping = {}
+
+    # ① 概念板块：解析 gnSection JSON（platecode → 板块名）
+    gn_html = _ths_http_text("http://q.10jqka.com.cn/gn/", "http://q.10jqka.com.cn/")
+    m = _re.search(r"id=\"gnSection\"\s+value='([^']*)'", gn_html)
+    if not m:
+        m = _re.search(r"id=\"gnSection\"\s+value=\"([^\"]*)\"", gn_html)
+    if m:
+        try:
+            sec = json.loads(_html.unescape(m.group(1)))
+            for _k, v in sec.items():
+                pcode = v.get("platecode")
+                pname = v.get("platename")
+                if pcode and pname:
+                    mapping.setdefault(pname.strip(), pcode)
+        except Exception:
+            pass
+
+    # ② 行业板块：详情页代码即指数代码（881xxx）
+    hy_html = _ths_http_text("http://q.10jqka.com.cn/thshy/", "http://q.10jqka.com.cn/")
+    for code, name in _re.findall(r"thshy/detail/code/(\d+)/[^>]*>([^<]*)</a>", hy_html):
+        if code and name:
+            mapping.setdefault(name.strip(), code)
+
+    _THS_BOARD_CODE_CACHE = mapping
+    return mapping
+
+
+def ths_board_chg_history(ths_code, days):
+    """同花顺板块指数近 N 日涨跌幅历史，返回 [(YYYYMMDD, 涨跌幅%), ...]（旧→新）。
+    涨跌幅由相邻收盘价计算（首日无前值记 0.0）；失败返回 []。"""
+    if not ths_code:
+        return []
+    url = f"http://d.10jqka.com.cn/v6/line/bk_{ths_code}/01/last.js"
+    req = urllib.request.Request(url, headers={
+        "User-Agent": _THS_UA,
+        "Referer": "http://q.10jqka.com.cn/gn/detail/code/301558/",
+    })
+    try:
+        with urllib.request.urlopen(req, timeout=12) as resp:
+            raw = resp.read().decode("utf-8", "ignore")
+    except Exception:
+        return []
+    import re as _re
+    m = _re.search(r"\((.*)\)", raw, _re.S)
+    if not m:
+        return []
+    try:
+        obj = json.loads(m.group(1))
+    except Exception:
+        return []
+    data = obj.get("data") or ""
+    closes = []          # [(YYYYMMDD, 收盘价)]
+    for line in data.split(";"):
+        p = line.split(",")
+        if len(p) < 5:
+            continue
+        try:
+            closes.append((p[0], float(p[4])))   # p[4] = 收盘
+        except (ValueError, IndexError):
+            continue
+    if not closes:
+        return []
+    closes = closes[-days:]
+    out = []
+    prev = None
+    for date, c in closes:
+        chg = round((c / prev - 1) * 100, 2) if prev else 0.0
+        out.append((date, chg))
+        prev = c
+    return out

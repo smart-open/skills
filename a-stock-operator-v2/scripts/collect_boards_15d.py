@@ -3,7 +3,9 @@
    key = 东财板块名（与 gen_hot_sectors 动态热点名对齐），value = [(YYYYMMDD, 涨跌幅%), ...]。
    消除原「14 核心同花顺板块」覆盖上限：全新热点（如固态电池/飞行汽车）自动纳入涨幅历史。
    用法：python scripts/collect_boards_15d.py [--top N] [--days 15]
-   依赖：东财 push2his 公开接口（urllib，无 requests 依赖）；单板块失败降级跳过，保证部分数据可用。
+   数据源：主源东财 push2his（直接返回涨跌幅）；东财失败时兜底同花顺板块指数
+          （d.10jqka.com.cn 板块日线，收盘价算涨跌幅），保证数据不空缺。
+   依赖：urllib 无 requests；单板块失败降级跳过，保证部分数据可用。
 """
 import os
 import sys
@@ -13,7 +15,8 @@ import argparse
 import urllib.request
 from datetime import datetime, timedelta
 
-from _common import BASE, DATA_DIR, dump_json, dump_json_guard, safe_float
+from _common import (BASE, DATA_DIR, dump_json, dump_json_guard, safe_float,
+                     fetch_ths_board_codes, ths_board_chg_history)
 
 ap = argparse.ArgumentParser(description="采集东财行业+概念板块近15日涨幅历史")
 ap.add_argument("--top", type=int, default=0, help="仅采集按今日主力净流入绝对值前 N 的板块（0=全部）")
@@ -92,8 +95,33 @@ def fetch_kline(code):
     return out
 
 
+def resolve_ths_code(name):
+    """东财板块名 → 同花顺板块代码。三级匹配：
+    ① 精确同名 ② 东财名去掉「概念/板块/行业」等后缀 ③ 同花顺名含东财名（或反之）。
+    命中返回 6 位代码，否则 None。"""
+    codes = fetch_ths_board_codes()
+    if not codes:
+        return None
+    if name in codes:
+        return codes[name]
+    # 去掉常见后缀再试
+    stripped = name
+    for suf in ("概念", "板块", "行业", "指数"):
+        if stripped.endswith(suf):
+            stripped = stripped[:-len(suf)]
+            if stripped in codes:
+                return codes[stripped]
+    # 双向包含匹配（东财名/同花顺名互为子串，取最短者，减少误配）
+    if name in codes:
+        return codes[name]
+    for ths_name, code in codes.items():
+        if ths_name and (ths_name in name or name in ths_name):
+            return code
+    return None
+
+
 def main():
-    print(f"[collect_boards_15d] 拉取东财行业+概念板块近 {DAYS} 日涨幅历史")
+    print(f"[collect_boards_15d] 拉取东财行业+概念板块近 {DAYS} 日涨幅历史（兜底：同花顺板块指数）")
     boards = fetch_board_list()
     if TOP and TOP > 0:
         boards = boards[:TOP]
@@ -101,15 +129,27 @@ def main():
     if not boards:
         print("  !! 板块列表拉取失败（东财 push2 可能被风控），终止，旧数据不动")
         sys.exit(1)
+    # 预取同花顺板块代码映射（仅在东财兜底时使用，失败不阻塞）
+    ths_codes = fetch_ths_board_codes()
+    print(f"  同花顺板块代码映射：{len(ths_codes)} 个（兜底源）")
     result = {}
+    fallback_cnt = 0
     for i, b in enumerate(boards, 1):
         k = fetch_kline(b["code"])
+        src = "东财"
+        if not k:
+            # 兜底：同花顺板块指数涨跌幅
+            ths_code = resolve_ths_code(b["name"])
+            k = ths_board_chg_history(ths_code, DAYS) if ths_code else []
+            if k:
+                src = "同花顺"
+                fallback_cnt += 1
         if k:
             result[b["name"]] = k
         elif i <= 20 or i % 50 == 0:
             print(f"  [{i:3d}/{len(boards)}] {b['name']}  无历史数据")
         if i % 50 == 0:
-            print(f"  ...已处理 {i}/{len(boards)}，成功 {len(result)}")
+            print(f"  ...已处理 {i}/{len(boards)}，成功 {len(result)}（同花顺兜底 {fallback_cnt}）")
         time.sleep(0.25)
 
     # 部分失败保护：成功率过低视为接口异常，不覆盖旧数据
@@ -118,7 +158,7 @@ def main():
         sys.exit(1)
     if not dump_json_guard(result, os.path.join(DATA_DIR, "boards_15d.json"), "板块涨幅历史"):
         sys.exit(1)
-    print(f"\n完成：共 {len(result)}/{len(boards)} 个板块 → data/boards_15d.json")
+    print(f"\n完成：共 {len(result)}/{len(boards)} 个板块（同花顺兜底 {fallback_cnt} 个）→ data/boards_15d.json")
 
 
 if __name__ == "__main__":

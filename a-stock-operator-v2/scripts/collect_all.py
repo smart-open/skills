@@ -45,12 +45,12 @@ def run_step(py, with_date, td):
     if with_date:
         cmd += ["--date", td]
     env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
-    # 产物根统一指向 collect_all 启动目录（用户显式设 A_STOCK_WORK 时优先尊重之），
+    # 产物根统一指向 collect_all 启动目录（用户显式设 A_STOCK_WORK/A_STOCK_OUT 时优先尊重之），
     # 否则子进程会因 cwd=scripts 而把数据/报告写回技能安装目录。
-    # 注意：只注入 A_STOCK_WORK 即可 —— _common.REPORT_ROOT = A_STOCK_OUT or WORK_DIR，
-    # 报告会自动落到 WORK_DIR(=A_STOCK_WORK)；若再注入 A_STOCK_OUT=LAUNCH_CWD 反而会
-    # 覆盖该 fallback，导致「只设 A_STOCK_WORK 时报告落点与直接跑子脚本不一致」。
-    env.setdefault("A_STOCK_WORK", LAUNCH_CWD)
+    # 约定（与 _common 一致）：数据 → <cwd>/a-stock-operator-v2/data，报告 → <cwd> 根目录。
+    # 故 A_STOCK_WORK 指向 <cwd>/a-stock-operator-v2（数据子目录），A_STOCK_OUT 指向 <cwd>（报告根）。
+    env.setdefault("A_STOCK_WORK", os.path.join(LAUNCH_CWD, "a-stock-operator-v2"))
+    env.setdefault("A_STOCK_OUT", LAUNCH_CWD)
     r = subprocess.run(cmd, capture_output=True, text=True, encoding="utf-8",
                        errors="ignore", env=env, cwd=os.path.join(BASE, "scripts"))
     for line in (r.stdout or "").strip().splitlines()[-6:]:

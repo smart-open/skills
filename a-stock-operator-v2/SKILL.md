@@ -83,9 +83,9 @@ cd <你的工作目录>   # 产物(data/、Markdown 报告)落在这里，不写
 py312 scripts/collect_data.py          # 东财：指数/涨停池/炸板池/跌停池/涨跌家数/热因 -> market_{今日}.json（合并模式：失败项沿用旧值，关键项缺失 exit 1）
 py312 scripts/collect_v2.py            # 新浪：涨跌家数(含涨跌幅榜)+行业板块 东财资金 -> 合并进 market_{今日}.json（空结果不合并）
 py312 scripts/collect_news.py          # 东财快讯 -> news_{今日}.json（空结果不覆盖旧文件，exit 1）
-py312 scripts/collect_boards_15d.py    # 东财行业+概念全量板块近 15 日涨幅（键=东财板块名；成功率<30% 视为风控不落盘）
+py312 scripts/collect_boards_15d.py    # 东财行业+概念全量板块近 15 日涨幅（键=东财板块名；东财失败兜底同花顺板块指数；成功率<30% 视为风控不落盘）
 py312 scripts/collect_zt_15d.py        # 15 日涨停池按板块关键词匹配涨停数（关键词=THS 14 短名+全量板块名+当日热点；boards 缺失按工作日日历兜底）
-py312 scripts/collect_fund_15d.py      # 东财板块主力资金流历史（行业+概念近15日）-> fund_15d.json（成功率<30% 不落盘）
+py312 scripts/collect_fund_15d.py      # 东财板块主力资金流历史（行业+概念近15日）-> fund_15d.json（东财失败轮换备用 UT + 同花顺指数涨跌幅作资金方向代理；成功率<30% 不落盘）
 py312 scripts/recommend.py --date 20260818  # 个股推荐（首板突破 + 放量热点）-> recommend_{date}.json（market 缺失/涨停池空/日期不符 → exit 1；新浪停牌行安全跳过）
 python scripts/gen_hot_sectors.py --date 20260818       # 动态热点发现引擎（Model 01）-> hot_sectors_{date}.json
 python scripts/gen_theme_lifecycle.py --date 20260818   # 题材生命周期定位（Model 02）-> theme_lifecycle_{date}.json
@@ -235,9 +235,9 @@ def verify(fn, kws):
 | 行情基础采集（东财） | `scripts/collect_data.py`（指数/涨停/炸板/跌停/涨跌家数/热因；合并模式：失败项沿用旧值 stale_kept，关键项缺失 exit 1） |
 | 行情补充采集（新浪+资金） | `scripts/collect_v2.py`（涨跌幅榜/行业板块/主力资金，合并进 market；空结果不合并） |
 | 政策快讯采集 | `scripts/collect_news.py`（东财快讯 -> `news_{date}.json`，供 05 章筛选；空结果不覆盖） |
-| 板块 15 日数据采集 | `scripts/collect_boards_15d.py`（东财行业+概念全量板块，自动最新；成功率<30% 不落盘） |
+| 板块 15 日数据采集 | `scripts/collect_boards_15d.py`（东财行业+概念全量板块，自动最新；东财失败兜底同花顺板块指数 `d.10jqka.com.cn` 收盘价算涨跌幅；成功率<30% 不落盘） |
 | 涨停 15 日数据采集 | `scripts/collect_zt_15d.py`（按板块关键词匹配） |
-| 板块资金流历史采集 | `scripts/collect_fund_15d.py`（东财行业+概念板块近15日主力净流入 -> `fund_15d.json`，urllib 无 requests 依赖） |
+| 板块资金流历史采集 | `scripts/collect_fund_15d.py`（东财行业+概念板块近15日主力净流入 -> `fund_15d.json`；东财失败轮换备用 UT + 同花顺指数涨跌幅作资金方向代理，urllib 无 requests 依赖） |
 | 个股推荐计算 | `scripts/recommend.py`（首板突破 + 放量热点） |
 | 动态热点发现引擎 | `scripts/gen_hot_sectors.py`（Model 01，板块池来自 `sectors` 东财板块+`hybk` 补充，五因子评分 -> `hot_sectors_{date}.json`） |
 | 题材生命周期定位 | `scripts/gen_theme_lifecycle.py`（Model 02，多日涨停趋势 + `fund_15d` 真实资金趋势 + 阈值随市场相对化，五阶段 -> `theme_lifecycle_{date}.json`） |
