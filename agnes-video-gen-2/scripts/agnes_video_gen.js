@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // -*- coding: utf-8 -*-
 /**
- * Agnes Video V2.0 - Video Generation Helper (Node.js)
+ * Agnes Video 2.5 Flash - Video Generation Helper (Node.js)
  * =====================================================
  * Supports four workflows:
  *   - text2video   : generate a video from a text prompt.
@@ -30,7 +30,7 @@ const path = require("path");
 
 const API_HOST = "api.agnes-ai.cn";
 const CREATE_PATH = "/v1/videos";
-const MODEL = "agnes-video-v2.0";
+const MODEL = "agnes-video-2.5-flash";
 
 // Cinematic quality suffix appended to the prompt (text2video & image2video).
 const CINEMATIC_SUFFIX =

@@ -1,11 +1,11 @@
 ---
 name: "agnes-video-gen-2"
-description: "Generates cinematic videos via Agnes Video V2.0 API. Invoke when user asks to generate/create/animate a video from text or images, or transform images into video."
+description: "Generates cinematic videos via Agnes Video 2.5 Flash API. Invoke when user asks to generate/create/animate a video from text or images, or transform images into video."
 ---
 
 # Agnes Video Generation 2 (agnes-video-gen-2)
 
-通过 **Agnes Video V2.0** 官方 API 生成电影级视频。支持 **文生视频、图生视频、多图视频、关键帧动画** 四种工作流，自动创建任务、轮询结果并下载 MP4。
+通过 **Agnes Video 2.5 Flash** 官方 API 生成电影级视频。支持 **文生视频、图生视频、多图视频、关键帧动画** 四种工作流，自动创建任务、轮询结果并下载 MP4。
 
 ## 何时调用本 Skill
 
@@ -203,7 +203,7 @@ node -e "const https=require('https');const fs=require('fs');const u='VIDEO_URL'
 1. **图片输入仅支持公开 URL**：图生/多图/关键帧的 `--image` 必须是 `https://` 开头的公开可访问链接。本地文件需先上传（可用 `agnes-image-gen-2` skill 生成后取 URL，或任意图床）。脚本检测到非 URL 会直接报错提示。
 2. **帧数规则**：`num_frames` 必须满足 8n+1 且 ≤441，脚本会校验并提示最近合法值。
 3. **尺寸标准化**：API 会把请求尺寸映射到 480p/720p/1080p 最近档位，最终输出以响应 `size` 为准。
-4. **模型名称**：固定 `agnes-video-v2.0`。
+4. **模型名称**：固定 `agnes-video-2.5-flash`。
 5. **结果获取**：新接入一律用 `video_id`（GET `/agnesapi?video_id=`），不用旧版 task_id 接口。
 6. **超时与重试**：视频创建接口响应可能较慢（模型加载排队），脚本已将创建任务超时设为 **10 分钟**，并自动重试 5 次（递增等待）；偶发 503/超时属正常。
 7. **文件持久性（关键）**：工作区会自动将非只读的视频文件清空为 0 字节。**务必使用 `--url-only` 两步式流程**：第 1 步长进程只获取 VIDEO_URL（不写文件），第 2 步用短命令下载并**立即设置只读属性**（PowerShell `IsReadOnly=$true` / Node.js `chmod 0o444`）。已验证只读文件持久保持，非只读文件数分钟内被清空。

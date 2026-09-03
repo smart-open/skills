@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // -*- coding: utf-8 -*-
 /**
- * Agnes Image 2.1 Flash - Image Generation Helper (Node.js)
+ * Agnes Image 2.5 Flash - Image Generation Helper (Node.js)
  * =========================================================
  * Supports:
  *   - Text-to-image (t2i): generate an image from a text prompt.
@@ -28,7 +28,7 @@ const path = require("path");
 const API_URL = "https://api.agnes-ai.cn/v1/images/generations";
 const API_HOST = "api.agnes-ai.cn";
 const API_PATH = "/v1/images/generations";
-const MODEL = "agnes-image-2.1-flash";
+const MODEL = "agnes-image-2.5-flash";
 
 // Cinematic / HD quality modifiers for text-to-image.
 const T2I_QUALITY_SUFFIX =
@@ -264,7 +264,7 @@ async function main() {
   );
 
   process.stderr.write(
-    "Calling Agnes Image 2.1 Flash [" + args.mode + "] size=" + args.size +
+    "Calling Agnes Image 2.5 Flash [" + args.mode + "] size=" + args.size +
     " format=" + args.format + " ...\n"
   );
 

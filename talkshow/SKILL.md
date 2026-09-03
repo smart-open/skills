@@ -10,8 +10,8 @@ description: "爆款舞台美女脱口秀视频生成器。用户输入脱口秀
 ## 核心特性
 
 - **Agnes Text API**（`agnes-2.0-flash`）优化剧本：增强幽默感、社会洞察力、大众共鸣，自动拆分为 ~10s 分镜
-- **Agnes Image API**（`agnes-image-2.1-flash`）生成首帧：性感现代化长发美女手持话筒在舞台，t2i 首帧 + i2i 末帧重托管
-- **Agnes Video API**（`agnes-video-v2.0`）链式生成：每场景取上一场景末帧作为首帧，保证视觉连贯
+- **Agnes Image API**（`agnes-image-2.5-flash`）生成首帧：性感现代化长发美女手持话筒在舞台，t2i 首帧 + i2i 末帧重托管
+- **Agnes Video API**（`agnes-video-2.5-flash`）链式生成：每场景取上一场景末帧作为首帧，保证视觉连贯
 - **Edge TTS** 免费中文女声语音合成，默认 `zh-CN-XiaoxiaoNeural`（晓晓），支持多种音色
 - **Wav2Lip 口型同步**：因 Agnes Video API 不支持音频输入，采用 Wav2Lip（PyTorch CPU）对每场景做后处理，驱动人像嘴部与 TTS 音频精准对齐；可用 `--no-lipsync` 跳过
 - **FFmpeg** 音视频混流 + concat 拼接，输出完整 MP4

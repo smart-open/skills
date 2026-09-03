@@ -57,8 +57,8 @@
 
 | 技能 | 一句话说明 | 依赖平台 | 运行依赖 | 耗时参考 |
 |------|-----------|---------|---------|---------|
-| `agnes-image-gen-2` | Agnes Image 2.1 Flash 电影级图片生成（文生图 / 图生图） | Agnes Image API | Node.js 12+ | 单张约 10–30 秒 |
-| `agnes-video-gen-2` | Agnes Video V2.0 电影级视频生成（4 种工作流） | Agnes Video API | Node.js 12+ | 单段约 1–5 分钟 |
+| `agnes-image-gen-2` | Agnes Image 2.5 Flash 电影级图片生成（文生图 / 图生图） | Agnes Image API | Node.js 12+ | 单张约 10–30 秒 |
+| `agnes-video-gen-2` | Agnes Video 2.5 Flash 电影级视频生成（4 种工作流） | Agnes Video API | Node.js 12+ | 单段约 1–5 分钟 |
 | `cross-era-wedding` | 跨时空婚礼电影生成器（Agnes + FaceFusion 换脸） | Agnes API + FaceFusion + FFmpeg | Node.js 12+、Python 3.10+（可选）、FFmpeg 4.4+ | 2 朝代约 10–15 分钟，4 朝代约 20–30 分钟 |
 | `volc-wedding` | 基于 Volcengine Ark 的跨时空婚礼电影生成器 | 火山方舟 Ark API + FFmpeg | Node.js 12+、FFmpeg 4.4+ | 4 朝代约 15–25 分钟 |
 | `suno-cn-music` | Suno.cn AI 音乐创作助手（8 个 REST API） | Suno.cn API | 无（HTTP REST 调用） | 单首约 1–3 分钟 |
@@ -285,7 +285,7 @@ node talkshow/scripts/talkshow.js \
 
 #### 1. agnes-image-gen-2 — 电影级 AI 图片生成
 
-通过 **Agnes Image 2.1 Flash** 官方 API 生成电影级、高清、精美的图片。
+通过 **Agnes Image 2.5 Flash** 官方 API 生成电影级、高清、精美的图片。
 
 **支持模式：** 文生图（t2i）、图生图（i2i）
 
@@ -323,7 +323,7 @@ node agnes-image-gen-2/scripts/agnes_image_gen.js \
 
 #### 2. agnes-video-gen-2 — 电影级 AI 视频生成
 
-通过 **Agnes Video V2.0** 官方 API 生成电影级视频，支持四种工作流。
+通过 **Agnes Video 2.5 Flash** 官方 API 生成电影级视频，支持四种工作流。
 
 | 工作流 | `--workflow` 值 | 说明 | 是否需要图片 |
 |--------|----------------|------|-------------|
@@ -715,8 +715,8 @@ cross-era-wedding 和 volc-wedding 均支持以下 13 个中国历史朝代：
 | 维度 | cross-era-wedding | volc-wedding |
 |------|-------------------|--------------|
 | AI 平台 | Agnes Image/Video | Volcengine Ark（豆包） |
-| 图片模型 | Agnes Image 2.1 Flash | Seedream 5.0 Pro |
-| 视频模型 | Agnes Video V2.0（固定） | Seedance 2.0（3 个版本可选） |
+| 图片模型 | Agnes Image 2.5 Flash | Seedream 5.0 Pro |
+| 视频模型 | Agnes Video 2.5 Flash（固定） | Seedance 2.0（3 个版本可选） |
 | 面部复刻方式 | FaceFusion 换脸（80%+） | Seedream i2i 保留五官特征 |
 | 面部复刻依赖 | 需 Python + FaceFusion | 无额外依赖 |
 | 朝代数量 | 2–4 个 | 2–5 个 |

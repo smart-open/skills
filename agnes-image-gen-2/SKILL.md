@@ -1,11 +1,11 @@
 ---
 name: "agnes-image-gen-2"
-description: "Generates cinematic high-definition images via Agnes Image 2.1 Flash API. Invoke when user asks to generate (text-to-image) or transform/edit (image-to-image) AI images with cinematic, HD quality."
+description: "Generates cinematic high-definition images via Agnes Image 2.5 Flash API. Invoke when user asks to generate (text-to-image) or transform/edit (image-to-image) AI images with cinematic, HD quality."
 ---
 
 # Agnes Image Generation 2 (agnes-image-gen-2)
 
-通过 **Agnes Image 2.1 Flash** 官方 API 生成电影级、高清、精美的图片。支持 **文生图（text-to-image）** 与 **图生图（image-to-image）** 两种工作流。
+通过 **Agnes Image 2.5 Flash** 官方 API 生成电影级、高清、精美的图片。支持 **文生图（text-to-image）** 与 **图生图（image-to-image）** 两种工作流。
 
 ## 何时调用本 Skill
 
@@ -107,7 +107,7 @@ node "<skill-dir>/scripts/agnes_image_gen.js" \
 3. 图生图的 `image` 数组放在 `extra_body` 内，**不要**传 `tags:["img2img"]`（脚本已处理）。
 4. 图生图输入图片 URL 必须为**公开可访问**的 HTTPS 链接；不可访问时改用本地文件（脚本会转 base64）。
 5. 请求可能耗时几秒到几十秒，脚本已设置 360 秒超时。
-6. 模型名称固定为 `agnes-image-2.1-flash`（注意是 `2.1`，不是 `21`）。
+6. 模型名称固定为 `agnes-image-2.5-flash`（注意是 `2.5`，不是 `25`）。
 
 ## 执行后必做
 
