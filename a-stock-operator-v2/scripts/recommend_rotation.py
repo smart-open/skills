@@ -31,16 +31,24 @@ TD = _args.date
 TOP = _args.top
 
 # ===== 内置因子权重（可被 rotation_params.json 覆盖）=====
-# 位置(趋势) / 资金 / 强度(涨停家数) / 情绪(封板率) / 热度(扩散度)
-PRIOR_W = {"position": 0.26, "fund": 0.24, "strength": 0.20, "emotion": 0.14, "heat": 0.16}
+# 位置(趋势) / 资金 / 强度(趋势内涨停规模) / 热度(扩散度)
+# emotion(封板率)为市场级常量、无截面区分，移出逐板块打分，改作风控门控（见 _risk_tip + emotion_gate）。
+FACTOR_KEYS = ("position", "fund", "strength", "heat")
+PRIOR_W = {"position": 0.48, "fund": 0.08, "strength": 0.09, "heat": 0.35}
 PARAMS_PATH = os.path.join(DATA_DIR, "rotation_params.json")
 
 
 def _load_weights():
     p = load_json(PARAMS_PATH, {})
     w = p.get("weights")
-    if isinstance(w, dict) and set(w.keys()) == set(PRIOR_W.keys()) and abs(sum(w.values()) - 1.0) < 1e-3:
-        return w, True
+    if isinstance(w, dict):
+        # 向后兼容：旧 params 含 emotion 键时剥离，缺失因子按先验补齐后再归一
+        w = {k: safe_float(w.get(k), PRIOR_W[k]) for k in FACTOR_KEYS}
+        tot = sum(w.values())
+        if tot > 0:
+            w = {k: v / tot for k, v in w.items()}
+            if abs(sum(w.values()) - 1.0) < 1e-3:
+                return w, True
     return dict(PRIOR_W), False
 
 
@@ -125,7 +133,34 @@ def _build_candidates(rot, boards, zt, fund, hot):
     return cands
 
 
-# ===== 3. 五维因子原始值 =====
+# ===== 3. 因子原始值 =====
+def _strength_z(zt, name, cur_cnt):
+    """趋势内强度：当日涨停家数相对近5日自身均值的 Z 分（剥离过热，保留真实强度增量）。
+    历史不足(方差≈0或<3点)时回退到裸涨停家数（后续截面归一化仍可区分）。"""
+    if not zt:
+        return float(cur_cnt)
+    key = bridge_ths_name(name) or name
+    dates = sorted(zt.keys())[-6:] if len(zt) > 1 else sorted(zt.keys())
+    vals = []
+    for d in dates:
+        day = zt.get(d, {}) or {}
+        c = day.get(key)
+        if c is None:
+            for k, v in day.items():
+                if bridge_ths_name(k) == key:
+                    c = v
+                    break
+        vals.append(float(c) if c is not None else 0.0)
+    hist = vals[:-1] if len(vals) >= 2 else vals
+    if len(hist) < 3:
+        return float(cur_cnt)
+    mean = statistics.mean(hist)
+    std = statistics.pstdev(hist)
+    if std < 1e-9:
+        return float(cur_cnt)
+    return (float(cur_cnt) - mean) / std
+
+
 def _raw_factors(name, d, boards, zt, fund, seal_rate):
     # position：趋势分（0~1，缺省用 5 日累计涨幅代理）
     ts = d.get("trend_score")
@@ -143,17 +178,19 @@ def _raw_factors(name, d, boards, zt, fund, seal_rate):
     else:
         fund_persist = 1.0 if d.get("fund_net_yi", 0) > 0 else 0.0
 
-    # strength：涨停家数（相对强度，后续截面归一化）
-    strength = d.get("zt_cnt", 0)
+    # strength：趋势内强度（Z 分，剥离「涨停越多越过热」的负效应）
+    zt_cnt = d.get("zt_cnt", 0)
+    strength = _strength_z(zt, name, zt_cnt)
 
-    # emotion：情绪环境（封板率）对板块的加成——封板率高时强势板块更易延续
+    # emotion：市场级封板率环境，无截面区分 → 不参与打分，仅作风控门控（见 _risk_tip）
     emotion = seal_rate / 100.0 if seal_rate else 0.5
 
     # heat：扩散度（子题材扩散，0~1 已归一）
     heat = d.get("spread", 0.0)
 
+    # 保留 zt_cnt / emotion 供分类与风控使用
     return {"position": pos, "fund": fund_persist, "strength": strength,
-            "emotion": emotion, "heat": heat}
+            "emotion": emotion, "heat": heat, "zt_cnt": zt_cnt}
 
 
 # ===== 4. 横截面归一化 + 加权合成 =====
@@ -227,7 +264,11 @@ def _reason(d):
 
 def _risk_tip(seal_rate, rotation_speed):
     tips = []
-    if seal_rate < 60:
+    if seal_rate < 25:
+        tips.append("封板率极低(<25%)，短线情绪冰点，建议空仓观望或极小仓低吸，收缩推荐至仅存主线")
+    elif seal_rate < 40:
+        tips.append("封板率过低(<40%)，短线情绪退潮，收缩推荐数量、严控仓位")
+    elif seal_rate < 60:
         tips.append("封板率偏低，短线情绪偏弱，次日主线以低吸不追高为主")
     if rotation_speed is not None and rotation_speed >= 0.6:
         tips.append("轮动速度快，主线易切换，注意快进快出、避免恋战")
@@ -253,21 +294,39 @@ def main():
     breadth = rot.get("breadth_index")
     risks = _risk_tip(seal_rate, rotation_speed)
 
-    # 落盘 JSON
+    # emotion 风控门控：封板率过低 → 收缩每层推荐数量（市场级情绪，非打分因子）
+    eff_top = TOP
+    if seal_rate < 25:
+        eff_top = 1
+    elif seal_rate < 40:
+        eff_top = max(1, TOP // 2)
+
+    def _pick(group):
+        out = []
+        for d in group[:eff_top]:
+            raw = d["_raw"]
+            out.append({
+                "name": d["name"], "score": round(d["rec_score"], 4), "reason": _reason(d),
+                "factors": {k: (round(raw[k], 4) if isinstance(raw.get(k), float) else raw.get(k, 0))
+                            for k in FACTOR_KEYS},
+                "emotion_env": round(raw.get("emotion", 0.5), 3),
+                "zt_cnt": raw.get("zt_cnt", 0),
+            })
+        return out
+
+    # 落盘 JSON（携带当日真实因子快照，供 rotation_verify 累计真实样本 → rotation_evolve 直读自学习）
     result = {
         "date": TD,
-        "model": "rotation_rec_v1",
+        "model": "rotation_rec_v2",
         "generated": datetime.now().isoformat(),
         "params": {"weights": WEIGHTS, "evolved": _used_evolved},
         "market_context": {"zt_total": total_up, "zb_total": total_zb,
                            "seal_rate": seal_rate, "rotation_speed": rotation_speed,
                            "breadth_index": breadth},
-        "mainline": [{"name": d["name"], "score": d["rec_score"], "reason": _reason(d)}
-                     for d in mainline[:TOP]],
-        "relay": [{"name": d["name"], "score": d["rec_score"], "reason": _reason(d)}
-                  for d in relay[:TOP]],
-        "latent": [{"name": d["name"], "score": d["rec_score"], "reason": _reason(d)}
-                   for d in latent[:TOP]],
+        "emotion_gate": {"seal_rate": seal_rate, "limit_top": eff_top},
+        "mainline": _pick(mainline),
+        "relay": _pick(relay),
+        "latent": _pick(latent),
         "risks": risks,
     }
     out_json = os.path.join(DATA_DIR, f"rotation_rec_{TD}.json")
@@ -290,7 +349,7 @@ def main():
         if group:
             L.append("| # | 板块/题材 | 推荐分 | 依据 |")
             L.append("|---|---|---|---|")
-            for i, d in enumerate(group[:TOP], 1):
+            for i, d in enumerate(group[:eff_top], 1):
                 L.append(f"| {i} | **{d['name']}** | {d['rec_score']:.3f} | {_reason(d)} |")
             L.append("")
         else:
@@ -311,8 +370,9 @@ def main():
 
     print(f"✅ 次日轮动推荐完成 → {out_md}")
     print(f"   JSON → {out_json}")
-    print(f"   主线 {len(mainline[:TOP])} | 接力 {len(relay[:TOP])} | 潜伏 {len(latent[:TOP])}")
-    for i, d in enumerate(mainline[:TOP], 1):
+    print(f"   主线 {len(mainline[:eff_top])} | 接力 {len(relay[:eff_top])} | 潜伏 {len(latent[:eff_top])}"
+          + (f"（封板率{seal_rate}%门控收缩）" if eff_top < TOP else ""))
+    for i, d in enumerate(mainline[:eff_top], 1):
         print(f"   主线{i}. {d['name']} 分{d['rec_score']:.3f} | {_reason(d)}")
 
 

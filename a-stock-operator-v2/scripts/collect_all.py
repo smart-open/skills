@@ -32,14 +32,16 @@ COLLECT_STEPS = [
     ("个股推荐", "recommend.py", True),
 ]
 MODEL_STEPS = [
-    ("热点发现", "gen_hot_sectors.py"),
-    ("题材生命周期", "gen_theme_lifecycle.py"),
-    ("资金轮动四象限", "gen_rotation_v2.py"),
-    ("次日轮动主线推荐", "recommend_rotation.py"),
-    ("情绪温度计", "gen_emotion_cycle.py"),
-    ("行情复盘报告", "generate_report_v3.py"),
-    ("轮动推荐验证", "rotation_verify.py"),
-    ("轮动权重自学习", "rotation_evolve.py"),
+    ("热点发现", "gen_hot_sectors.py", True),
+    ("题材生命周期", "gen_theme_lifecycle.py", True),
+    ("资金轮动四象限", "gen_rotation_v2.py", True),
+    ("次日轮动主线推荐", "recommend_rotation.py", True),
+    ("情绪温度计", "gen_emotion_cycle.py", True),
+    ("行情复盘报告", "generate_report_v3.py", True),
+    # 验证/自学习不依赖当日 date：verify 批量回填所有 T+3 已可判定的历史推荐，
+    # evolve 读累计样本反推权重，二者均不带 --date（rotation_evolve 也不接受 --date）。
+    ("轮动推荐验证", "rotation_verify.py", False),
+    ("轮动权重自学习", "rotation_evolve.py", False),
 ]
 
 
@@ -176,12 +178,12 @@ def main():
 
     # ===== 模型 + 报告（数据校验全过后才执行，保证报告永远基于当日新数据） =====
     model_failed = []
-    for label, py in MODEL_STEPS:
+    for label, py, wd in MODEL_STEPS:
         if py in skip:
             print(f"\n=== {label} ({py}) —— 已跳过 ===")
             continue
         print(f"\n=== {label} ({py}) ===")
-        if not run_step(py, True, TD):
+        if not run_step(py, wd, TD):
             model_failed.append(label)
             print(f"    ✗ 步骤失败（exit != 0）")
     if model_failed:

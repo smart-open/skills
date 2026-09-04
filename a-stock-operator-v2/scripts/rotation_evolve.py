@@ -1,13 +1,15 @@
 # -*- coding: utf-8 -*-
-"""轮动推荐强化自学习：用 rotation_history.csv 累计样本反推五维因子权重，回写 rotation_params.json。
+"""轮动推荐强化自学习：用 rotation_history.csv 累计样本反推四维因子权重，回写 rotation_params.json。
 
 方法（与洗盘/一阳指自学习同构，可解释抗过拟合）：
   ① 读 rotation_history.csv，取 T+3 可判定（known>=3）样本。
-  ② 反查每只样本板块在推荐日(T)的因子原始值：position(趋势)/fund(资金持续)/strength(涨停数)/
-     heat(扩散度)/emotion(封板率环境，全局常量)。
+  ② 因子原始值优先用推荐时落盘的『当日真实快照』（position/fund/strength/heat 列，由
+     recommend_rotation v2 写入）；旧样本无快照列时回退反查重建（heat/emotion 无法还原）。
   ③ 对每因子做 Spearman 秩相关（因子 × 命中0/1），方向正确放大、方向错误削弱。
   ④ EMA 平滑到先验权重，归一化和为 1。
   ⑤ 回写 rotation_params.json（含权重 + 样本统计 + 生成时间），recommend_rotation.py 下次自动加载。
+
+emotion(封板率)为市场级常量、无截面区分，已移出打分维度，改由 recommend_rotation 风控门控处理。
 
 用法：python scripts/rotation_evolve.py [--min-samples 20] [--alpha 0.3]
 """
@@ -21,9 +23,10 @@ from _common import (BASE, DATA_DIR, load_json, dump_json, safe_float,
                      seal_break_rates, bridge_ths_name, boards_chg_lookup, window_start_ymd)
 
 PARAMS_PATH = os.path.join(DATA_DIR, "rotation_params.json")
-PRIOR_W = {"position": 0.26, "fund": 0.24, "strength": 0.20, "emotion": 0.14, "heat": 0.16}
-# 方向：position/fund/strength/heat 越大越好，emotion（封板率环境）越大越好
-FACTORS = {"position": True, "fund": True, "strength": True, "emotion": True, "heat": True}
+# 方向：position/fund/strength/heat 越大越好（strength 已改「趋势内强度」Z 分，剥离过热后越大越强）
+FACTOR_KEYS = ("position", "fund", "strength", "heat")
+FACTOR_DIR = {"position": True, "fund": True, "strength": True, "heat": True}
+PRIOR_W = {"position": 0.48, "fund": 0.08, "strength": 0.09, "heat": 0.35}
 
 ap = argparse.ArgumentParser(description="轮动推荐 权重自学习")
 ap.add_argument("--min-samples", type=int, default=20, help="最小样本数（不足不改权）")
@@ -60,7 +63,7 @@ def spearman(x, y):
 
 
 def _reconstruct_factors(name, date, boards, zt, fund, seal_rate):
-    """反查某板块在推荐日的因子原始值。"""
+    """反查某板块在推荐日的因子原始值（旧样本无快照时回退用）。"""
     # position：趋势分近似 = 5日累计涨幅
     daily = boards_chg_lookup(boards, name)
     cum5 = 0.0
@@ -83,10 +86,9 @@ def _reconstruct_factors(name, date, boards, zt, fund, seal_rate):
     else:
         fund_persist = 0.5
 
-    # strength：涨停家数
-    zt_all = load_json(os.path.join(DATA_DIR, "zt_15d.json"), {})
+    # strength：涨停家数（回退用裸值；有 zt_15d 时仍给原始涨停家数供秩相关）
     strength = 0
-    for d_, cnt in zt_all.get(date, {}).items():
+    for d_, cnt in zt.get(date, {}).items():
         if d_ == name or bridge_ths_name(d_) == bridge_ths_name(name):
             strength = cnt
             break
@@ -94,8 +96,7 @@ def _reconstruct_factors(name, date, boards, zt, fund, seal_rate):
     # heat：扩散度（无历史则中性 0.5）
     heat = 0.5
 
-    return {"position": pos, "fund": fund_persist, "strength": float(strength),
-            "emotion": seal_rate / 100.0 if seal_rate else 0.5, "heat": heat}
+    return {"position": pos, "fund": fund_persist, "strength": float(strength), "heat": heat}
 
 
 def load_samples():
@@ -116,7 +117,13 @@ def load_samples():
             hit = int(r.get("hit", 0))
         except (TypeError, ValueError):
             continue
-        out.append({"date": r.get("date", ""), "name": r.get("name", ""), "hit": hit})
+        # 优先用推荐时落盘的因子快照（新 rotation_verify v2 写入）；缺列则留空走反查回退
+        snap = {}
+        for fk in FACTOR_KEYS:
+            v = r.get(fk)
+            snap[fk] = v if v not in (None, "") else None
+        out.append({"date": r.get("date", ""), "name": r.get("name", ""),
+                    "hit": hit, "snap": snap})
     return out
 
 
@@ -141,16 +148,22 @@ def main():
         print(result["reason"])
         return
 
-    # 重建因子 + 命中
+    # 组装因子 + 命中：快照优先，缺列反查回退
     recs = []
-    for s in samples:
+    n_snapshot = 0
+    for i, s in enumerate(samples):
         date = s["date"]
-        # 找该日封板率（从 market_{date}.json）
-        mkt = load_json(os.path.join(DATA_DIR, f"market_{date}.json"), {})
-        tu = mkt.get("limit_up", {}).get("total", 0)
-        tz = mkt.get("broken", {}).get("total", 0)
-        seal, _ = seal_break_rates(tu, tz)
-        fac = _reconstruct_factors(s["name"], date, boards, zt, fund, seal)
+        snap = s["snap"]
+        complete = all(snap[fk] is not None for fk in FACTOR_KEYS)
+        if complete:
+            fac = {fk: safe_float(snap[fk], 0.0) for fk in FACTOR_KEYS}
+            n_snapshot += 1
+        else:
+            mkt = load_json(os.path.join(DATA_DIR, f"market_{date}.json"), {})
+            tu = mkt.get("limit_up", {}).get("total", 0)
+            tz = mkt.get("broken", {}).get("total", 0)
+            seal, _ = seal_break_rates(tu, tz)
+            fac = _reconstruct_factors(s["name"], date, boards, zt, fund, seal)
         fac["hit"] = s["hit"]
         recs.append(fac)
 
@@ -159,7 +172,7 @@ def main():
 
     new_w = {}
     info = {}
-    for fk, higher in FACTORS.items():
+    for fk, higher in FACTOR_DIR.items():
         vals = [r[fk] for r in recs]
         rho = spearman(vals, hits)
         aligned = (rho > 0) if higher else (rho < 0)
@@ -175,13 +188,14 @@ def main():
     smoothed = {k: round(v / tot2, 4) for k, v in smoothed.items()}
 
     result.update({"ok": True, "n": n, "base_hit": round(base_hit, 3),
+                   "n_snapshot": n_snapshot,
                    "weights": smoothed, "raw_weights": new_w, "factor_info": info})
     old = load_json(PARAMS_PATH, {})
     old.update(result)
     dump_json(old, PARAMS_PATH)
 
     print(f"✅ 轮动权重自学习完成 → {PARAMS_PATH}")
-    print(f"   样本 {n}，基线命中 {base_hit*100:.0f}% | 权重 " +
+    print(f"   样本 {n}（因子快照 {n_snapshot}），基线命中 {base_hit*100:.0f}% | 权重 " +
           " ".join(f"{fk}={smoothed[fk]*100:.0f}%" for fk in smoothed))
     print("   因子相关: " + " ".join(
         f"{fk}={info[fk]['rho']:+.2f}{'' if info[fk]['aligned'] else '✗'}" for fk in info))
