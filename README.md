@@ -160,6 +160,7 @@ skills/
 │   └── scripts/                       # 全流程管线（collect_all.py 一键）
 ├── a-stock-yiyangzhi/                 # A 股一阳指战法量化扫描
 │   ├── SKILL.md
+│   ├── README.md
 │   └── scripts/
 ├── a-stock-lhb-rec/                   # 龙虎榜 T+3 涨停推荐模型
 │   ├── SKILL.md
@@ -639,17 +640,19 @@ python scripts/collect_all.py --skip collect_news.py  # 跳过指定步骤
 自包含的 A 股「一阳指战法」量化技能，依据《一阳指·转势》《一阳指·开门》逻辑模型实现。
 
 **核心能力：**
-- **全市场扫描**：识别当日涨幅约 5%（3%~8% 带）且符合「转势」「开门」的个股，输出 Markdown + CSV + JSON（含买点/止损/卖点监控）
+- **全市场扫描**：识别当日涨幅 ≥5%（无上限，涨停/连板均纳入）且符合「转势」「开门」的个股，输出 Markdown + CSV + JSON（含买点/止损/卖点监控/推荐档位）
+- **推荐档位**：按「首选 > 关注 > 追高风险」排序（修正评分倒挂），内置 8%止盈/3%止损退出纪律
 - **主线标签**：打「热点 / 中期主线 / 边缘偶发」标签，自动剔除边缘偶发股
 - **个股单查**：输入代码/名称 + 日期，逐条判定
-- **模型可靠性**：历史日K回放统计 T+5 命中率，校准量比阈值
+- **模型可靠性**：历史日K回放统计 T+1/T+3/T+5 命中率，自动校准量比阈值
+- **自学习闭环**：每次扫描后自动回填真实收益、重校准阈值、收益回放诊断，持续优化模型
 
 **用法：**
 ```bat
-py scripts\run.py scan 2026-09-02            :: 全市场扫描
-py scripts\run.py scan --live --minpct 4 --maxpct 7   :: 盘中扫描
+py scripts\run.py scan 2026-09-02            :: 全市场扫描（结束自动触发自学习）
+py scripts\run.py scan --live                 :: 盘中扫描
 py scripts\run.py judge 600519 2026-09-02    :: 个股单查
-py scripts\run.py optimize                   :: 可靠性优化
+py scripts\run.py selflearn                   :: 自学习闭环
 ```
 
 ---
