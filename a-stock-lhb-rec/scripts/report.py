@@ -73,6 +73,9 @@ def main(date=None):
 
     tt = meta.get("temporal_top", {})
     top_rows = "".join(f"| Top{k.strip('top')} | {v}% |" for k, v in tt.items())
+    wf = meta.get("wf", {}) or {}
+    top20_wf = f"{wf['top20_wf']}%" if wf.get("top20_wf") is not None else "—"
+    auc_wf = wf.get("auc_wf") if wf.get("auc_wf") is not None else "—"
 
     # 实战验证(时间外窗口)
     verify_rows = ""
@@ -137,9 +140,11 @@ def main(date=None):
 
 ## 核心指标
 
-| 训练样本 | T+3涨停率 | 时间外AUC | 随机AUC | GB时间外AUC | Top20命中 |
+| 训练样本 | T+3涨停率 | 时间外AUC | 滚动AUC(PIT近似) | 滚动Top20 | 尾部Top20 |
 |---|---|---|---|---|---|
-| {meta['n']} | {meta['pos_rate']}% | {meta['auc_temporal']} | {meta['auc_random']} | {meta['auc_gb']} | {top20}% |
+| {meta['n']} | {meta['pos_rate']}% | {meta['auc_temporal']} | {auc_wf} | {top20_wf} | {top20}% |
+
+> 主监测口径 = **滚动 Top20（近似 PIT 平均命中）**；尾部 Top20 仅反映最近一段较好时段的上限体验。
 
 ## 一、方法论
 
@@ -246,10 +251,10 @@ def main(date=None):
 
 ## 八、每日买入策略
 
-- **收盘后**：`python recommend.py` 输出当日 Top20 候选，存 recommend_日期.csv。
-- **纳入观察条件**：P≥30% 且 题材主线 且 净买比≥0.55 且（涨停/连板/知名游资其一）且 前3日透支<38% 且 非纯机构主买。
-- **回避**：纯机构主买 / 前3日透支≥38% / 高位连板≥5 / 科创创业涨停上榜。
-- **风控**：T+1 不涨停即减仓，跌破上榜日收盘止损；市场涨停情绪<10% 停用。
+- **收盘后**：`python recommend.py` 输出当日 **Top20 概率排序**候选（含 P 值），存 recommend_日期.csv。
+- **主口径**：以 TopN 概率排序＋当日市场强弱门控为主；「纳入观察」仅作辅助标注（P≥30% 且 前3日透支<38% 且 非纯机构主买），不再用「主线+净买比≥0.55」等硬门槛筛掉高 P 股票。
+- **回避**：纯机构主买 / 前3日透支≥38% / 高位连板≥5 / 科创创业涨停上榜（已充分定价）。
+- **风控**：T+1 不涨停即减仓，跌破上榜日收盘止损；当日上榜涨停占比处于历史低分位（弱市）时自动降级，谨慎追高。
 
 > ⚠️ 基于历史龙虎榜统计回测，**不构成投资建议**。模型强势市命中更高、弱势市失效；席位质量分与题材主线已按因果窗口构建（消除未来泄漏），但样本量有限仍易受阶段行情影响；建议每个交易日运行 optimize 持续自我进化。
 """

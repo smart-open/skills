@@ -209,7 +209,8 @@ def load_model():
 def prep_features(df, ART):
     """对 REASON 做 OneHot 并补齐模型所需全部列 -> DataFrame(仅feats)"""
     if ART.get("cat_cols"):
-        df = pd.get_dummies(df, columns=["REASON"])
+        if "REASON" in df.columns:  # 兼容已 one-hot 的 DataFrame(训练内部统一编码后传入)
+            df = pd.get_dummies(df, columns=["REASON"])
         for c in ART["cat_cols"]:
             if c not in df.columns:
                 df[c] = 0

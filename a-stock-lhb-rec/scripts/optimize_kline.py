@@ -33,10 +33,10 @@ def grab(c):
     p = os.path.join(C.KLINE_DIR, f"{c}.json")
     prefix = calc_prefix(c)
     if prefix == "bj":   # 北交所在 fqkline?qfq 下会被腾讯 WAF 拦截, 用 kline 接口(原始日K)
-        url = "https://web.ifzq.gtimg.cn/appstock/app/kline/kline"
+        url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/kline/kline"
         params = {"param": f"bj{c},day,,,200"}
     else:
-        url = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
+        url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get"
         params = {"param": f"{prefix}{c},day,,,200,qfq"}
     try:
         r = requests.get(url, params=params, headers={"User-Agent": UA}, timeout=10)

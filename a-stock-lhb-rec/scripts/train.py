@@ -16,13 +16,50 @@ from sklearn.metrics import roc_auc_score
 from sklearn.model_selection import train_test_split, StratifiedKFold
 import _common as C
 
-NUM = ["CHANGE_RATE", "TURNOVERRATE", "LOG_CAP", "NET_YI", "IS_LIMIT_UP", "PRE3_RET",
+# 特征集(去多重共线性): 已移除 CHANGE_RATE(与SEAL_STRENGTH r=0.94)、THEME_MAIN(与THEME_STRENGTH r=0.69)、
+# LOW_XI(与REASON_跌幅偏离完全重复)。移除后各因子方向不再相互抵消, 系数更可解释、更稳健。
+NUM = ["TURNOVERRATE", "LOG_CAP", "NET_YI", "IS_LIMIT_UP", "PRE3_RET",
        "PRE1_RET", "CONSEC_ZT", "SEAL_STRENGTH",
        "BUYER_TOP_SCORE", "BUYER_MEAN_SCORE", "BUYER_COUNT", "NET_BUY_RATIO",
-       "RETAIL_RATIO", "HAS_INST", "HAS_HK", "FAMOUS_YZ", "THEME_MAIN",
-       "THEME_STRENGTH", "MARKET_ZT", "LOW_XI", "LB_FLAG",
+       "RETAIL_RATIO", "HAS_INST", "HAS_HK", "FAMOUS_YZ",
+       "THEME_STRENGTH", "MARKET_ZT", "LB_FLAG",
        "SELLER_TOP_SCORE", "SELLER_MEAN_SCORE"]
 CAT = "REASON"
+
+# ===== 因子方向先验(基于 90 交易日 PIT 回溯 + 真实 T+3 单因子 AUC 诊断) =====
+# 逻辑回归在强共线下会学到反向系数; 去共线后再叠加「方向先验」兜底, 使方向修正随每次重训持续生效。
+# SIGN_PRIOR: +1 必正 / -1 必负(系数方向冲突则归零, 不放大地反向信号)。
+# SHRINK_PRIOR: 系数统一乘以收缩因子(抑制过强权重)。
+SIGN_PRIOR = {
+    "SEAL_STRENGTH": +1,      # AUC 0.615 最强正(封板强度)
+    "CONSEC_ZT": +1,          # AUC 0.604 强正(连板数)
+    "IS_LIMIT_UP": +1,        # AUC 0.594 正(上榜日涨停)
+    "THEME_STRENGTH": +1,     # AUC 0.583 强正(修复原 -0.033 方向反转)
+    "LB_FLAG": +1,            # AUC 0.575 正(连板标记)
+    "NET_BUY_RATIO": +1,      # AUC 0.572 正(净买比单调上升)
+    "BUYER_MEAN_SCORE": -1,   # AUC 0.480 反(买方越优质越难续涨: 拥挤/定价充分)
+    "HAS_INST": -1,           # AUC 0.467 反(机构多借涨停出货)
+    "TURNOVERRATE": -1,       # AUC 0.463 反(高换手=分歧大)
+    "SELLER_MEAN_SCORE": -1,  # AUC 0.457 反(高质量卖方=出货)
+}
+SHRINK_PRIOR = {
+    "BUYER_TOP_SCORE": 0.3,   # AUC 0.491 中性略负, 原 -0.187 权重过强 → 收缩至 30%
+}
+
+
+def apply_priors(model, feats):
+    """对线性模型系数施加方向先验: 方向冲突则归零; 指定收缩则衰减。GBDT 无 coef_ 自动跳过。"""
+    if not hasattr(model, "coef_"):
+        return model
+    for i, f in enumerate(feats):
+        c = model.coef_[0][i]
+        if f in SIGN_PRIOR:
+            p = SIGN_PRIOR[f]
+            if (p > 0 and c < 0) or (p < 0 and c > 0):
+                model.coef_[0][i] = 0.0
+        if f in SHRINK_PRIOR:
+            model.coef_[0][i] = c * SHRINK_PRIOR[f]
+    return model
 
 # 最小样本/正例门槛(过少则仅提示, 不硬阻断, 保证首次 init 可运行)
 MIN_LABELED = 100
@@ -191,15 +228,15 @@ def train_full(df, C_=1.0, prefer_gb=None):
     """训练全量生产模型。prefer_gb=None 时按时间外 AUC 自动择优：LR vs GBDT 谁在
     时间外测试集 AUC 更高就用谁（GB 在样本充足时通常更准，样本稀疏时 LR 更稳）。
     返回 (model, scaler, feats, coef_or_None, n, pos_rate, wsum, model_kind)"""
-    d = pd.get_dummies(df, columns=[CAT])
-    feats = _feat_cols(d)
-    X = d[feats].fillna(0).values; y = d["T3_ZT"].values.astype(int)
+    feats = _feat_cols(df)  # df 已在外层统一 one-hot(含 REASON_*)
+    X = df[feats].fillna(0).values; y = df["T3_ZT"].values.astype(int)
     w = _time_weights(df)
     sc = StandardScaler().fit(X)
     m = LogisticRegression(class_weight="balanced", max_iter=3000, C=C_, random_state=42)
     m.fit(sc.transform(X), y, sample_weight=w)
+    apply_priors(m, feats)
     coef = pd.DataFrame({"feature": feats, "coef": m.coef_[0], "odds": np.exp(m.coef_[0])}).sort_values("coef", ascending=False)
-    return m, sc, feats, coef, len(d), float(y.mean()), float(w.sum()), "lr"
+    return m, sc, feats, coef, len(df), float(y.mean()), float(w.sum()), "lr"
 
 
 def _gb_auc_on(tr, te, feats, C_=1.0):
@@ -217,15 +254,15 @@ def _gb_auc_on(tr, te, feats, C_=1.0):
 
 def main(force=False):
     df = load_labeled()
+    df = pd.get_dummies(df, columns=[CAT])   # 统一 one-hot: 训练/评估/生产同特征口径(含 REASON_*)
     n_pos = int(df["T3_ZT"].sum())
     print(f"[train] 有标签样本 {len(df)}  正例 {n_pos} ({df['T3_ZT'].mean()*100:.1f}%)")
     if len(df) < MIN_LABELED or n_pos < MIN_POS:
         print(f"[train] 警告: 样本量偏少(样本={len(df)}, 正例={n_pos}), AUC/门控噪声较大, 建议积累更多交易日数据")
 
     # 随机拆分(参考)
-    d_all = pd.get_dummies(df, columns=[CAT])
-    feats_all = _feat_cols(d_all)
-    Xa = d_all[feats_all].fillna(0).values; ya = d_all["T3_ZT"].values.astype(int)
+    feats_all = _feat_cols(df)
+    Xa = df[feats_all].fillna(0).values; ya = df["T3_ZT"].values.astype(int)
     Xtr0, Xte0, ytr0, yte0 = train_test_split(Xa, ya, test_size=0.3, random_state=42, stratify=ya)
     sc0 = StandardScaler().fit(Xtr0)
     m0 = LogisticRegression(class_weight="balanced", max_iter=3000, C=1.0).fit(sc0.transform(Xtr0), ytr0)
@@ -269,9 +306,9 @@ def main(force=False):
     lr_auc_on_te = auc_temporal  # evaluate() 已算的 LR 时间外 AUC
     if gb_auc_on_te is not None and gb_auc_on_te > lr_auc_on_te + 0.005 and len(df) >= 300:
         # GB 明显更优且样本充足 → 用 GB 作生产模型
-        sc_gb = StandardScaler().fit(d_all[feats_full].fillna(0).values)
+        sc_gb = StandardScaler().fit(df[feats_full].fillna(0).values)
         m_gb = GradientBoostingClassifier(random_state=42)
-        m_gb.fit(sc_gb.transform(d_all[feats_full].fillna(0).values), ya,
+        m_gb.fit(sc_gb.transform(df[feats_full].fillna(0).values), ya,
                  sample_weight=_time_weights(df))
         m_full, sc_full, model_kind, coef = m_gb, sc_gb, "gb", None
         print(f"[train] 模型择优: GBDT 时间外AUC {gb_auc_on_te:.3f} > LR {lr_auc_on_te:.3f}, 采用 GBDT")
@@ -319,7 +356,9 @@ def main(force=False):
             note = (f"同测试集AUC持平但 WF回归 {new_wf_auc:.3f} < 旧WF {old_wf_auc:.3f}, "
                     f"疑似尾部窗口过拟合, 保留旧模型")
         else:
-            note = f"同测试集 AUC {new_full_auc:.3f} ≥ 旧模型 {old_auc:.3f}, 接受新模型"
+            delta = new_full_auc - old_auc
+            note = (f"同测试集 AUC {new_full_auc:.3f} vs 旧 {old_auc:.3f} "
+                    f"({'+' if delta >= 0 else ''}{delta:.3f}), 接受新模型")
 
     if accepted or force:
         joblib.dump(new_art, C.MODEL_PATH)

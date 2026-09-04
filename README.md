@@ -658,15 +658,19 @@ py scripts\run.py optimize                   :: 可靠性优化
 
 把「龙虎榜上榜个股 → 后期（T+1~T+3）仍有涨停冲高」做成可复用的可解释概率模型：每天收盘后自动出候选，每天用「昨日推荐 vs 今日实际涨停」验证并把新结果喂回训练，模型版本按时间外 AUC 不劣则 +1，越用越准。
 
-**核心能力：** 盘后推荐（`P(T+3涨停)` 排序）、三维归因（技术 × 席位 × 行情）、席位画像（游资风格聚类）、自进化（时间衰减 + walk-forward 门控）。
+**核心能力：** 盘后推荐（`P(T+3涨停)` 概率排序 + 市场强弱门控 + 暴雷一票否决）、三维归因（个股技术 × 席位手法 × 行情研判）、席位画像（游资风格聚类 + 紫阳东路专项）、自进化（时间衰减加权 + 因果特征防泄漏 + walk-forward 门控 + LR/GBDT 同集择优）。
+
+**自进化机制：** `init` / `daily` / `report` 每次生成报告后**自动**运行 `optimize` 完成「补最新实际结果 → 重训 → 版本决策」，全程无需额外 cron 定时任务；模型随真实结果累积持续贴近近期行情。
 
 **用法：**
 ```bash
 python scripts/run.py init                 # 首次全量构建（约 10–15 分钟）
-python scripts/run.py daily                # 每日盘后：抓榜 → 推荐 → 验证 → 进化 → 报告
+python scripts/run.py daily                # 每日盘后：抓榜 → 推荐 → 验证 → 报告 → 自动进化
 python scripts/run.py optimize             # 手动触发自我进化重训
 python scripts/run.py recommend 2026-08-31 # 单日推荐（用缓存）
 ```
+
+> 产物落点：数据/模型/进化轨迹写到 `<cwd>/a-stock-lhb-rec/`（`LHB_RUNTIME` 可覆盖），报告（Markdown，带日期）写到 `<cwd>` 根目录（`LHB_OUT` 可覆盖）。
 
 ---
 
