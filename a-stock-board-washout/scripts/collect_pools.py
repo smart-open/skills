@@ -4,7 +4,6 @@
 目标日 T（最近结束交易日）与上一交易日 T0 由「周末回退 + 涨停池非空回溯」自动判定，
 --date YYYYMMDD 可显式覆盖 T。
 """
-import os
 import sys
 import json
 import time
@@ -12,7 +11,7 @@ import random
 import argparse
 import requests
 
-from _common import BASE, dump_json_guard, fmt_dash, latest_trade_day
+from _common import dump_json_guard, fmt_dash, latest_trade_day, data_path
 
 ap = argparse.ArgumentParser(description="采集涨停/炸板/跌停池（东财）+ 涨停原因（同花顺）")
 ap.add_argument("--date", default=latest_trade_day(),
@@ -144,9 +143,15 @@ def build_pool_json():
     time.sleep(0.5)
     out["hot_reason_T"] = fetch_hot_reason(t)
 
-    path = os.path.join(BASE, f"data/pools_{t}.json")
+    path = data_path(f"pools_{t}.json")
     if not dump_json_guard(out, path, "pools"):
         sys.exit(1)
+    # 记录本次解析后的 T，供 all.py 后续步骤显式传 --date（避免多日数据累积后 glob 取错日期）
+    try:
+        with open(data_path("_last_T.txt"), "w", encoding="utf-8") as _f:
+            _f.write(t)
+    except Exception:
+        pass
     print(f"  写入 {path}")
     print(f"  T 涨停池 {out['T_pool'].get('limit_up', {}).get('total', 0)} | "
           f"T0 涨停池 {out.get('T0_pool', {}).get('limit_up', {}).get('total', 0)}")

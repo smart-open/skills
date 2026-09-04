@@ -5,12 +5,11 @@
   screen = { T, strategy1: [选股记录...], strategy2: [选股记录...], backup: {...} }
 每选股记录含：评分画像(metrics)、评分、操作建议(advice)、备选信息。
 """
-import os
-import sys
 import argparse
 import statistics
 
-from _common import (BASE, PARAMS_PATH, load_json, dump_json, safe_float)
+from _common import (PARAMS_PATH, FACTORS, FACTOR_WEIGHTS, FUND_RATIO_CAP,
+                     data_path, load_json, dump_json, safe_float)
 
 ap = argparse.ArgumentParser(description="两策略筛选评分 + 操作建议")
 ap.add_argument("--date", default=None, help="目标交易日 YYYYMMDD")
@@ -21,9 +20,9 @@ def resolve_target():
     import glob
     if _args.date:
         return _args.date
-    files = sorted(glob.glob(os.path.join(BASE, "data", "pools_*.json")))
+    files = sorted(glob.glob(data_path("pools_*.json")))
     if not files:
-        raise SystemExit("!! 未找到 data/pools_*.json")
+        raise SystemExit("!! 未找到 pools_*.json（请先运行 collect_pools.py）")
     return files[-1].split("pools_")[-1].split(".")[0]
 
 
@@ -86,7 +85,6 @@ def metrics_from_klines(klines, target, base_price=None, prev_close=None):
         "is_yang": is_yang, "body": round(body, 3), "upper_shadow": round(upper_shadow, 3),
         "above_ma60": bool(ma60 and price > ma60),
         "above_ma5": bool(ma5 and price >= ma5),
-        "vol_ratio": round(vol_ratio, 2),
         "pos_range": round(pos_range, 1), "chg20": round(chg20, 1),
         "vol20": round(vol20, 2) if vol20 else None,
     }
@@ -349,24 +347,12 @@ def _washout_qual(m):
 # 多因子横截面标准化评分模型（量化选股核心）
 # 原则：① 因子先提原始值 ② 在候选池内做横截面分位 (0~100)
 #       ③ 按集中配置的权重加权合成（和为 1，可解释、可回测调整）
+# 因子定义/先验权重已上收至 _common.py（FACTORS / FACTOR_WEIGHTS），
+# 本处仅保留覆盖度门槛，运行期用 params_best.json 覆盖先验。
 # ============================================================
-FACTORS = {
-    "washout": {"higher": True,  "label": "洗盘强度"},
-    "trend":   {"higher": True,  "label": "趋势"},
-    "fund":    {"higher": True,  "label": "资金"},
-    "vol":     {"higher": False, "label": "低波动"},
-    "pos":     {"higher": True,  "label": "位置安全"},
-    "liq":     {"higher": True,  "label": "流动性"},
-}
 # 因子覆盖度门槛：有效样本占比/数量低于此的因子视作无信息，自动降权让位
 MIN_FACTOR_COVERAGE = 0.2
 MIN_FACTOR_N = 2
-
-# 两策略权重（和为 1）。S2 炸板更重洗盘强度与资金承接；S1 首板更重趋势与位置安全。
-FACTOR_WEIGHTS = {
-    "S1": {"washout": 0.30, "trend": 0.20, "fund": 0.14, "vol": 0.10, "pos": 0.16, "liq": 0.10},
-    "S2": {"washout": 0.36, "trend": 0.16, "fund": 0.18, "vol": 0.12, "pos": 0.10, "liq": 0.08},
-}
 
 # 自学习回写覆盖：evolve.py 产出的 params_best.json 若含合法权重（键齐全），覆盖先验并精确归一化
 _evolved = load_json(PARAMS_PATH, {})
@@ -763,8 +749,8 @@ def fenshi_analysis(v, sig=None):
 
 def main():
     target = resolve_target()
-    pools = load_json(os.path.join(BASE, f"data/pools_{target}.json"))
-    stocks_data = load_json(os.path.join(BASE, f"data/stocks_{target}.json"))
+    pools = load_json(data_path(f"pools_{target}.json"))
+    stocks_data = load_json(data_path(f"stocks_{target}.json"))
     if pools.get("T") != target:
         raise SystemExit(f"!! pools_{target}.json T 不符")
     stocks = (stocks_data or {}).get("stocks", {})
@@ -829,7 +815,9 @@ def main():
         # 技术趋势画像（均线多头/MACD/RSI/量能趋势）
         v["trend"] = trend_analysis(mtr, kl)
         # 主力净流入占成交额 %：去规模后的资金强度（缺失记 None，评分记中性，不惩罚）
-        v["fund_ratio"] = round(fund / amount * 100, 2) if amount else None
+        # 口径失真清洗：|净流入/成交额| 超过 FUND_RATIO_CAP 物理不可能（新浪/腾讯口径错位），记中性
+        fr_raw = round(fund / amount * 100, 2) if amount else None
+        v["fund_ratio"] = fr_raw if (fr_raw is not None and abs(fr_raw) <= FUND_RATIO_CAP) else None
 
         # 硬性质量门槛：流通≥50亿(100~300最佳) & 换手≥5% & 成交≥5亿 & 量比≥2 & 非高位(从底部起来)
         pass_gate, gate = hard_gate(v)
@@ -884,7 +872,10 @@ def main():
         return (gate_ok + rest)[:no]
 
     s1 = pick_with_fill(all_s1, None, 3)
-    s2 = pick_with_fill(all_s2, None, 3)
+    # 宁缺毋滥（90日回溯 A1 决策）：S2 炸板池达标标的稀缺，hard_gate 不过不进精选，不足 3 只不凑数
+    s2_qualified = [x for x in all_s2 if x["gate_ok"]]   # 全量达标（已按 score2 降序）
+    s2 = s2_qualified[:3]
+    s2_backup = s2_qualified[3:6]                          # 备选 = 达标第4~6名（与全量前6无关，避免漏票）
 
     # 模型诊断（因子有效样本 / 权重），供报告"模型说明"与调参回测参考
     eff_map = {"S1": _eff1, "S2": _eff2}
@@ -906,13 +897,14 @@ def main():
         "strategy2": [dict(x, _relaxed=not x["gate_ok"]) for x in s2],
         "all_s1": [dict(x, _relaxed=not x["gate_ok"]) for x in all_s1[:6]],
         "all_s2": [dict(x, _relaxed=not x["gate_ok"]) for x in all_s2[:6]],
+        "s2_backup": [dict(x, _relaxed=False) for x in s2_backup],
         "near_qualify": [dict(x, _relaxed=True) for x in near[:10]],
         "counts": {"s1": len(s1), "s2": len(s2), "s1_true": sum(1 for x in s1 if x["gate_ok"]),
                    "s2_true": sum(1 for x in s2 if x["gate_ok"]), "near": len(near),
                    "gate_table": {"liutong": ">=50亿", "turnover": ">=5%",
                                   "amount": ">=5亿", "vol_ratio": ">=2"}},
     }
-    path = os.path.join(BASE, f"data/screen_{target}.json")
+    path = data_path(f"screen_{target}.json")
     dump_json(out, path)
     print(f"===== 筛选完成 (T={target}) =====")
     print(f"[S1 首板洗盘] 推荐 {len(s1)}（严格过关 {sum(1 for x in s1 if x['gate_ok'])}）")

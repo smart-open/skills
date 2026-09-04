@@ -1,10 +1,14 @@
 # -*- coding: utf-8 -*-
-"""首板洗盘选股器 共享工具库：路径/JSON 读写/安全转换/代码段判断/交易日/配色常量。
+"""首板洗盘选股器 共享工具库：路径/JSON 读写/安全转换/代码段判断/交易日/配色/因子模型常量。
 
-路径约定：
-- BASE（本技能目录）：存过程产物 data/*.json（采集缓存、筛选结果），相对 __file__ 推导，免改路径。
-- OUT_DIR（报告输出目录）：最终报告（Markdown/HTML）外置到当前会话根目录，避免污染技能库；
-  可用环境变量 WASHOUT_OUT 覆盖（绝对或相对 cwd 均可）。
+路径约定（锚定「会话工程根目录」ROOT，而非技能安装目录）：
+- BASE（本技能安装目录）：只放代码（scripts/ 与 SKILL.md），**不存放任何过程数据**。
+- ROOT（会话工程根目录）：报告输出、过程数据都以它为锚点；
+  env WASHOUT_ROOT 显式覆盖 > （cwd 落在技能目录内时回退到 BASE 父目录）> 当前 cwd。
+- DATA_DIR（过程数据目录）：采集缓存/筛选结果/验证样本/自学习权重 一律落这里；
+  env WASHOUT_DATA 显式覆盖，缺省 = ROOT/a-stock-board-washout。
+- OUT_DIR（报告输出目录）：最终报告（Markdown）外置到 ROOT；
+  env WASHOUT_OUT 显式覆盖（绝对或相对 cwd 均可）。
 """
 import os
 import json
@@ -12,17 +16,61 @@ from datetime import datetime, timedelta
 
 BASE = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
-# 自学习闭环产物（放 BASE/data 下，与 screen_*.json 同级）
-VERIFY_PATH = os.path.join(BASE, "data", "verify_history.csv")
-PARAMS_PATH = os.path.join(BASE, "data", "params_best.json")
+
+def _root():
+    """会话工程根目录 ROOT：报告输出与过程数据的共同锚点。
+
+    优先级：env WASHOUT_ROOT（绝对/相对 cwd） > cwd（落在技能目录内时回退到 BASE 父目录） > cwd。
+    回退保护：从技能目录（含 scripts/ 子目录）运行脚本时，绝不把报告/数据写进技能代码目录。
+    """
+    r = os.environ.get("WASHOUT_ROOT", "").strip()
+    if r:
+        return r if os.path.isabs(r) else os.path.abspath(r)
+    cwd = os.path.abspath(os.getcwd())
+    if cwd == BASE or cwd.startswith(BASE + os.sep):
+        return os.path.dirname(BASE)
+    return cwd
+
+
+ROOT = _root()
+
+
+def _data_dir():
+    """过程数据根目录：env WASHOUT_DATA > ROOT/a-stock-board-washout。
+
+    兜底安全：若默认名恰好与技能安装目录重名（当 ROOT 就是技能库根目录时），
+    改用独立后缀，绝不把数据写进技能代码目录。
+    """
+    d = os.environ.get("WASHOUT_DATA", "").strip()
+    if d:
+        return d if os.path.isabs(d) else os.path.abspath(d)
+    cand = os.path.abspath(os.path.join(ROOT, "a-stock-board-washout"))
+    if os.path.abspath(cand) == BASE or \
+            os.path.abspath(cand).startswith(BASE + os.sep) or \
+            BASE.startswith(os.path.abspath(cand) + os.sep):
+        cand = os.path.abspath(os.path.join(ROOT, "a-stock-board-washout-data"))
+    return cand
+
+
+DATA_DIR = _data_dir()
+
+
+def data_path(name):
+    """过程数据文件路径：统一落在 DATA_DIR/data/<name>，与各脚本共享。"""
+    return os.path.join(DATA_DIR, "data", name)
+
+
+# 自学习闭环产物（放 DATA_DIR/data 下，与 screen_*.json 同级）
+VERIFY_PATH = data_path("verify_history.csv")
+PARAMS_PATH = data_path("params_best.json")
 
 
 def _out_dir():
-    """报告输出目录：env WASHOUT_OUT > 当前会话根目录(cwd)。"""
+    """报告输出目录：env WASHOUT_OUT > ROOT（会话工程根目录）。"""
     out = os.environ.get("WASHOUT_OUT", "").strip()
     if out:
         return out if os.path.isabs(out) else os.path.abspath(out)
-    return os.getcwd()
+    return ROOT
 
 
 OUT_DIR = _out_dir()
@@ -38,6 +86,25 @@ ACC2_COLOR = "#22d3ee"
 
 # 主板代码段（排除科创板 688/689、创业板 300/301、北交所 8/4/9 开头）
 MAIN_BOARD_PREFIX = ("600", "601", "603", "605", "000", "001", "002")
+
+# ===== 六因子横截面评分模型（集中配置，screen_washout / evolve 共用，避免两处漂移）=====
+# higher=True 表示「原始值越大 → 横截面分位越高（越看好）」；False 反之。
+FACTORS = {
+    "washout": {"higher": True,  "label": "洗盘强度"},
+    "trend":   {"higher": True,  "label": "趋势"},
+    "fund":    {"higher": True,  "label": "资金"},
+    "vol":     {"higher": False, "label": "低波动"},           # 20日收益标准差，越低越稳
+    "pos":     {"higher": False, "label": "相对强度(低回撤)"},  # 距250日高回撤越小越强（90日实证翻转）
+    "liq":     {"higher": True,  "label": "流动性"},
+}
+# 90日大样本实证优化后的先验权重（2026-09-04 回溯落盘）：
+#   vol/liq 正有效上调、pos 反向翻正、trend 弱下调、washout 保留策略筛下调、fund 中性低位。
+FACTOR_WEIGHTS = {
+    "S1": {"washout": 0.18, "trend": 0.10, "fund": 0.10, "vol": 0.26, "pos": 0.08, "liq": 0.28},
+    "S2": {"washout": 0.20, "trend": 0.08, "fund": 0.10, "vol": 0.28, "pos": 0.05, "liq": 0.29},
+}
+# 资金因子口径失真上限：|主力净流入 / 成交额| 超过该百分比视为物理不可能（新浪/腾讯口径错位），记中性
+FUND_RATIO_CAP = 100.0
 
 
 def today_ymd():

@@ -19,20 +19,8 @@ import argparse
 import statistics
 from datetime import datetime
 
-from _common import BASE, VERIFY_PATH, PARAMS_PATH, load_json, dump_json, window_start_ymd
-
-# 六因子先验权重（与 screen_washout.py FACTOR_WEIGHTS 一致，作为平滑锚点）
-PRIOR = {
-    "S1": {"washout": 0.30, "trend": 0.20, "fund": 0.14, "vol": 0.10, "pos": 0.16, "liq": 0.10},
-    "S2": {"washout": 0.36, "trend": 0.16, "fund": 0.18, "vol": 0.12, "pos": 0.10, "liq": 0.08},
-}
-# 因子方向：higher=True 表示值越大越好（与 screen_washout FACTORS 一致）
-FACTORS = {
-    "washout": True, "trend": True, "fund": True,
-    "vol": False,   # 低波动更好
-    "pos": True,    # 回撤越大安全边际越高
-    "liq": True,
-}
+from _common import (VERIFY_PATH, PARAMS_PATH, load_json, dump_json,
+                     window_start_ymd, FACTOR_WEIGHTS as PRIOR, FACTORS)
 
 ap = argparse.ArgumentParser(description="首板洗盘 因子权重自学习")
 ap.add_argument("--min-samples", type=int, default=30, help="单策略最小样本数（不足则不改权）")
@@ -124,7 +112,8 @@ def evolve(samples, min_samples, alpha):
         base_hit = statistics.mean(hits)
         new_w = {}
         info = {}
-        for fk, higher in FACTORS.items():
+        for fk, meta in FACTORS.items():
+            higher = meta["higher"]
             vals = [s[fk] for s in sub]
             rho = spearman(vals, hits)
             # 方向正确性：higher=True 期望正相关，higher=False 期望负相关

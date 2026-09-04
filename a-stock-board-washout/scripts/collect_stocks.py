@@ -4,14 +4,13 @@
 候选清单来自 data/screen 之前的策略规则：本脚本直接对「策略一候选（T0首板&T日未板）
 ∪ 策略二候选（T日炸板）」逐只抓取日K+分时并缓存为 per-code 记录。
 """
-import os
 import sys
 import json
 import time
 import argparse
 import requests
 
-from _common import (BASE, load_json, dump_json, safe_float, tencent_code,
+from _common import (load_json, dump_json, safe_float, tencent_code, data_path,
                      fmt_dash, is_main_board, is_st, is_risk_reason)
 
 ap = argparse.ArgumentParser(description="采集候选个股日K线 + T日分时")
@@ -29,9 +28,9 @@ def resolve_target():
         return _args.date
     # 找最近一个 pools 文件
     import glob
-    files = sorted(glob.glob(os.path.join(BASE, "data", "pools_*.json")))
+    files = sorted(glob.glob(data_path("pools_*.json")))
     if not files:
-        raise SystemExit("!! 未找到 data/pools_*.json，请先运行 collect_pools.py 或 --date")
+        raise SystemExit("!! 未找到 pools_*.json，请先运行 collect_pools.py 或 --date")
     return files[-1].split("pools_")[-1].split(".")[0]
 
 
@@ -213,7 +212,7 @@ def candidates_from_pools(p):
 
 def main():
     target = resolve_target()
-    path = os.path.join(BASE, f"data/pools_{target}.json")
+    path = data_path(f"pools_{target}.json")
     p = load_json(path)
     if not p or p.get("T") != target:
         raise SystemExit(f"!! pools_{target}.json 缺失或 T 不符，请先跑 collect_pools.py --date {target}")
@@ -222,7 +221,7 @@ def main():
     print(f"候选 {len(cands)} 只（含 S1 首板洗盘 / S2 炸板）")
     if not cands:
         print("  !! 无候选，跳过个股采集")
-        dump_json({"T": target, "stocks": {}}, os.path.join(BASE, f"data/stocks_{target}.json"))
+        dump_json({"T": target, "stocks": {}}, data_path(f"stocks_{target}.json"))
         return
 
     stocks = {}
@@ -236,7 +235,7 @@ def main():
         mo = "分时✓" if rec.get("minute_ok") else "分时✗"
         print(f"  {info['name']}({code}) [{info['pool']}] {ok} {mo}")
 
-    out_path = os.path.join(BASE, f"data/stocks_{target}.json")
+    out_path = data_path(f"stocks_{target}.json")
     dump_json({"T": target, "stocks": stocks}, out_path)
     print(f"  写入 {out_path}")
     sys.stdout.flush()

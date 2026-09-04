@@ -7,7 +7,7 @@
 import os
 import argparse
 
-from _common import BASE, OUT_DIR, load_json, UP_COLOR, DOWN_COLOR, WARN_COLOR, \
+from _common import OUT_DIR, load_json, data_path, UP_COLOR, DOWN_COLOR, WARN_COLOR, \
     MUTED_COLOR, GOLD_COLOR, ACC_COLOR, ACC2_COLOR, fmt_dash
 
 ap = argparse.ArgumentParser(description="渲染首板洗盘选股 Markdown 报告")
@@ -19,9 +19,9 @@ def resolve_target():
     import glob
     if _args.date:
         return _args.date
-    files = sorted(glob.glob(os.path.join(BASE, "data", "screen_*.json")))
+    files = sorted(glob.glob(data_path("screen_*.json")))
     if not files:
-        raise SystemExit("!! 未找到 data/screen_*.json，请先跑 screen_washout.py")
+        raise SystemExit("!! 未找到 screen_*.json，请先跑 screen_washout.py")
     return files[-1].split("screen_")[-1].split(".")[0]
 
 
@@ -252,12 +252,12 @@ def render_markdown(screen, target):
     s1 = screen.get("strategy1", [])
     s2 = screen.get("strategy2", [])
     all1 = screen.get("all_s1", [])
-    all2 = screen.get("all_s2", [])
     near = screen.get("near_qualify", [])
     c = screen.get("counts", {})
     # 备选池 = 全量 Top6 中排除精选 Top3（与 HTML 版一致）
     bak1 = all1[3:6] if len(all1) > 3 else []
-    bak2 = all2[3:6] if len(all2) > 3 else []
+    # S2 宁缺毋滥：备选池直接取达标第4~6名（screen 已单独算好 s2_backup，避免全量前6漏票）
+    bak2 = screen.get("s2_backup", [])
     L = []
     L.append(f"# 首板炸板洗盘 · 选股报告 {fmt_dash(target)}\n")
     L.append("## 概览\n")
@@ -280,8 +280,10 @@ def render_markdown(screen, target):
     if s2:
         for i, x in enumerate(s2, start=1):
             L.append(_stock_md(x, i, is_s2=True))
+        if len(s2) < 3:
+            L.append(f"\n> 今日达标的炸板洗盘标的仅 {len(s2)} 只，宁缺毋滥不强行凑数；差门槛标的见「邻近达标·强洗盘但差门槛」观察栏。\n")
     else:
-        L.append("本策略今日无符合条件的候选。\n")
+        L.append("本策略今日无符合硬门槛的炸板洗盘标的，宁缺毋滥不强行凑数（差门槛标的见「邻近达标」观察栏）。\n")
 
     if bak1 or bak2:
         L.append("## 三 · 备选池（第4~6名）\n")
@@ -313,7 +315,7 @@ def render_markdown(screen, target):
 
 def main():
     target = resolve_target()
-    screen = load_json(os.path.join(BASE, f"data/screen_{target}.json"))
+    screen = load_json(data_path(f"screen_{target}.json"))
     if not screen or screen.get("T") != target:
         raise SystemExit(f"!! screen_{target}.json 缺失或 T 不符，请先跑 screen_washout.py")
     render_markdown(screen, target)

@@ -17,23 +17,23 @@ import glob
 import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
-from _common import (BASE, VERIFY_PATH, load_json, dump_json, safe_float,
-                     fmt_dash, fetch_kline, window_start_ymd)
+from _common import (VERIFY_PATH, load_json, dump_json, safe_float,
+                     fmt_dash, fetch_kline, window_start_ymd, data_path)
 
 ap = argparse.ArgumentParser(description="首板洗盘 次日验证回填")
 ap.add_argument("--date", default=None, help="目标交易日 YYYYMMDD（缺省=最近 screen）")
 ap.add_argument("--no-fetch", action="store_true", help="不联网拉新K线，仅用缓存")
 _args = ap.parse_args()
 
-KLINE_CACHE = os.path.join(BASE, "data", "_verify_klines.json")
+KLINE_CACHE = data_path("_verify_klines.json")
 
 
 def resolve_target():
     if _args.date:
         return _args.date
-    files = sorted(glob.glob(os.path.join(BASE, "data", "screen_*.json")))
+    files = sorted(glob.glob(data_path("screen_*.json")))
     if not files:
-        raise SystemExit("!! 未找到 data/screen_*.json，请先跑 screen_washout.py")
+        raise SystemExit("!! 未找到 screen_*.json，请先跑 screen_washout.py")
     # 仅回看最近 3 个月窗口内的 screen 文件（避免回填陈旧候选）
     wstart = window_start_ymd()
     files = [f for f in files if f.split("screen_")[-1].split(".")[0] >= wstart]
@@ -47,7 +47,7 @@ def zt_threshold(code):
     return 9.8 if not code.startswith(("300", "301", "688")) else 19.5
 
 
-def _fwd_metrics(klines, idx):
+def _fwd_metrics(klines, idx, code):
     """klines 升序，idx 为 T 日（触发日）位置。返回 [t1,t2,t3] 各自 dict 或 None。"""
     base_c = klines[idx]["c"]
     out = []
@@ -61,19 +61,15 @@ def _fwd_metrics(klines, idx):
         ret_c = (k["c"] / base_c - 1) * 100 if base_c else 0.0
         ret_h = (k["h"] / base_c - 1) * 100 if base_c else 0.0
         chg_day = (k["c"] / prev_c - 1) * 100 if prev_c else 0.0
-        zt = 1 if chg_day >= zt_threshold(str(_code_holder.get("c", ""))) else 0
+        zt = 1 if chg_day >= zt_threshold(code) else 0
         out.append({"ret_c": round(ret_c, 2), "ret_h": round(ret_h, 2), "zt": zt})
     return out
-
-
-_code_holder = {}  # 供 _fwd_metrics 取 code（简单闭包替代）
 
 
 def _eval_one(code, klines, target):
     """定位 target 在 K 线中的位置，返回 T+1~T+3 表现。target 可能不在（假期/停牌），找 <= target 的最近一根。"""
     if not klines:
         return None
-    _code_holder["c"] = code
     # 注意：腾讯 K 线日期为 YYYY-MM-DD（带横杠），target 为 YYYYMMDD（无横杠），统一去横杠再比较
     target_cmp = str(target).replace("-", "")
     idx = None
@@ -83,26 +79,30 @@ def _eval_one(code, klines, target):
             break
     if idx is None or idx >= len(klines) - 1:
         return None  # 无后续数据
-    fwd = _fwd_metrics(klines, idx)
+    fwd = _fwd_metrics(klines, idx, code)
     hit = any(f and (f["ret_c"] >= 5.0 or f["zt"] == 1) for f in fwd if f)
+    # T+1 可交易口径（贴合「洗盘→次日冲高卖出」）：T+1 最高涨幅>=5% 或 收盘>=3% 即可次日离场
+    f1 = fwd[0] if len(fwd) > 0 else None
+    hit_t1 = bool(f1 and (f1["ret_h"] >= 5.0 or f1["ret_c"] >= 3.0))
     return {
         "t1": fwd[0] if len(fwd) > 0 else None,
         "t2": fwd[1] if len(fwd) > 1 else None,
         "t3": fwd[2] if len(fwd) > 2 else None,
         "hit": 1 if hit else 0,
+        "hit_t1": 1 if hit_t1 else 0,
         "known": sum(1 for f in fwd if f),
     }
 
 
 def main():
     target = resolve_target()
-    screen = load_json(os.path.join(BASE, f"data/screen_{target}.json"))
+    screen = load_json(data_path(f"screen_{target}.json"))
     if not screen or screen.get("T") != target:
         raise SystemExit(f"!! screen_{target}.json 缺失或 T 不符")
 
     # 收集候选（精选 + 备选，去重）
     cands = {}
-    for key in ("strategy1", "strategy2", "all_s1", "all_s2", "near_qualify"):
+    for key in ("strategy1", "strategy2", "all_s1", "all_s2", "s2_backup", "near_qualify"):
         for x in screen.get(key, []):
             code = x.get("code")
             if not code or code in cands:
@@ -110,7 +110,7 @@ def main():
             cands[code] = {
                 "code": code, "name": x.get("name", ""),
                 "strategy": "S1" if key in ("strategy1", "all_s1") else
-                            ("S2" if key in ("strategy2", "all_s2") else "near"),
+                            ("S2" if key in ("strategy2", "all_s2", "s2_backup") else "near"),
                 "score": x.get("score", x.get("score2", 0)),
                 "gate_ok": x.get("gate_ok", True),
                 "raw_f": x.get("raw_f", {}),
@@ -159,6 +159,7 @@ def main():
             r[f"T{n}_zt"] = f["zt"] if f else ""
         r["known"] = ev["known"]
         r["hit"] = ev["hit"]
+        r["hit_t1"] = ev["hit_t1"]
         # 附因子原始值，供 evolve 反推权重
         for fk, fv in (info.get("raw_f") or {}).items():
             r[f"f_{fk}"] = fv
@@ -174,7 +175,7 @@ def main():
                   "T1_ret_c", "T1_ret_h", "T1_zt",
                   "T2_ret_c", "T2_ret_h", "T2_zt",
                   "T3_ret_c", "T3_ret_h", "T3_zt",
-                  "known", "hit",
+                  "known", "hit", "hit_t1",
                   "f_washout", "f_trend", "f_fund", "f_vol", "f_pos", "f_liq"]
     existing = []
     if os.path.exists(hist_path):
@@ -198,7 +199,11 @@ def main():
     n = len(cur)
     n_known = sum(1 for r in cur if r["known"] >= 3)
     hit = sum(r["hit"] for r in cur)
+    n_t1 = sum(1 for r in cur if r["known"] >= 1)
+    hit_t1 = sum(r["hit_t1"] for r in cur)
     print(f"   {target} 验证样本 {n}（T+3 可判定 {n_known}）命中 {hit}，命中率 {hit/max(n,1)*100:.0f}%")
+    if n_t1:
+        print(f"   T+1 可交易口径命中 {hit_t1}/{n_t1}（{hit_t1/max(n_t1,1)*100:.0f}%）")
     for r in sorted(cur, key=lambda x: -x["score"])[:8]:
         t1 = r["T1_ret_c"]
         t1s = f"{t1:+.1f}%" if t1 != "" else "—"
