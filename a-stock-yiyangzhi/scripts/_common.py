@@ -249,8 +249,9 @@ def _clist(params, tries=3):
     return None
 
 
-def fetch_universe(min_pct=3.0, max_pct=8.0, top_n=2000):
+def fetch_universe(min_pct=3.0, max_pct=10.9, top_n=2000):
     """东财实时涨幅榜 top_n -> 过滤涨幅带 [min,max]，返回列表 dicts
+    默认上限 10.9%（覆盖主板涨停 10%，让涨停股也能进入判定被「开门」战法捕获）
     实时候选源受限时返回 []（由调用方优雅降级 / 用缓存样本兜底）"""
     params0 = {
         "pn": "1", "po": "1", "np": "1", "fltt": "2", "invt": "2", "fid": "f3",
@@ -291,7 +292,7 @@ def fetch_universe(min_pct=3.0, max_pct=8.0, top_n=2000):
     return out
 
 
-def cache_universe(min_pct=3.0, max_pct=8.0):
+def cache_universe(min_pct=3.0, max_pct=10.9):
     """兜底：从日K缓存里，取每只最新一根涨幅落 [min,max] 的代码作候选"""
     out = []
     for fn in os.listdir(KLINE_DIR):

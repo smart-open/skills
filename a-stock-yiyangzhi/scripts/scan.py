@@ -37,7 +37,7 @@ def fetch_and_eval(code, name, live, force=False, with_theme=True):
     return ev
 
 
-def scan(min_pct=3.0, max_pct=8.0, live=False, force_kline=False, limit_n=None,
+def scan(min_pct=3.0, max_pct=10.9, live=False, force_kline=False, limit_n=None,
          with_theme=True):
     print(f"[scan] 抓取全市场实时候选 涨幅[{min_pct}%, {max_pct}%] ...")
     uni = C.fetch_universe(min_pct=min_pct, max_pct=max_pct)
@@ -106,7 +106,7 @@ def main(argv):
     live = "--live" in argv
     force = "--force" in argv
     with_theme = "--no-theme" not in argv
-    minpct, maxpct = 3.0, 8.0
+    minpct, maxpct = 3.0, 10.9
     if "--minpct" in argv:
         minpct = float(argv[argv.index("--minpct") + 1])
     if "--maxpct" in argv:

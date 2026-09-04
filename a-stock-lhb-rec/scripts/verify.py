@@ -54,17 +54,24 @@ def main(date=None):
     res = pd.DataFrame(rows)
     n = len(res)
     t1k = res["T1涨停"].sum(); t2k = res["T2涨停"].sum(); t3k = res["T3涨停"].sum()
+    # 可验证样本数: T+3 已结算(非 NaN)才算「可验证」
+    t3_valid = int(res["T3涨停"].notna().sum())
+    t1_valid = int(res["T1涨停"].notna().sum())
+    # 若 T+3 尚未结算(推荐日距今 <3 个交易日), 跳过写入, 避免写出全 0 的误导记录
+    if t3_valid == 0:
+        print(f"[verify] {date} 推荐 T+3 尚未结算(距今<3个交易日), 暂不写入 verify_history, 待后续 daily 自动回填")
+        return None
     # 写入历史(按 date 去重追加)
     hist = pd.read_csv(C.VERIFY_PATH, dtype={"DATE": str}) if os.path.exists(C.VERIFY_PATH) else pd.DataFrame()
     if len(hist) and "DATE" in hist.columns:
         hist = hist[hist["DATE"] != date]
     summary = pd.DataFrame([{"DATE": date, "推荐数": n,
                              "T1涨停数": int(t1k), "T2涨停数": int(t2k), "T3涨停数": int(t3k),
-                             "T1命中率": round(t1k / max(1, res["T1涨停"].notna().sum()) * 100, 1),
-                             "T3命中率": round(t3k / max(1, res["T3涨停"].notna().sum()) * 100, 1)}])
+                             "T1命中率": round(t1k / max(1, t1_valid) * 100, 1),
+                             "T3命中率": round(t3k / max(1, t3_valid) * 100, 1)}])
     hist = pd.concat([hist, summary], ignore_index=True)
     hist.to_csv(C.VERIFY_PATH, index=False, encoding="utf-8-sig")
-    print(f"\n=== 验证 {date} 推荐 (共 {n} 只) ===")
+    print(f"\n=== 验证 {date} 推荐 (共 {n} 只, T+3 可验证 {t3_valid}) ===")
     print(f"  T+1 涨停: {int(t1k)}  T+2 涨停: {int(t2k)}  T+3 涨停: {int(t3k)}")
     print(f"  T+1 命中率(可验证样本): {summary['T1命中率'].iloc[0]}%  T+3 命中率: {summary['T3命中率'].iloc[0]}%")
     print(f"  已写入 {C.VERIFY_PATH}")

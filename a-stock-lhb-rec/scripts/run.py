@@ -44,8 +44,8 @@ def cmd_daily(date=None):
     print(f"=== daily: {date} 主流程 ===")
     P.fetch_latest()                       # 1) 抓最新(今日)龙虎榜
     RC.main(date)                          # 2) 今日推荐
-    # 3) 验证前几个交易日(其 T+1..T+3 可能已可得)
-    for back in (1, 2, 3):
+    # 3) 验证前 4~10 个交易日的推荐(其 T+1..T+3 已完全结算, 才有真实命中可统计)
+    for back in range(4, 11):
         pd_ = (dtmod.date.fromisoformat(date) - dtmod.timedelta(days=back)).isoformat()
         while dtmod.date.fromisoformat(pd_).weekday() >= 5:
             pd_ = (dtmod.date.fromisoformat(pd_) - dtmod.timedelta(days=1)).isoformat()

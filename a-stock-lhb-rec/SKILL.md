@@ -70,7 +70,7 @@ py scripts/run.py daily 2026-08-28 # 指定日
 `daily` 依次执行：
 1. `pipeline.fetch_latest()` —— 增量抓取当日龙虎榜（board/seats/hot/kline，跳过已有）
 2. `recommend` —— 对当日全部上榜股打分，输出 Top20 候选 + `recommend_{日期}.csv`
-3. `verify` —— 核对前 1~3 个交易日的推荐实际 T+1/T+2/T+3 涨停，追加 `verify_history.csv`
+3. `verify` —— 核对前 4~10 个交易日（T+3 已完全结算）的推荐实际 T+1/T+2/T+3 涨停，追加 `verify_history.csv`
 4. `optimize` —— 把最新实际结果补入训练集、重训、版本决策（时间外 AUC 不劣则 +1）
 5. `report` —— 刷新 Markdown 报告（含最新进化轨迹与验证记录）
 
