@@ -85,12 +85,16 @@ def build_rows(results):
         if o["signal"]:
             strategy.append("开门")
         counter = t["counter"] or o["counter"] or ""
+        tier = ev.get("tier") or C.recommend_tier(
+            t["signal"], o["signal"], ev.get("chg_today", 0), ev.get("zt", False))
         rows.append({
             "code": ev["code"], "name": ev["name"], "date": ev["date"],
             "chg": ev["chg_today"], "close": ev["close"],
             "vol_ratio": t.get("volr") or o.get("volr") or ev.get("quote", {}).get("vol_ratio"),
             "strategy": "+".join(strategy) or "—",
             "score": max(t.get("score", 0), o.get("score", 0)) if strategy else "",
+            "tier": tier if strategy else "",
+            "is_zt": bool(ev.get("zt", False)),
             "counter": counter,
             "theme": ev.get("theme", ""),
             "theme_matched": ev.get("theme_matched", ""),
@@ -101,6 +105,11 @@ def build_rows(results):
             "quote": f"{ev.get('quote',{}).get('price','')}|量比{ev.get('quote',{}).get('vol_ratio','')}|额{ev.get('quote',{}).get('amount_yi','')}亿",
         })
     return rows
+
+
+def _hit_sort_key(r):
+    """推荐排序键：档位(首选>关注>追高风险)优先，档内评分降序。"""
+    return (C.TIER_ORDER.get(r.get("tier") or "—", 9), -(r.get("score") or 0))
 
 
 def main(argv):
@@ -148,8 +157,8 @@ def main(argv):
     csv_path = os.path.join(C.OUT_DIR, f"scan_{date}.csv")
     fieldnames = list(rows[0].keys()) if rows else [
         "code", "name", "date", "chg", "close", "vol_ratio", "strategy", "score",
-        "counter", "theme", "theme_matched", "turn", "open", "turn_score",
-        "open_score", "buy", "stop", "quote"]
+        "tier", "is_zt", "counter", "theme", "theme_matched", "turn", "open",
+        "turn_score", "open_score", "buy", "stop", "quote"]
     with open(csv_path, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
@@ -187,17 +196,23 @@ def main(argv):
     print(f"  Markdown 报告 → {md_path}")
     print(f"  候选 {summary['universe']} | 保留 {summary['kept']} | 剔除 {summary['excluded']}")
     print(f"  转势命中 {summary['turn_hit']} | 开门命中 {summary['open_hit']}")
-    for r in rows:
-        if r["turn"] or r["open"]:
-            theme = f"·{r.get('theme')}" if r.get("theme") else ""
-            print(f"  ✔ {r['code']} {r['name']} 涨{r['chg']}%  [{r['strategy']}]{theme} "
-                  f"分{r['score']} 止损={r['stop']}")
+    for r in sorted((x for x in rows if x["turn"] or x["open"]), key=_hit_sort_key):
+        theme = f"·{r.get('theme')}" if r.get("theme") else ""
+        print(f"  ✔ {r['code']} {r['name']} 涨{r['chg']}%  [{r['strategy']}·{r.get('tier','')}]{theme} "
+              f"分{r['score']} 止损={r['stop']}")
+
+    # 自动化自学习闭环：报告生成后，据当日最新数据分析并优化模型（--no-selflearn 可关闭）
+    if "--no-selflearn" not in argv:
+        import subprocess as _sp
+        print("\n[scan] 自动触发自学习闭环（verify + 阈值重校准 + 收益回放诊断；--no-selflearn 可关闭）...")
+        _sp.call([sys.executable, os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                                               "selflearn.py")])
     return 0
 
 
 def render_markdown(summary, rows, date_disp=None):
     """候选 → Markdown 报告(结论前置 + 每只原因)"""
-    hits = [r for r in rows if r["turn"] or r["open"]]
+    hits = sorted([r for r in rows if r["turn"] or r["open"]], key=_hit_sort_key)
     live_tag = "· 盘中判定(未收盘, 待复核)" if summary.get("live") else ""
     _d = date_disp or summary.get("date", "")
     hot_brief = summary.get("hot_boards") or {}
@@ -227,15 +242,21 @@ def render_markdown(summary, rows, date_disp=None):
     L.append("")
     if hits:
         L.append("## 命中个股（结论前置）\n")
-        L.append("| 代码 | 名称 | 当日涨幅% | 量比 | 策略 | 评分 | 主线标签 | 买点 | 止损 |")
-        L.append("|------|------|--------|------|------|------|--------|------|------|")
+        L.append("| 代码 | 名称 | 档位 | 当日涨幅% | 量比 | 策略 | 评分 | 主线标签 | 买点 | 止损 |")
+        L.append("|------|------|------|--------|------|------|------|--------|------|------|")
         for r in hits:
             buy = (r.get("buy") or "—").replace("|", "/")
             tg = TF.TAG_LABEL.get(r.get("theme"), r.get("theme") or "—")
             mt = (r.get("theme_matched") or "").replace("|", "/")
             label = tg if not mt else f"{tg}({mt})"
-            L.append(f"| {r['code']} | {r['name']} | {r['chg']} | {r['vol_ratio']} | "
+            tier = r.get("tier") or "—"
+            L.append(f"| {r['code']} | {r['name']} | **{tier}** | {r['chg']} | {r['vol_ratio']} | "
                      f"**{r['strategy']}** | {r['score']} | {label} | {buy} | {r.get('stop') or '—'} |")
+        L.append("")
+        L.append(f"> 档位排序：**首选**（转势·非涨停·温和放量大阳，持续性最优）> **关注**（转势涨停/开门非涨停）"
+                 f"> **追高风险**（开门涨停/高位追涨，T+5 历史转负）。")
+        L.append(f"> 默认卖出纪律：**止盈 +{C.TP_PCT*100:.0f}% / 止损 -{C.SL_PCT*100:.0f}% / "
+                 f"高浮盈回撤 {C.TRAIL_PCT*100:.0f}% 移动止盈**（90日回溯实证，全量 +0.28%→+0.88%）。")
         L.append("")
     if excl:
         L.append("## 被剔除个股（边缘/偶发，如公告、冷门题材）\n")
@@ -253,6 +274,9 @@ def render_markdown(summary, rows, date_disp=None):
         tg = TF.TAG_LABEL.get(ev.get("theme"), ev.get("theme") or "")
         L.append(f"### {code} {name}（{ev.get('date','')} 收盘 {ev.get('close')} 涨幅 "
                  f"{ev.get('chg_today')}%）")
+        if ev.get("tier") and ev.get("tier") != "—":
+            L.append(f"- 推荐档位：**{ev.get('tier')}**"
+                     + ("（信号日涨停，追高风险）" if ev.get("zt") else ""))
         if tg:
             mt = (ev.get("theme_matched") or "").replace("|", "/")
             L.append(f"- 主线标签：**{tg}**" + (f"（{mt}）" if mt else ""))
@@ -273,6 +297,10 @@ def render_markdown(summary, rows, date_disp=None):
             L.append(f"  - 买点：{o.get('buy',{}).get('detail')}｜止损：{o.get('stop')}")
         else:
             L.append(f"  - 未成立：{o.get('counter')}")
+        if ev.get("sells"):
+            for s in ev["sells"]:
+                for k, v in s.items():
+                    L.append(f"  - {k}：{v}")
         L.append("")
     if summary.get("live"):
         L.append("> ⚠ 盘中扫描：当日K线为进行中，需收盘后复核；本报告仅作复盘参考，不构成投资建议。")

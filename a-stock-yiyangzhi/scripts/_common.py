@@ -61,6 +61,18 @@ COOL_DOWN_BARS = 5               # 冷却期
 STOP_ALPHA = (0.3, 0.5)          # 止损 α×ATR(14) 区间
 ATR_N = 14
 
+# ===== 卖出纪律(退出策略, 90日回溯实证: 8%止盈/3%止损 把全量 +0.28%->+0.88%) =====
+TP_PCT = 0.08                    # 止盈 +8%
+SL_PCT = 0.03                    # 止损 -3%(较ATR止损更紧的硬止损地板)
+TRAIL_PCT = 0.03                 # 移动止盈: 高浮盈回撤3%离场
+
+# ===== 打分方向校准(纠正评分倒挂: 信号日涨停/大涨=追高, 持续性差) =====
+CHASE_ZT_PENALTY = 15            # 信号日涨停 扣分(数据: 涨停票T+5转负)
+CHASE_BIG_PENALTY = 10           # 涨幅≥10% 高位追涨 扣分
+CHASE_MILD_PENALTY = 3           # 涨幅≥8% 轻度扣分
+CHASE_BIG_LIMIT = 0.10           # 高位大阳阈值(涨幅)
+CHASE_MILD_LIMIT = 0.08
+
 # 打印配色(红涨绿跌)
 UP_COLOR = "#e04b4b"
 DOWN_COLOR = "#2bd99f"
@@ -111,6 +123,26 @@ _RISK_NAME_KEYWORDS = ["ST", "*ST", "退"]
 def is_risk_name(name):
     n = str(name or "").upper()
     return any(k in n for k in _RISK_NAME_KEYWORDS)
+
+
+# ===== 推荐档位(纠正"仅凭评分排序"的倒挂) =====
+TIER_ORDER = {"首选": 0, "关注": 1, "追高风险": 2}
+
+
+def recommend_tier(turn_ok, open_ok, chg_pct, is_zt):
+    """据信号类型 + 当日是否涨停/高位，给推荐档位（首选/关注/追高风险）。
+    实证：转势·非涨停·温和放量大阳 持续最优；信号日涨停/高位追涨 T+5 转负。
+    注意 chg_pct 为「百分比数值」（如 5.98=5.98%），故阈值需 ×100 对齐。"""
+    chg = float(chg_pct or 0.0)
+    if turn_ok and not is_zt:
+        return "关注" if chg >= CHASE_BIG_LIMIT * 100 else "首选"
+    if turn_ok and is_zt:
+        return "关注"              # 底部放量涨停(转势) 较开门追高稍稳
+    if open_ok and not is_zt:
+        return "关注"              # 开门·非涨停大阳 / 续攻开门
+    if open_ok:
+        return "追高风险"          # 开门涨停/高位追涨(数据: T+5 转负)
+    return "—"
 
 
 def stock_prefix(code):

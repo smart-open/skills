@@ -95,6 +95,7 @@ def main():
                                      ["开门"] if o.get("signal") else []),
                 "score": max(t.get("score", 0), o.get("score", 0)),
                 "chg": ev.get("chg_today"),
+                "tier": ev.get("tier", ""),
                 "theme": ev.get("theme", ""),
             })
     if not signals:
@@ -121,7 +122,7 @@ def main():
             continue
         r = {"date": date, "code": s["code"], "name": s["name"],
              "strategy": s["strategy"], "score": s["score"], "chg": s["chg"],
-             "theme": s["theme"], "known": ev["known"], "hit": ev["hit"]}
+             "tier": s["tier"], "theme": s["theme"], "known": ev["known"], "hit": ev["hit"]}
         for n in (1, 3, 5):
             f = ev["f"].get(n)
             r[f"T{n}_ret_c"] = f["ret_c"] if f else ""
@@ -133,7 +134,7 @@ def main():
         print("!! 无可验证样本（K线未覆盖 T 日之后）")
         return
 
-    fieldnames = ["date", "code", "name", "strategy", "score", "chg", "theme",
+    fieldnames = ["date", "code", "name", "strategy", "score", "chg", "tier", "theme",
                   "T1_ret_c", "T1_ret_h", "T1_zt",
                   "T3_ret_c", "T3_ret_h", "T3_zt",
                   "T5_ret_c", "T5_ret_h", "T5_zt",
@@ -164,6 +165,51 @@ def main():
         t1s = f"{t1:+.1f}%" if t1 != "" else "—"
         mark = "✓" if r["hit"] else ("·" if r["known"] >= 3 else "待")
         print(f"     {r['code']} {r['name'][:6]:<6} {r['strategy']:<4} 分{r['score']:>3} T1 {t1s} {mark}")
+
+    # ===== 收益口径统计(实战价值, 非仅事件命中率; 90日回溯: 收益>命中更能反映是否赚钱) =====
+    def _avg(vals):
+        return sum(vals) / len(vals) if vals else 0.0
+
+    summary = {"date": date, "n": n, "n_known5": n_known5, "hit": hit,
+               "hit_rate": round(hit / max(n, 1), 4),
+               "ret": {}, "by_strategy": {}, "by_tier": {}, "by_score": {}}
+
+    def _ret_map(pred=None):
+        m = {}
+        for key in ("T1_ret_c", "T3_ret_c", "T5_ret_c"):
+            v = [float(r[key]) for r in rows_out
+                 if (pred is None or pred(r)) and r.get(key) not in ("", None)]
+            m[key] = {"avg": round(_avg(v), 4), "n": len(v)}
+        return m
+
+    summary["ret"] = _ret_map()
+    for tag, pred in (("转势", lambda r: "转势" in r["strategy"] and "开门" not in r["strategy"]),
+                      ("开门", lambda r: "开门" in r["strategy"] and "转势" not in r["strategy"]),
+                      ("转势+开门", lambda r: "转势" in r["strategy"] and "开门" in r["strategy"])):
+        summary["by_strategy"][tag] = _ret_map(pred)
+    for tier in ("首选", "关注", "追高风险"):
+        summary["by_tier"][tier] = _ret_map(lambda r, t=tier: r.get("tier") == t)
+    for label, pred in ((">=90", lambda r: r["score"] >= 90),
+                        ("80-89", lambda r: 80 <= r["score"] < 90),
+                        ("70-79", lambda r: 70 <= r["score"] < 80),
+                        ("<70", lambda r: r["score"] < 70)):
+        summary["by_score"][label] = _ret_map(pred)
+
+    print("   收益口径(T+N 收盘相对信号日收盘 %):")
+    _r = summary["ret"]["T3_ret_c"]
+    print(f"      整体 T+1 {summary['ret']['T1_ret_c']['avg']:+.2f}%  "
+          f"T+3 {summary['ret']['T3_ret_c']['avg']:+.2f}%  "
+          f"T+5 {summary['ret']['T5_ret_c']['avg']:+.2f}%")
+    for tag in ("首选", "关注", "追高风险"):
+        m = summary["by_tier"][tag]["T3_ret_c"]
+        print(f"      档位[{tag}] T+3 {m['avg']:+.2f}% (n={m['n']})")
+
+    # 累计收益口径历史，供自学习持续观察(避免只看事件命中率)
+    summ_path = os.path.join(C.DATA, "verify_summary.json")
+    hist = C.load_json(summ_path, {})
+    hist[date] = summary
+    C.dump_json(summ_path, hist)
+    print(f"   收益口径快照已存 -> {summ_path}")
 
 
 if __name__ == "__main__":

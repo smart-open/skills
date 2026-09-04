@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
 """一阳指转势/开门 量化技能 · 入口编排
 用法:
-  py scripts/run.py scan [YYYY-MM-DD] [--live] [--minpct 5] [--maxpct 999] [--force]
+  py scripts/run.py scan [YYYY-MM-DD] [--live] [--minpct 5] [--maxpct 999] [--force] [--no-selflearn]
   py scripts/run.py judge <代码或名称> [YYYY-MM-DD]
-  py scripts/run.py optimize [--codes a,b,c] [--top 60] [--min-samples 30]
+  py scripts/run.py optimize [--codes a,b,c] [--top 60] [--min-samples 30] [--cache-only]
   py scripts/run.py verify [--date YYYYMMDD]
+  py scripts/run.py selflearn [--date YYYYMMDD] [--skip-optimize]
+  # scan 结束后默认自动触发 selflearn 自学习闭环（verify+阈值重校准+收益回放诊断）；--no-selflearn 关闭
 """
 from __future__ import annotations
 import os, sys, subprocess
@@ -49,6 +51,8 @@ def main(argv):
         status = subprocess.call([_py(), os.path.join(SP, "optimize.py")] + rest)
     elif cmd == "verify":
         status = subprocess.call([_py(), os.path.join(SP, "verify.py")] + rest)
+    elif cmd == "selflearn":
+        status = subprocess.call([_py(), os.path.join(SP, "selflearn.py")] + rest)
     else:
         print(f"未知命令: {cmd}")
         print(__doc__)

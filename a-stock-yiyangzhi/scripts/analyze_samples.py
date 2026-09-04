@@ -154,7 +154,8 @@ def report_one(s, top):
         cum = (df["close"][g]/clo-1)*100
         print(f"   {df['date'][g]} {gchg:+5.2f}%  累计{cum:+.2f}%")
     print("   - - 模型判定(历史回放) - -")
-    for label, fn, kw in (("转势", IND.judge_turn, {}), ("开门", IND.judge_open, {"code": s["code"]})):
+    for label, fn, kw in (("转势", IND.judge_turn, {"code": s["code"]}),
+                          ("开门", IND.judge_open, {"code": s["code"]})):
         r = fn(ind, i, **kw)
         if r.get("insufficient"):
             print(f"   {label}: 数据不足 {r.get('reason')}")
@@ -169,7 +170,7 @@ def report_one(s, top):
             print(f"       止损: {r['stop']}")
     print()
     print(f"VERDICT {s['code']} {s['name']} {s['date']} label={s['strategy']} "
-          f"turn={'HIT' if IND.judge_turn(ind,i).get('signal') else 'miss'} "
+          f"turn={'HIT' if IND.judge_turn(ind,i,code=s['code']).get('signal') else 'miss'} "
           f"open={'HIT' if IND.judge_open(ind,i,code=s['code']).get('signal') else 'miss'}")
     print()
 
@@ -202,7 +203,8 @@ def report_week(s, top):
         mark = "  <== 信号周" if k == i else ""
         print(f"   {df['date'][k]} C{kc:7.2f} {kchg:+6.2f}%{mark}")
     print("   - - 模型判定(周线回放) - -")
-    for label, fn, kw in (("转势", IND.judge_turn, {}), ("开门", IND.judge_open, {"code": s["code"]})):
+    for label, fn, kw in (("转势", IND.judge_turn, {"code": s["code"]}),
+                          ("开门", IND.judge_open, {"code": s["code"]})):
         r = fn(ind, i, **kw)
         if r.get("insufficient"):
             print(f"   {label}: 数据不足")
@@ -214,7 +216,7 @@ def report_week(s, top):
         if not r["signal"]:
             print(f"       未成立: {r.get('counter')}")
     print(f"VERDICT WEEK {s['code']} {s['name']} {s['date']} label={s['strategy']} "
-          f"turn={'HIT' if IND.judge_turn(ind,i).get('signal') else 'miss'} "
+          f"turn={'HIT' if IND.judge_turn(ind,i,code=s['code']).get('signal') else 'miss'} "
           f"open={'HIT' if IND.judge_open(ind,i,code=s['code']).get('signal') else 'miss'}")
     print()
 

@@ -168,20 +168,29 @@ def judge_turn(ind, i, code="000001"):
     score += 10 if ma6_ok else 0
     score += 10 if ma21_ok else 0
     score += 15 if ma21_struct else 0
-    # 量能档(资金)
+    # 量能档(资金)——温和放量最优、爆量/涨停追高降分(纠正评分倒挂)
     if vol_ok:
-        if volr >= C.VOL_RATIO_BURST:
-            score += 45
+        if is_zt:
+            score += 10               # 信号日涨停=追高, 持续性差
+        elif volr >= C.VOL_RATIO_BURST:
+            score += 15               # 爆量(转势非涨停已被反例G剔除, 罕见)
         elif volr >= C.VOL_RATIO_STRONG:
-            score += 35
+            score += 25               # 强放量
         else:
-            score += 20
+            score += 40               # 温和放量(最健康)
     if abs(gap) < C.MA_GAP_TIGHT:
         score += 10  # 双线黏合
     if base_ok:
         score += 15
     if not high_risk:
         score += 5
+    # 追涨涨幅惩罚(实证: 温和5-8%最优、≥10%转差)
+    if is_zt:
+        score -= C.CHASE_ZT_PENALTY
+    elif chg >= C.CHASE_BIG_LIMIT:
+        score -= C.CHASE_BIG_PENALTY
+    elif chg >= C.CHASE_MILD_LIMIT:
+        score -= C.CHASE_MILD_PENALTY
 
     if big_yang:
         if double_yang:
@@ -237,6 +246,7 @@ def judge_turn(ind, i, code="000001"):
     return {"signal": signal, "insufficient": False, "score": min(score, 100),
             "reasons": reasons, "counter": counter, "big_yang": big_yang,
             "chg": round(chg * 100, 2), "volr": round(volr, 2),
+            "is_zt": bool(is_zt),
             "ma6": round(ma6, 3), "ma21": round(ma21, 3),
             "ma6_dir": d6, "ma21_dir": d21, "gap_pct": round(abs(gap) * 100, 2),
             "buy": buy, "stop": stop}
@@ -298,12 +308,24 @@ def judge_open(ind, i, code="000001"):
     score += 20 if aligned else 0
     score += 15 if slope_ok else 0
     if breakout:
-        score += 20 + min(15, int(dist_prior))
+        score += 20                                        # 突破成立基线
+        score += min(10, max(0, int(dist_prior)))          # 破前高距离红利收紧(追高降分)
+    # 量能档——温和放量最优(修复原非单调打分: 爆量追高不额外加分)
     if vol_ok:
-        score += 20 if volr >= C.VOL_RATIO_BURST else (35 if volr >= C.VOL_RATIO_STRONG else 25)
+        if volr >= C.VOL_RATIO_BURST:
+            score += 15
+        elif volr >= C.VOL_RATIO_STRONG:
+            score += 25
+        else:
+            score += 30
+    # 信号日涨停/大涨 = 追高, 持续性差(数据实证), 扣分
     if chg >= zt_chg:
-        reasons.append("涨停形态")
-        score += 10
+        reasons.append("信号日涨停(追高风险, 降分)")
+        score -= C.CHASE_ZT_PENALTY
+    elif chg >= C.CHASE_BIG_LIMIT:
+        score -= C.CHASE_BIG_PENALTY
+    elif chg >= C.CHASE_MILD_LIMIT:
+        score -= C.CHASE_MILD_PENALTY
     if not high_risk:
         score += 5
     if high_risk:
@@ -349,6 +371,7 @@ def judge_open(ind, i, code="000001"):
     return {"signal": signal, "insufficient": False, "score": min(max(score, 0), 100),
             "reasons": reasons, "counter": counter, "big_yang": big_yang,
             "chg": round(chg * 100, 2), "volr": round(volr, 2),
+            "is_zt": bool(chg >= zt_chg),
             "aligned": aligned, "breakout": breakout,
             "high_risk": high_risk, "new_high": new_high,
             "prior_high": round(prior_high, 3), "dist_prior": round(dist_prior, 2),
@@ -374,6 +397,9 @@ def judge_sell(ind, i):
             cnt += 1
     if cnt >= 3:
         sells.append({"S3": f"近5根回踩MA6 {cnt}次, 趋势力量减弱"})
+    # 默认卖出纪律(90日回溯实证: 8%止盈/3%止损 把全量 +0.28%->+0.88%)
+    sells.append({"S4": f"退出纪律: 止盈+{C.TP_PCT*100:.0f}% / 止损-{C.SL_PCT*100:.0f}% / "
+                         f"高浮盈回撤{C.TRAIL_PCT*100:.0f}%移动止盈"})
     return sells
 
 
@@ -395,11 +421,17 @@ def evaluate(rows, live=False, code="000001"):
     turn = judge_turn(ind, i, code=code)
     open_ = judge_open(ind, i, code=code)
     sells = judge_sell(ind, i)
+    chg_today = round((float(ind["close"][i]) / float(ind["close"][i - 1]) - 1) * 100, 2)
+    zt = C.is_limit_up(chg_today, code)
+    tier = C.recommend_tier(bool(turn.get("signal")), bool(open_.get("signal")),
+                            chg_today, zt)
     return {
         "date": str(rows[-1][0]),
         "close": round(float(ind["close"][i]), 3),
-        "chg_today": round((float(ind["close"][i]) / float(ind["close"][i - 1]) - 1) * 100, 2),
+        "chg_today": chg_today,
         "live": live,
+        "zt": bool(zt),
+        "tier": tier,
         "insufficient": turn.get("insufficient", False) and open_.get("insufficient", False),
         "turn": turn, "open": open_, "sells": sells}
 

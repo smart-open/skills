@@ -180,8 +180,10 @@ def _write_params(chosen):
     return path
 
 
-def optimize(min_samples=30, horizon=5, top_n=0, codes=None, min_top_n=60):
-    univ = collect_universe(top_n=top_n or min_top_n, codes=codes)
+def optimize(min_samples=30, horizon=5, top_n=0, codes=None, min_top_n=60, cache_only=False):
+    # cache_only: 自学习闭环仅用本地缓存，不联网扩样本
+    real_top = 0 if cache_only else (top_n or min_top_n)
+    univ = collect_universe(top_n=real_top, codes=codes)
     if not univ:
         return {"ok": False, "reason": "无可回放的历史K线：请先运行 scan 缓存数据，或 --codes 指定样本，或联网 --top N 抓取"}
     print(f"[optimize] 样本池 {len(univ)} 只，并发拉取日K并逐日回放 ...")
@@ -224,6 +226,7 @@ def main(argv):
     codes = []
     top_n = 0
     min_samples = 30
+    cache_only = "--cache-only" in argv
     if "--codes" in argv:
         codes = [c.strip() for c in argv[argv.index("--codes") + 1].split(",")]
     if "--top" in argv:
@@ -231,7 +234,7 @@ def main(argv):
     if "--min-samples" in argv:
         min_samples = int(argv[argv.index("--min-samples") + 1])
 
-    res = optimize(min_samples=min_samples, top_n=top_n, codes=codes)
+    res = optimize(min_samples=min_samples, top_n=top_n, codes=codes, cache_only=cache_only)
     date = C.latest_trade_date(sep="-")  # YYYY-MM-DD，用于报告文件名与标题
     md_path = os.path.join(C.REPORT_ROOT, f"一阳指模型可靠性_优化-{date}.md")
     if not res.get("ok"):
