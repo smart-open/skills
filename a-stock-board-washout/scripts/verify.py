@@ -18,7 +18,7 @@ import argparse
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from _common import (BASE, VERIFY_PATH, load_json, dump_json, safe_float,
-                     fmt_dash, fetch_kline)
+                     fmt_dash, fetch_kline, window_start_ymd)
 
 ap = argparse.ArgumentParser(description="首板洗盘 次日验证回填")
 ap.add_argument("--date", default=None, help="目标交易日 YYYYMMDD（缺省=最近 screen）")
@@ -34,6 +34,11 @@ def resolve_target():
     files = sorted(glob.glob(os.path.join(BASE, "data", "screen_*.json")))
     if not files:
         raise SystemExit("!! 未找到 data/screen_*.json，请先跑 screen_washout.py")
+    # 仅回看最近 3 个月窗口内的 screen 文件（避免回填陈旧候选）
+    wstart = window_start_ymd()
+    files = [f for f in files if f.split("screen_")[-1].split(".")[0] >= wstart]
+    if not files:
+        raise SystemExit(f"!! 最近 3 个月（≥{wstart}）无 screen 文件，请先跑 screen_washout.py")
     return files[-1].split("screen_")[-1].split(".")[0]
 
 

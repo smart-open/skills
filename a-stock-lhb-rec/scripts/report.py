@@ -55,8 +55,8 @@ def main(date=None):
     base_rate = train["T3_ZT"].mean() * 100
     dmin, dmax = df["TRADE_DATE"].min(), df["TRADE_DATE"].max()
 
-    # 赢家清单(近一月)
-    recent = win[win["TRADE_DATE"] >= (pd.Timestamp(dmax) - pd.Timedelta(days=30)).strftime("%Y-%m-%d")].sort_values("TRADE_DATE")
+    # 赢家清单(最近 3 个月)
+    recent = win[win["TRADE_DATE"] >= (pd.Timestamp(dmax) - pd.Timedelta(days=90)).strftime("%Y-%m-%d")].sort_values("TRADE_DATE")
     win_rows = ""
     for _, r in recent.head(45).iterrows():
         win_rows += (f"| {r['TRADE_DATE']} | {r['CODE']} | **{r['NAME']}** | "

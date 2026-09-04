@@ -56,6 +56,18 @@ def today_ymd():
     return datetime.now().strftime("%Y%m%d")
 
 
+# ===== 自学习/验证统一数据窗口：最近 3 个月（约 90 自然日 / 66 交易日） =====
+MONTHS_BACK = 3
+
+
+def window_start_ymd(months=MONTHS_BACK, end_ymd=None):
+    """返回「最近 N 个月」窗口起始日 YYYYMMDD（含当天往前推 N 个月）。"""
+    end = end_ymd or today_ymd()
+    d = datetime.strptime(end, "%Y%m%d")
+    d -= timedelta(days=int(months * 30.44))
+    return d.strftime("%Y%m%d")
+
+
 def latest_trade_day(target=None):
     """target YYYYMMDD（默认今日）往前最近的「可能交易日」（周一~五，不含节假日修正）。"""
     from datetime import timedelta

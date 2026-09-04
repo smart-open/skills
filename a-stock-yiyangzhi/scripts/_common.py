@@ -159,6 +159,19 @@ def latest_trade_date(sep=""):
     return d.isoformat().replace("-", sep)
 
 
+# ===== 自学习/验证统一数据窗口：最近 3 个月（约 90 自然日 / 66 交易日） =====
+MONTHS_BACK = 3
+
+
+def window_start_ymd(months=MONTHS_BACK, end_ymd=None):
+    """返回「最近 N 个月」窗口起始日 YYYYMMDD（含当天往前推 N 个月）。"""
+    import datetime as dt
+    end = end_ymd or latest_trade_date(sep="")
+    d = dt.date.fromisoformat(end)
+    d -= dt.timedelta(days=int(months * 30.44))
+    return d.isoformat().replace("-", "")
+
+
 def mah(series, n):
     """移动平均; 不足返回 nan 列表"""
     s = np.asarray(series, dtype=float)

@@ -19,7 +19,7 @@ import argparse
 import statistics
 from datetime import datetime
 
-from _common import BASE, VERIFY_PATH, PARAMS_PATH, load_json, dump_json
+from _common import BASE, VERIFY_PATH, PARAMS_PATH, load_json, dump_json, window_start_ymd
 
 # 六因子先验权重（与 screen_washout.py FACTOR_WEIGHTS 一致，作为平滑锚点）
 PRIOR = {
@@ -75,8 +75,12 @@ def load_samples():
         return []
     with open(VERIFY_PATH, "r", encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
+    # 仅取最近 3 个月窗口内的样本（避免陈旧样本污染权重）
+    wstart = window_start_ymd()
     out = []
     for r in rows:
+        if (r.get("date") or "") < wstart:
+            continue
         # 仅取 T+3 可判定的样本
         try:
             if int(r.get("known", 0)) < 3:

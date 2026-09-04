@@ -18,9 +18,11 @@ import statistics
 from datetime import datetime
 
 from _common import (BASE, DATA_DIR, REPORT_ROOT, load_json, safe_float,
-                     TEMPERATURE_W, TEMP_FACTOR_LABELS, seal_break_rates, today_ymd)
+                     TEMPERATURE_W, TEMP_FACTOR_LABELS, seal_break_rates, today_ymd,
+                     window_start_ymd)
 
 MIN_DAYS = 10  # 最少交易日样本，不足则不给出调参建议
+MONTHS_BACK = 3  # 统一数据窗口：最近 3 个月
 
 
 def _rank(vals):
@@ -57,10 +59,13 @@ def _next_trade_date(date, all_dates):
 
 
 def main():
-    # 收集所有 emotion_*.json
+    # 收集最近 3 个月内的 emotion_*.json
+    wstart = window_start_ymd(MONTHS_BACK)
     emo_files = sorted(glob.glob(os.path.join(DATA_DIR, "emotion_*.json")))
+    emo_files = [f for f in emo_files
+                 if os.path.basename(f).split("_")[1].split(".")[0] >= wstart]
     if len(emo_files) < 2:
-        print(f"!! 仅 {len(emo_files)} 个情绪文件，不足以做校准，请先累积多日 emotion 数据")
+        print(f"!! 最近 3 个月（≥{wstart}）仅 {len(emo_files)} 个情绪文件，不足以做校准，请先累积多日 emotion 数据")
         return
 
     dates = [os.path.basename(f).split("_")[1].split(".")[0] for f in emo_files]

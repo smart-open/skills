@@ -34,6 +34,11 @@ def resolve_date():
     files = sorted(glob.glob(os.path.join(C.OUT_DIR, "scan_*.json")))
     if not files:
         raise SystemExit("!! 未找到 scan_*.json，请先跑 scan")
+    # 仅回看最近 3 个月窗口内的 scan 文件
+    wstart = C.window_start_ymd()
+    files = [f for f in files if f.split("scan_")[-1].split(".")[0] >= wstart]
+    if not files:
+        raise SystemExit(f"!! 最近 3 个月（≥{wstart}）无 scan 文件，请先跑 scan")
     return files[-1].split("scan_")[-1].split(".")[0]
 
 

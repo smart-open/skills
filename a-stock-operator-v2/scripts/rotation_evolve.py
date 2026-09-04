@@ -18,7 +18,7 @@ import statistics
 from datetime import datetime
 
 from _common import (BASE, DATA_DIR, load_json, dump_json, safe_float,
-                     seal_break_rates, bridge_ths_name, boards_chg_lookup)
+                     seal_break_rates, bridge_ths_name, boards_chg_lookup, window_start_ymd)
 
 PARAMS_PATH = os.path.join(DATA_DIR, "rotation_params.json")
 PRIOR_W = {"position": 0.26, "fund": 0.24, "strength": 0.20, "emotion": 0.14, "heat": 0.16}
@@ -104,8 +104,12 @@ def load_samples():
         return []
     with open(vp, "r", encoding="utf-8-sig", newline="") as f:
         rows = list(csv.DictReader(f))
+    # 仅取最近 3 个月窗口内的样本（避免陈旧样本污染权重）
+    wstart = window_start_ymd()
     out = []
     for r in rows:
+        if (r.get("date") or "") < wstart:
+            continue
         try:
             if int(r.get("known", 0)) < 3:
                 continue

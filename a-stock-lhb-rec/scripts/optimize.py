@@ -27,8 +27,8 @@ def labeled_count():
 
 def main():
     today = dtmod.date.today().isoformat()
-    start = (dtmod.date.fromisoformat(today) - dtmod.timedelta(days=30)).isoformat()
-    print(f"[optimize] 增量抓取 {start} ~ {today}")
+    start = (dtmod.date.fromisoformat(today) - dtmod.timedelta(days=90)).isoformat()
+    print(f"[optimize] 增量抓取 {start} ~ {today}（最近 3 个月）")
     before = labeled_count()
     P.run(start, today)                       # 1) 补最新数据(跳过已有)
     SP.build()                                # 2) 重建席位画像(含新数据)

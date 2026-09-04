@@ -13,7 +13,7 @@ import csv
 import glob
 import argparse
 
-from _common import BASE, DATA_DIR, load_json, safe_float, bridge_ths_name, boards_chg_lookup
+from _common import BASE, DATA_DIR, load_json, safe_float, bridge_ths_name, boards_chg_lookup, window_start_ymd
 
 VERIFY_PATH = os.path.join(DATA_DIR, "rotation_history.csv")
 
@@ -28,6 +28,11 @@ def resolve_date():
     files = sorted(glob.glob(os.path.join(DATA_DIR, "rotation_rec_*.json")))
     if not files:
         raise SystemExit("!! 未找到 rotation_rec_*.json，请先跑 recommend_rotation.py")
+    # 仅回看最近 3 个月窗口内的推荐文件
+    wstart = window_start_ymd()
+    files = [f for f in files if f.split("rotation_rec_")[-1].split(".")[0] >= wstart]
+    if not files:
+        raise SystemExit(f"!! 最近 3 个月（≥{wstart}）无 rotation_rec 文件，请先跑 recommend_rotation.py")
     return files[-1].split("rotation_rec_")[-1].split(".")[0]
 
 

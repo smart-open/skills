@@ -44,6 +44,19 @@ def today_ymd():
     return datetime.now().strftime("%Y%m%d")
 
 
+# ===== 自学习/验证统一数据窗口：最近 3 个月（约 90 自然日 / 66 交易日） =====
+MONTHS_BACK = 3
+
+
+def window_start_ymd(months=MONTHS_BACK, end_ymd=None):
+    """返回「最近 N 个月」窗口起始日 YYYYMMDD（含当天往前推 N 个月）。"""
+    end = end_ymd or today_ymd()
+    d = datetime.strptime(end, "%Y%m%d")
+    # 往前推 N 个月（跨月边界用近似：30.44 天/月，取整）
+    d -= timedelta(days=int(months * 30.44))
+    return d.strftime("%Y%m%d")
+
+
 def is_main_board(code):
     return isinstance(code, str) and code.startswith(MAIN_BOARD_PREFIX)
 

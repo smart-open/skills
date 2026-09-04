@@ -14,7 +14,7 @@ import indicators as IND
 
 
 def _iter_historical(rows, code="000001", horizon=5):
-    """逐日回放; 返回列表 of (kind,date,score,chg,fwd1,fwd3,fwd5)"""
+    """逐日回放; 返回列表 of (kind,date,score,chg,fwd1,fwd3,fwd5)。仅回放最近 3 个月窗口内的日期。"""
     import numpy as np
     df = {
         "date": [r[0] for r in rows],
@@ -26,8 +26,13 @@ def _iter_historical(rows, code="000001", horizon=5):
     }
     ind = IND.compute(df)
     n = len(df["close"])
+    # 最近 3 个月窗口起始日（YYYYMMDD 字符串），仅回放窗口内的触发日
+    wstart = C.window_start_ymd()
+    dates = [str(d) for d in df["date"]]
     out = []
     for i in range(22, n - horizon):
+        if dates[i] < wstart:
+            continue
         chg = (df["close"][i] / df["close"][i - 1] - 1) * 100
         fwd1 = (df["close"][i + 1] / df["close"][i] - 1) * 100 if i + 1 < n else None
         fwd3 = (df["close"][i + 3] / df["close"][i] - 1) * 100 if i + 3 < n else None
