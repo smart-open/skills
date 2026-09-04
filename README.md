@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-18-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-19-orange)]()
 
 ---
 
@@ -36,7 +36,7 @@
 
 ## 简介
 
-本工程聚合了 **18 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、A 股操盘分析、首板洗盘选股、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、技能数据抓取**。
+本工程聚合了 **19 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、全网深度画像、A 股操盘分析、首板洗盘选股、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、技能数据抓取**。
 
 **核心亮点：**
 
@@ -75,6 +75,7 @@
 | `a-stock-lhb-rec` | 龙虎榜 T+3 涨停推荐与自进化模型 | 东方财富/同花顺/腾讯 K 线公开接口 | Python 3.10+（pandas/scikit-learn） | 首次 init 约 10–15 分钟，daily 每条约 1–3 分钟 |
 | `a-stock-board-washout` | A 股首板洗盘 / 炸板洗盘选股器（双策略 + 第二日操作建议） | 东方财富/新浪/腾讯公开接口 | Python 3.10+ | 单次约 2–5 分钟 |
 | `dev-lifecycle` | 端到端软件开发流程编排（5 阶段 + 每阶段 HITL 确认） | 无（纯规范型，仅 SKILL.md） | 无 | 按项目规模而定 |
+| `deep-profile` | 全网深度画像助手（公开数据采集 + 交叉验证 + 深层推理，输出自包含 HTML 画像报告） | WebSearch/WebFetch + fireworks-tech-graph + frontend-design | 无（纯规范型，仅 SKILL.md） | 单目标约 5–15 分钟 |
 | `skill-data-fetcher`（8 子技能） | 主流 Skill 市场批量抓取备份（Smithery / ClaudeSkills 等 8 家） | 各家 Skill 市场 API | Node.js 12+ | 单家约 1–3 分钟 |
 
 ---
@@ -171,6 +172,9 @@ skills/
 │
 ├── dev-lifecycle/                     # 软件开发流程编排（纯规范型）
 │   └── SKILL.md
+├── deep-profile/                     # 全网深度画像助手（纯规范型，HTML 画像报告）
+│   ├── SKILL.md
+│   └── references/                   # 方法论 / 字段 schema / HTML 模板
 │
 ├── skill-data-fetcher/                # Skill 市场数据抓取（8 子技能）
 │   ├── agent-skills-fetcher/
@@ -718,6 +722,25 @@ python scripts/generate_report.py          # 渲染 Markdown 报告 -> {cwd}/首
 
 ---
 
+### 深度画像与情报
+
+#### 19. deep-profile — 全网深度画像助手
+
+以个人或企业的少量种子信息（姓名、手机号、邮箱、公司名、域名、社交昵称等）为起点，通过 LLM 自带的 `WebSearch`/`WebFetch` 完成全渠道公开数据采集、交叉验证与深层推理，编排 `fireworks-tech-graph`（技术图表）与 `frontend-design`（前端设计）两个技能，输出**单个自包含 HTML 深度画像报告**。
+
+**核心能力：**
+
+- 八维数据源矩阵（公开数字足迹 / 工商司法 / 授权数据 / 资产暴露面 / 威胁情报等）
+- 七阶解构 + 五阶穿透推理（定性深度 + 置信度量化）
+- 关系网络拓扑、时空行为时间线、数字孪生推演
+- A/B/C/D 置信度评分 + 证据溯源 + 智能提问（身份消歧等）
+
+**产物落点**：报告写到 `<cwd>/{目标}_深度画像-{YYYY-MM-DD}.html`，不写回技能目录。纯规范型技能（仅 `SKILL.md` + `references/`），零脚本依赖。
+
+> 适用：人物/公司背景调查、尽调、反欺诈、招聘背调、合作方核实、客户画像、竞品与关键人物建模、谈判与战略预判。
+
+---
+
 ## 朝代列表
 
 timeless-wedding 和 timeless-wedding-volc 均支持以下 13 个中国历史朝代：
@@ -842,6 +865,7 @@ timeless-wedding 和 timeless-wedding-volc 均支持以下 13 个中国历史朝
 | A 股龙虎榜 T+3 涨停预判 | `a-stock-lhb-rec` | 逻辑回归概率模型 + 席位画像 + 自进化 |
 | A 股首板洗盘 / 炸板洗盘选股 | `a-stock-board-washout` | 双策略洗盘识别 + 内联 K 线/量能/分时 SVG + 第二日操作建议 |
 | 从需求到代码的完整开发流程编排 | `dev-lifecycle` | 5 阶段 + HITL 确认 + SOP 6 步开发 |
+| 人物/公司背景调查、深度画像、数字孪生建模 | `deep-profile` | 公开数据采集 + 交叉验证 + 深层推理，输出自包含 HTML 画像报告 |
 | 批量备份 Skill 市场榜单 | `skill-data-fetcher` | 8 家主流 Skill 市场，独立运行 |
 
 ---
