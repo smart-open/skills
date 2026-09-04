@@ -218,6 +218,7 @@
         <span class="chip neutral">综合置信度 {{A/B/C/D}}</span>
         <span class="chip neutral">{{行业/领域}}</span>
         <span class="chip neutral">{{常驻地域}}</span>
+        <span class="chip">{{已具本人书面授权 · 招聘/背调口径}}</span>
         <span class="hero-date">{{YYYY-MM-DD}}</span>
       </div>
     </div>
@@ -236,27 +237,77 @@
         <!-- ============ 2. 结论前置摘要 ============ -->
         <section>
           <h2 id="section-2"><span class="sec-num">EXECUTIVE SUMMARY</span>结论前置摘要</h2>
+          <!-- ⬇ 每处关键结论（尤其风险提示）标核验状态：🔵 已坐实 / 🟡 待本人凭证（用文字或色块） -->
           <div class="summary-grid">
             <div class="summary-card"><h4>社会面具</h4><p>{{如何被世界使用：职位/头衔/公众角色/他人期待}}</p></div>
             <div class="summary-card"><h4>核心矛盾</h4><p>{{内在张力：兴趣悖论 / 价值观冲突 / 行为反差}}</p></div>
             <div class="summary-card"><h4>底层驱动</h4><p>{{恐惧层 / 欲望层 / 使命层 的最强驱动}}</p></div>
-            <div class="summary-card"><h4>风险提示</h4><p>{{最高优先级风险一句话}}</p></div>
+            <div class="summary-card"><h4>风险提示</h4><p>{{最高优先级风险一句话 · 🔵/🟡}}</p></div>
           </div>
         </section>
 
         <!-- ============ 3. 基础身份锚定 ============ -->
         <section>
           <h2 id="section-3"><span class="sec-num">IDENTITY</span>基础身份锚定</h2>
+          <h3>① 核心身份锚定</h3>
           <div class="table-wrap">
             <table>
-              <thead><tr><th>字段</th><th>取值</th><th>来源</th><th>置信度</th></tr></thead>
+              <thead><tr><th>字段</th><th>取值</th><th>来源</th><th>置信度</th><th>核验状态</th></tr></thead>
               <tbody>
-                <tr><td class="field">姓名</td><td>{{张三}}</td><td class="src">{{来源1 · 来源2}}</td><td><span class="conf conf-a">A</span></td></tr>
-                <tr><td class="field">曾用名 / 别名</td><td>{{三哥 / San Zhang}}</td><td class="src">{{来源}}</td><td><span class="conf conf-b">B</span></td></tr>
-                <tr><td class="field">出生 / 地域</td><td>{{19xx · 某省某市}}</td><td class="src">{{来源}}</td><td><span class="conf conf-b">B</span></td></tr>
-                <tr><td class="field">联系方式</td><td>{{邮箱 / 电话}}</td><td class="src">{{来源}}</td><td><span class="conf conf-c">C</span></td></tr>
-                <tr><td class="field">社交账号</td><td>{{平台 · ID · 粉丝数}}</td><td class="src">{{来源}}</td><td><span class="conf conf-b">B</span></td></tr>
-                <!-- ⬇ 按 profile-schema.md 个人/公司字段表逐项填充，删除无用行 -->
+                <tr><td class="field">姓名</td><td>{{张三}}</td><td class="src">{{来源1 · 来源2}}</td><td><span class="conf conf-a">A</span></td><td>🔵 已坐实</td></tr>
+                <tr><td class="field">曾用名 / 别名</td><td>{{三哥 / San Zhang}}</td><td class="src">{{来源}}</td><td><span class="conf conf-b">B</span></td><td>🟡 待本人凭证</td></tr>
+                <tr><td class="field">出生 / 地域</td><td>{{19xx · 某省某市}}</td><td class="src">{{来源}}</td><td><span class="conf conf-b">B</span></td><td>🟡 待本人凭证</td></tr>
+                <tr><td class="field">联系方式</td><td>{{邮箱 / 电话}}</td><td class="src">{{来源}}</td><td><span class="conf conf-c">C</span></td><td>🟡 待本人凭证</td></tr>
+                <tr><td class="field">社交账号</td><td>{{平台 · ID · 粉丝数}}</td><td class="src">{{来源}}</td><td><span class="conf conf-b">B</span></td><td>🔵 已坐实</td></tr>
+                <!-- ⬇ 按 profile-schema.md 个人/公司字段表逐项填充，删除无用行。核验状态列：🔵 公开已坐实 / 🟡 待本人凭证（用文字或色块，不用 emoji 图标）。敏感原始证件（身份证号/住址/手机号/家庭）不入档，仅列为凭证项。 -->
+              </tbody>
+            </table>
+          </div>
+
+          <h3>② 教育背景核验</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>阶段</th><th>学校 · 专业 · 学位</th><th>公开侧状态</th><th>需本人凭证 · 核验方式</th><th>影响判断</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="field">{{本科 20xx–20xx}}</td>
+                  <td>{{XX 大学 · XX 专业 · 学士}}</td>
+                  <td><span class="conf conf-b">B · 中英文名绑定自报/校友源</span></td>
+                  <td>{{学信网备案 + 学位证在线验真伪}}；<strong>主校本部与独立学院须区分</strong></td>
+                  <td>{{如目标为 XX 名企/岗位硬门槛则关键}}</td>
+                </tr>
+                <tr>
+                  <td class="field">{{硕士 20xx–20xx}}</td>
+                  <td>{{XX 大学 EMBA/MBA · XX}}</td>
+                  <td><span class="conf conf-c">C · 单源自报</span></td>
+                  <td>{{学位证/结业证 + 院校在读备案核验}}</td>
+                  <td>{{在职学位 vs 学历学位对职级判断影响}}</td>
+                </tr>
+                <!-- ⬇ 每段教育一行，标「公开已坐实 / 待本人凭证」。缺失时如实空 + 需本人凭证。 -->
+              </tbody>
+            </table>
+          </div>
+
+          <h3>③ 任职经历核验（按 7.4 时间演进逐段）</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>任职段</th><th>雇主 · 职级</th><th>公开侧状态</th><th>需本人凭证 · 核验方式</th><th>角色跃迁</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="field">{{20xx–20xx}}</td>
+                  <td>{{XX 集团 · XX 总监}}</td>
+                  <td><span class="conf conf-b">B · 职业平台自报</span></td>
+                  <td>{{社保/个税/在职/离职证明 + HR 侧向（职业平台自填非证明，最高 B）}}</td>
+                  <td>{{如 CTO→产品线主管，属职级口径落差，需标注存疑}}</td>
+                </tr>
+                <tr style="background:rgba(224,86,86,.07)">
+                  <td class="field" style="color:#e05656;font-weight:700">{{核心同一性疑点段 20xx–20xx}}</td>
+                  <td style="color:#e05656;font-weight:700">{{XX VP ⇄ XX 产品总监}}</td>
+                  <td><span class="conf conf-c">C · 跨源现职不同</span></td>
+                  <td>{{任离职公告/官网个人页/在职证明可断开或焊死此线}}</td>
+                  <td>{{主题相关则倾向同一人，职级落差按 7.4 处理}}</td>
+                </tr>
+                <!-- ⬇ 按年份从早到晚逐段列出（7.4 时间演进重构，勿现职二选一）；核心同一性疑点段以标红置顶呈现。 -->
               </tbody>
             </table>
           </div>
@@ -325,6 +376,8 @@
           <p>{{显性 / 隐性 / 对抗关系的文字解读}}</p>
           <h3>圈层结构与关键人物</h3>
           <p>{{核心圈（强连接 x 人，姓名/角色列举）；桥接圈（跨圈层人物）；弱连接长尾概览。关键人物标注：社交枢纽=谁+凭据、信息掮客=谁+桥接了哪两个圈、传播放大器=谁+转发放大量级。核心圈空缺时如实写「查无强连接（孤狼/封闭型）」。}}</p>
+          <h3>社交足迹盘点（7.5）</h3>
+          <p>{{列出最强社交锚点（如 LinkedIn 中英文名绑定、高校/学会讲台/职务）与各平台足迹；若为 B 端专家而无高活跃微博/知乎/小红书大众号，如实写「查无高活跃大众号是此类专家的正常形态」，不虚构账号。同生态高相似他人须显式区隔（7.6）。}}</p>
 
           <h3>核心公司穿透卡</h3>
           <div class="table-wrap">
@@ -353,6 +406,34 @@
               </tbody>
             </table>
           </div>
+
+          <h3>工商 / 任职 / 股权穿透（从人出发）</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>对象</th><th>关联类型（从人出发）</th><th>公开侧工商结论</th><th>股权 / 任职 / 最终受益人核验</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="field">{{目标本人}}</td>
+                  <td>{{法人代表 / 董监高 / 股东 / 实控}}</td>
+                  <td><span class="conf conf-b">B · 公开免费库未检索到强关联实控/持股主体</span></td>
+                  <td>{{呈「职业经理人」或「创始人」画像？需授权接入天眼查/企查查付费源做同名全量「任职/投资/最终受益人/历史变更」穿透收口}}</td>
+                </tr>
+                <tr>
+                  <td class="field">{{历任/现职雇主}}</td>
+                  <td>{{任职 · 产品总监 / VP（年份）}}</td>
+                  <td><span class="conf conf-c">C · 同一性待确认</span></td>
+                  <td>{{与同名候选人是否同一人；真实职级 vs 自述口径；有无竞业约束（同赛道同质）}}</td>
+                </tr>
+                <tr>
+                  <td class="field">{{无关同名工商主体（已甄别排除）}}</td>
+                  <td>—</td>
+                  <td><span class="conf conf-b">B · 均判定为他人</span></td>
+                  <td>{{逐一列出被排除同名主体的注册地/行业/成立时间凭据，勿关联为本人的股权；本人主线查无控股则给否定性结论 + 授权付费库收口路径}}</td>
+                </tr>
+                <!-- ⬇ 对象=本人 + 各核心雇主 + 被排除同名主体；列明同名甄别凭据；司法风险若未在此列出则落 §10 -->
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <!-- ============ 8. 时空行为建模 ============ -->
@@ -373,10 +454,10 @@
           <ul class="timeline">
             <li><div class="t-time">{{20xx}}</div><div class="t-title">{{关键事件}}</div><div class="t-desc">{{能力进化 / 认知疆域 / 突变原因}}</div></li>
             <li><div class="t-time">{{20xx}}</div><div class="t-title">{{关键事件}}</div><div class="t-desc">{{说明}}</div></li>
-            <!-- ⬇ 四线轨迹（职业/技术/内容/生活）按时间顺序填充，突变点用红色标记并注明多线共振 -->
+            <!-- ⬇ 四线轨迹（职业/技术/内容/生活）按时间顺序填充，突变点用红色标记并注明多线共振。任职轨迹按 7.4「时间演进重构」以多段任职呈现（勿现职二选一），核心同一性疑点段标红置顶，与 §3 ③任职核验表口径一致。 -->
           </ul>
           <h3>四线轨迹要点</h3>
-          <p>{{职业线（LinkedIn/脉脉/BOSS直聘等任职段）为主干；技术线（GitHub 语言演化/commit 活跃）；内容线（微博/知乎/B站/抖音/视频号/公众号话题演化）；生活线（常驻城市/出行/作息/消费）。标出多线共振的突变点。}}</p>
+          <p>{{职业线（LinkedIn/脉脉/BOSS直聘等任职段）为主干，按 7.4 时间演进重构为多段；技术线（GitHub 语言演化/commit 活跃）；内容线（微博/知乎/B站/抖音/视频号/公众号话题演化）；生活线（常驻城市/出行/作息/消费）。标出多线共振的突变点。}}</p>
         </section>
 
         <!-- ============ 9. 数字孪生推演 ============ -->
@@ -401,6 +482,22 @@
             <div class="risk"><h4>{{舆情负面}}</h4><p>{{说明}}</p><span class="conf conf-c">C</span></div>
             <!-- ⬇ 无风险时显示「未发现公开风险记录」，删除多余卡片 -->
           </div>
+
+          <h3>司法 / 合规风险交叉核验</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>核验项</th><th>公开侧结论</th><th>收口核验方式</th></tr></thead>
+              <tbody>
+                <tr><td class="field">{{失信被执行 / 限制消费}}</td><td><span class="conf conf-b">B · 公开未发现强关联记录</span></td><td>{{凭姓名（+关联企业）在全国法院被执行人/失信信息网正式检索留档}}</td></tr>
+                <tr><td class="field">{{涉诉 / 裁判文书}}</td><td><span class="conf conf-b">B · 公开未发现强关联涉诉</span></td><td>{{裁判文书网 + 授权工商库「关联诉讼」全量核查}}</td></tr>
+                <tr><td class="field">{{行政处罚 / 经营异常}}</td><td><span class="conf conf-b">B · 公开未发现</span></td><td>{{授权工商库按关联企业核查}}</td></tr>
+                <tr><td class="field">{{知识产权 / 竞业}}</td><td><span class="conf conf-c">C · 需本人申报</span></td><td>{{书面确认录用无受限竞业条款（尤其目标岗位与历任雇主同赛道同质时）}}</td></tr>
+                <!-- ⬇ 六维默认：失信/涉诉/处罚/经营异常/知产/竞业；各带「公开已坐实 / 待凭证」状态；无法全量确认项标注需接入授权工商/司法库收口。工商/任职/股权穿透若未放 §7 则放此处。 -->
+              </tbody>
+            </table>
+          </div>
+
+          <p style="font-size:.9rem;color:var(--ink-2)">{{合规基调一句话：本画像默认处于「招聘/背调/合作核实」场景且已具备目标本人书面授权；公开侧未采未展示身份证号/住址/手机号/家庭等敏感原始证件，仅列为需本人出示的凭证项，由委托方在授权下核验；敏感原件不入档、不外泄。}}</p>
         </section>
 
         <!-- ============ 11. 证据溯源与置信度 ============ -->
