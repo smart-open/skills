@@ -133,6 +133,37 @@ def pre3_ret(kl, code, dt):
     return round((m[dt] / m[ds[i - 3]] - 1) * 100, 2)
 
 
+def prev_ret(kl, code, dt, n=1):
+    """前第 n 个交易日相对前一日涨幅(%)（动量特征，无未来泄漏）"""
+    m = kl.get(str(code))
+    if not m or dt not in m:
+        return np.nan
+    ds = sorted(m)
+    i = ds.index(dt)
+    j = i - n
+    if j < 1:
+        return np.nan
+    return round((m[ds[j]] / m[ds[j - 1]] - 1) * 100, 2)
+
+
+def consec_zt(kl, code, dt, days=3):
+    """近 days 个交易日(含当日)涨停天数（连板高度代理，无未来泄漏）"""
+    m = kl.get(str(code))
+    if not m or dt not in m:
+        return np.nan
+    ds = sorted(m)
+    i = ds.index(dt)
+    thr = zt_threshold(code)
+    cnt = 0
+    for k in range(max(1, i - days + 1), i + 1):
+        if k < 1 or k - 1 < 0:
+            continue
+        prev_c = m[ds[k - 1]]
+        if prev_c and (m[ds[k]] / prev_c - 1) * 100 >= thr:
+            cnt += 1
+    return cnt
+
+
 def load_theme_map(topk=TOPK_THEME):
     """从 hot/ 构建: 主线题材集合 / 个股->题材 / 每日题材强度(涨停数)"""
     code2theme, theme_cnt, theme_daily = {}, {}, {}

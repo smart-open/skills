@@ -37,6 +37,7 @@ _last_req = [0.0]
 TURN_BIGYANG_MIN = 0.05          # 转势大阳线涨幅下限
 OPEN_BIGYANG_MIN = 0.05          # 开门大阳线涨幅下限
 TURN_VOL_MIN = 1.00              # 转势: 资金线=当日量≥20日均量(量能/资金够大, 过滤缩量超跌反弹)
+TURN_VOL_MAX = 5.0               # 转势: 量比上限(≥20日均量5倍视为情绪脉冲/出货, 转势后易回落, 剔除)
 TURN_PREV_ZT_MIN = 0.094         # 转势·双阳确认: 前一日≈涨停(≥9.4%)
 TURN_NEXT_MIN = 0.04             # 转势·双阳确认: 当日续阳≥4%
 OPEN_VOL_MIN = 1.10              # 开门: 量比下限(常规放量突破)
@@ -69,7 +70,7 @@ GOLD = "#f0b45a"
 
 # 自学习回写参数（optimize.py 产出 params_best.json，覆盖上面常量；缺省回落默认）
 PARAMS_PATH = os.path.join(DATA, "params_best.json")
-PARAM_KEYS = ["TURN_VOL_MIN", "OPEN_VOL_MIN"]  # 当前支持自动搜索的战法阈值
+PARAM_KEYS = ["TURN_VOL_MIN", "TURN_VOL_MAX", "OPEN_VOL_MIN"]  # 当前支持自动搜索的战法阈值
 
 
 def _apply_params():

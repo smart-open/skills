@@ -12,6 +12,7 @@ import _common as C
 import causal as CL
 
 NUM_BASE = ["CHANGE_RATE", "TURNOVERRATE", "LOG_CAP", "NET_YI", "IS_LIMIT_UP", "PRE3_RET",
+            "PRE1_RET", "CONSEC_ZT", "SEAL_STRENGTH",
             "BUYER_TOP_SCORE", "BUYER_MEAN_SCORE", "BUYER_COUNT", "NET_BUY_RATIO",
             "RETAIL_RATIO", "HAS_INST", "HAS_HK", "FAMOUS_YZ", "THEME_MAIN",
             "THEME_STRENGTH", "MARKET_ZT", "LOW_XI", "LB_FLAG",
@@ -30,13 +31,19 @@ def _row_features(r, kl):
     t3 = (1 if ((pd.notna(d1) and d1 >= thr) or (pd.notna(d2) and d2 >= thr)
                 or (pd.notna(d3) and d3 >= thr)) else 0) if has else np.nan
     pre3 = C.pre3_ret(kl, code, dt)
+    # 新增动量/连板/封板强度特征(无未来泄漏)
+    pre1 = C.prev_ret(kl, code, dt, 1)
+    czt = C.consec_zt(kl, code, dt, 3)
+    chg = pd.to_numeric(r.get("CHANGE_RATE"), errors="coerce")
+    seal = (float(chg) / thr) if pd.notna(chg) and thr > 0 else np.nan
     cap_v = pd.to_numeric(r.get("FREE_MARKET_CAP"), errors="coerce")
     log_cap = float(np.log10(cap_v)) if pd.notna(cap_v) and cap_v > 0 else np.nan
     net_bs = pd.to_numeric(r.get("NET_BS_AMT"), errors="coerce")
     net_yi = float(net_bs / 1e8) if pd.notna(net_bs) else np.nan
     is_zt = 1 if C.is_limit_up(r.get("CHANGE_RATE"), code) else 0
     return {"dt": dt, "code": code, "name": name, "lp": lp, "d1": d1, "d2": d2, "d3": d3,
-            "t3": t3, "pre3": pre3, "log_cap": log_cap, "net_yi": net_yi, "is_zt": is_zt}
+            "t3": t3, "pre3": pre3, "pre1": pre1, "czt": czt, "seal": seal,
+            "log_cap": log_cap, "net_yi": net_yi, "is_zt": is_zt}
 
 
 def _seat_features(r, sb, ss, seat_scorer):
@@ -104,7 +111,8 @@ def _build_rows(board, sb, ss, kl, market_zt, seat_scorer, theme_scorer, code2th
             "TRADE_DATE": f["dt"], "CODE": f["code"], "NAME": f["name"],
             "CHANGE_RATE": r.get("CHANGE_RATE"), "TURNOVERRATE": r.get("TURNOVERRATE"),
             "LOG_CAP": f["log_cap"], "NET_YI": f["net_yi"], "IS_LIMIT_UP": f["is_zt"],
-            "PRE3_RET": f["pre3"], "REASON": reason,
+            "PRE3_RET": f["pre3"], "PRE1_RET": f["pre1"], "CONSEC_ZT": f["czt"],
+            "SEAL_STRENGTH": f["seal"], "REASON": reason,
             "BUYER_TOP_SCORE": buyer_top, "BUYER_MEAN_SCORE": buyer_mean,
             "BUYER_COUNT": buyer_count, "NET_BUY_RATIO": net_buy_ratio,
             "RETAIL_RATIO": retail_ratio, "HAS_INST": has_inst, "HAS_HK": has_hk,

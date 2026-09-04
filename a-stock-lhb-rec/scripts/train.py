@@ -17,6 +17,7 @@ from sklearn.model_selection import train_test_split, StratifiedKFold
 import _common as C
 
 NUM = ["CHANGE_RATE", "TURNOVERRATE", "LOG_CAP", "NET_YI", "IS_LIMIT_UP", "PRE3_RET",
+       "PRE1_RET", "CONSEC_ZT", "SEAL_STRENGTH",
        "BUYER_TOP_SCORE", "BUYER_MEAN_SCORE", "BUYER_COUNT", "NET_BUY_RATIO",
        "RETAIL_RATIO", "HAS_INST", "HAS_HK", "FAMOUS_YZ", "THEME_MAIN",
        "THEME_STRENGTH", "MARKET_ZT", "LOW_XI", "LB_FLAG",

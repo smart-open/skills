@@ -145,10 +145,15 @@ def judge_turn(ind, i):
     ma6_ok = d6 in ("UP", "FLAT")
     ma21_ok = d21 in ("UP", "FLAT")          # 仅供评分, 不作为硬门槛(早段反转MA21仍向下)
     vol_ok = volr >= C.TURN_VOL_MIN          # 资金线: 量能/资金够大(当日量≥20日均量)
+    # 量比上限闸门: 当日量过大(≥TURN_VOL_MAX倍20日均量)多为情绪脉冲/出货, 转势后易回落
+    vol_over = volr >= C.TURN_VOL_MAX
     wash = bottom_wash_ok(ind, i)
     vrev = v_reversal_ok(ind, i)
     # 新规·MA21结构(MA21不作硬门槛): 收盘上穿21日线 OR 趋势走平/向上 OR 低位V反转豁免(深超跌)
     up_cross_21 = bool(close > ma21 and float(ind["close"][i - 1]) <= float(ind["ma21"][i - 1]))
+    # 上穿21日线需「强确认」: 实体阳线(收盘>开盘) + 非爆量脉冲, 否则视为假突破弱反弹
+    solid_yang = float(ind["close"][i]) > float(ind["open"][i])
+    up_cross_21 = up_cross_21 and solid_yang and not vol_over
     # 反例E: 箱体横盘 / 低位V转 / 今日上穿21日线(强反转确认) 三者任一满足即算有底部结构
     base_ok = wash or vrev or up_cross_21
     ma21_struct = up_cross_21 or d21 in ("FLAT", "UP") or vrev
@@ -193,14 +198,19 @@ def judge_turn(ind, i):
         reasons.append("底部箱体横盘充分(反例E·形态A通过)")
     if high_risk:
         reasons.append("【高位风险·反例F】临近历史高位")
+    if vol_over:
+        reasons.append(f"【量能脉冲·反例G】量比{volr:.1f}≥{C.TURN_VOL_MAX}倍, 疑似情绪脉冲/出货")
 
-    signal = big_yang and stand and ma6_ok and vol_ok and ma21_struct and base_ok and not high_risk
+    signal = big_yang and stand and ma6_ok and vol_ok and not vol_over \
+        and ma21_struct and base_ok and not high_risk
     counter = None
     if not signal:
         if not big_yang:
             counter = "非大阳"
         elif not vol_ok:
             counter = "资金不足(量比<%.2f, 缩量反弹)" % C.TURN_VOL_MIN
+        elif vol_over:
+            counter = "量能脉冲(量比≥%.1f倍, 疑似出货, 反例G)" % C.TURN_VOL_MAX
         elif not base_ok or not ma21_struct:
             counter = "既无底部形态(箱体/V转)也未上穿或走平21线: 单根孤阳脉冲(反例E)"
         elif high_risk:

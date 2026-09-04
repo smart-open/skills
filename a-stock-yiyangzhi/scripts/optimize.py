@@ -106,16 +106,66 @@ def _scan_threshold(kind, cands, rows_map):
     return dflt, records
 
 
-def _pick_best(dflt, records, min_samples):
-    """在 records 中选 T+3 命中率最高且样本≥min_samples 的阈值；提升不足 2pp 则维持默认"""
-    base_hit = (records[dflt] or {}).get("hit_rate", 0) if records.get(dflt) else 0
-    best_v, best_hit = dflt, base_hit
+def _scan_vol_max(cands, rows_map):
+    """转势·量比上限闸门(TURN_VOL_MAX)逐档回放：值越小越严格(剔除更多脉冲)，返回 {v: metric}"""
+    dflt = C.TURN_VOL_MAX
+    records = {}
+    for v in cands:
+        C.TURN_VOL_MAX = v
+        samples = []
+        for code, rows in rows_map.items():
+            for rec in _iter_historical(rows, code):
+                if rec[0] == "turn":
+                    samples.append(rec)
+        records[v] = _metric(samples)
+    C.TURN_VOL_MAX = dflt  # 恢复
+    return dflt, records
+
+
+def _pick_vol_max(dflt, records, min_samples):
+    """选量比上限：优先最大化平均 T+3 涨幅(解决负收益)，命中率次之；样本不足维持默认。
+    返回 (chosen, dict)。"""
+    base = records.get(dflt)
+    base_avg = (base or {}).get("avg", 0.0)
+    base_hit = (base or {}).get("hit_rate", 0.0)
+    best_v, best_avg, best_hit = dflt, base_avg, base_hit
     for v, m in records.items():
         if not m or m["n"] < min_samples:
             continue
-        if v != dflt and m["hit_rate"] > best_hit:
+        if v == dflt:
+            continue
+        # 平均收益提升优先(核心诉求=负收益转正)
+        if m["avg"] > best_avg + 1e-9:
+            best_v, best_avg, best_hit = v, m["avg"], m["hit_rate"]
+        elif abs(m["avg"] - best_avg) < 1e-9 and m["hit_rate"] > best_hit:
             best_v, best_hit = v, m["hit_rate"]
-    if best_v != dflt and best_hit <= base_hit + 0.02:
+    # 平均收益提升不足 0.5pp 且命中率未提升则维持默认
+    if best_v != dflt and best_avg <= base_avg + 0.5 and best_hit <= base_hit:
+        best_v = dflt
+    return best_v, records
+
+
+def _pick_best(dflt, records, min_samples):
+    """在 records 中选综合最优阈值：T+3命中率优先，同时要求平均T+3涨幅不显著为负
+    （避免选到「命中率略高但平均收益为负」的档位）；提升不足则维持默认。"""
+    base = records.get(dflt)
+    base_hit = (base or {}).get("hit_rate", 0)
+    base_avg = (base or {}).get("avg", 0.0)
+    best_v, best_hit, best_avg = dflt, base_hit, base_avg
+    for v, m in records.items():
+        if not m or m["n"] < min_samples:
+            continue
+        if v == dflt:
+            continue
+        # 命中率提升幅度需超过默认值；若命中率相当则看平均收益
+        if m["hit_rate"] > best_hit + 1e-9:
+            # 仅在平均收益不显著劣于默认(≥默认-1pp)时才接受更高命中率的档位
+            if m["avg"] >= base_avg - 1.0:
+                best_v, best_hit, best_avg = v, m["hit_rate"], m["avg"]
+        elif abs(m["hit_rate"] - best_hit) < 1e-9 and m["avg"] > best_avg:
+            best_v, best_avg = v, m["avg"]
+    # 提升不足 2pp 且平均收益未改善时维持默认
+    if best_v != dflt and best_hit <= base_hit + 0.02 and best_avg <= base_avg:
         best_v = dflt
     return best_v
 
@@ -144,21 +194,28 @@ def optimize(min_samples=30, horizon=5, top_n=0, codes=None, min_top_n=60):
     if not rows_map:
         return {"ok": False, "reason": "样本池无可回放的有效日K（缓存/网络均空）"}
 
-    # 分战法阈值搜索：转势校准 TURN_VOL_MIN，开门校准 OPEN_VOL_MIN（判定引擎实际读取量）
+    # 分战法阈值搜索：转势校准 TURN_VOL_MIN + TURN_VOL_MAX，开门校准 OPEN_VOL_MIN
     turn_cands = sorted(set([C.TURN_VOL_MIN, 0.8, 0.9, 1.0, 1.2, 1.5]))
+    volmax_cands = sorted(set([C.TURN_VOL_MAX, 2.5, 3.0, 4.0, 5.0, 6.0, 100.0]))
     open_cands = sorted(set([C.OPEN_VOL_MIN, 0.9, 1.1, 1.2, 1.5, 2.0]))
     dflt_turn, turn_records = _scan_threshold("turn", turn_cands, rows_map)
     dflt_open, open_records = _scan_threshold("open", open_cands, rows_map)
+    dflt_vmax, volmax_records = _scan_vol_max(volmax_cands, rows_map)
 
     chosen_turn = _pick_best(dflt_turn, turn_records, min_samples)
     chosen_open = _pick_best(dflt_open, open_records, min_samples)
+    chosen_vmax, _ = _pick_vol_max(dflt_vmax, volmax_records, min_samples)
 
     # 自动回写 params_best.json（供下次 scan/judge 覆盖常量）
-    write_path = _write_params({"TURN_VOL_MIN": chosen_turn, "OPEN_VOL_MIN": chosen_open})
+    write_path = _write_params({"TURN_VOL_MIN": chosen_turn,
+                                "TURN_VOL_MAX": chosen_vmax,
+                                "OPEN_VOL_MIN": chosen_open})
 
     return {"ok": True, "n_codes": len(rows_map), "params_path": write_path,
             "turn": {"default": dflt_turn, "chosen": chosen_turn,
                      "changed": chosen_turn != dflt_turn, "records": turn_records},
+            "vmax": {"default": dflt_vmax, "chosen": chosen_vmax,
+                     "changed": chosen_vmax != dflt_vmax, "records": volmax_records},
             "open": {"default": dflt_open, "chosen": chosen_open,
                      "changed": chosen_open != dflt_open, "records": open_records}}
 
@@ -190,15 +247,18 @@ def main(argv):
     L.append(f"样本股票数：`{res['n_codes']}`")
     L.append(f"- **转势** 资金线阈值 `{res['turn']['default']}` → 优化后 `{res['turn']['chosen']}`"
              f"（{'已调整' if res['turn']['changed'] else '维持默认：提升不足或样本不足'}）")
+    L.append(f"- **转势** 量比上限 `{res['vmax']['default']}` → 优化后 `{res['vmax']['chosen']}`"
+             f"（{'已调整' if res['vmax']['changed'] else '维持默认'}，越大越宽松）")
     L.append(f"- **开门** 量比阈值 `{res['open']['default']}` → 优化后 `{res['open']['chosen']}`"
              f"（{'已调整' if res['open']['changed'] else '维持默认：提升不足或样本不足'}）")
     L.append(f"- 已回写参数文件 `{res.get('params_path','')}`（下次 scan/judge 自动加载覆盖常量）")
     L.append("")
 
-    for key, label, thr in (("turn", "转势", "TURN_VOL_MIN"), ("open", "开门", "OPEN_VOL_MIN")):
+    for key, label, thr in (("turn", "转势", "TURN_VOL_MIN"), ("vmax", "转势·量比上限", "TURN_VOL_MAX"),
+                            ("open", "开门", "OPEN_VOL_MIN")):
         rec = res[key]["records"]
         chosen = res[key]["chosen"]
-        L.append(f"## {label} · 阈值档位表现（三档命中口径，主看 T+3，校准 `{thr}`）\n")
+        L.append(f"## {label} · 阈值档位表现（三档命中口径，主看 T+3 命中率与平均 T+3 涨幅，校准 `{thr}`）\n")
         L.append(f"| {thr} | 信号样本数 | T+1命中 | T+3命中 | T+5命中 | 平均T+3% |")
         L.append("|:---:|:---:|:---:|:---:|:---:|:---:|")
         for v in sorted(rec.keys()):
@@ -209,6 +269,8 @@ def main(argv):
         L.append("")
     L.append("## 结论与说明")
     L.append("- 命中口径：触发后 T+N 收盘涨幅≥5% 记为命中；短线以 **T+1/T+3** 为主参考，T+5 仅作趋势延续参考。")
+    L.append("- **平均 T+3 涨幅** 是衡量转势信号「是否真的赚钱」的核心指标——命中率再高、若平均收益为负，信号依然亏钱。本报告同时校准命中率与平均收益。")
+    L.append("- 量比上限(TURN_VOL_MAX)用于剔除「情绪脉冲/出货」型转势信号(当日爆量后次日易回落，是负收益主因之一)。")
     L.append("- 命中率受样本量与题材环境波动影响；随每日 `scan` 累积更多历史K线，'模型可靠性'会逐步趋于稳定(可重跑 optimize)。")
     L.append("- 阈值择优后已**自动回写** `params_best.json`，下次运行 `scan`/`judge` 自动加载生效（缺省回落 `_common.py` 默认值）。")
     L.append("- 本校验基于价格逐日回放，不含基本面/题材/情绪，仅从纯量价视角评估『一阳指』信号的可信度。")
