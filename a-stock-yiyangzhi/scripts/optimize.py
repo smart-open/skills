@@ -26,9 +26,10 @@ def _iter_historical(rows, code="000001", horizon=5):
     }
     ind = IND.compute(df)
     n = len(df["close"])
-    # 最近 3 个月窗口起始日（YYYYMMDD 字符串），仅回放窗口内的触发日
+    # 最近 3 个月窗口起始日（YYYYMMDD 字符串），仅回放窗口内的触发日。
+    # 注意：腾讯 K 线日期为 YYYY-MM-DD（带横杠），需去横杠再与无横杠的 wstart 比较。
     wstart = C.window_start_ymd()
-    dates = [str(d) for d in df["date"]]
+    dates = [str(d).replace("-", "") for d in df["date"]]
     out = []
     for i in range(22, n - horizon):
         if dates[i] < wstart:

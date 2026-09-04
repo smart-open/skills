@@ -120,14 +120,28 @@ def resolve_ths_code(name):
     return None
 
 
+def fetch_board_list_ths():
+    """同花顺板块列表兜底：返回 [{name, code, fund}]，code 用同花顺板块代码，fund 置 0。
+    东财 push2 被风控时启用，保证板块清单不空缺（涨幅历史走同花顺指数）。"""
+    codes = fetch_ths_board_codes()
+    return [{"name": n, "code": c, "fund": 0.0} for n, c in codes.items()]
+
+
 def main():
     print(f"[collect_boards_15d] 拉取东财行业+概念板块近 {DAYS} 日涨幅历史（兜底：同花顺板块指数）")
     boards = fetch_board_list()
+    used_ths_list = False
+    if not boards:
+        # 东财板块列表被风控 → 降级用同花顺板块列表兜底
+        boards = fetch_board_list_ths()
+        used_ths_list = True
+        if boards:
+            print(f"  !! 东财板块列表拉取失败，降级使用同花顺板块列表 {len(boards)} 个")
     if TOP and TOP > 0:
         boards = boards[:TOP]
-    print(f"  板块列表：{len(boards)} 个")
+    print(f"  板块列表：{len(boards)} 个{'（同花顺兜底）' if used_ths_list else ''}")
     if not boards:
-        print("  !! 板块列表拉取失败（东财 push2 可能被风控），终止，旧数据不动")
+        print("  !! 板块列表拉取失败（东财+同花顺均失败），终止，旧数据不动")
         sys.exit(1)
     # 预取同花顺板块代码映射（仅在东财兜底时使用，失败不阻塞）
     ths_codes = fetch_ths_board_codes()
@@ -135,15 +149,22 @@ def main():
     result = {}
     fallback_cnt = 0
     for i, b in enumerate(boards, 1):
-        k = fetch_kline(b["code"])
-        src = "东财"
-        if not k:
-            # 兜底：同花顺板块指数涨跌幅
-            ths_code = resolve_ths_code(b["name"])
-            k = ths_board_chg_history(ths_code, DAYS) if ths_code else []
+        if used_ths_list:
+            # 列表本身来自同花顺 → 直接用其指数代码拉涨跌幅，跳过东财 fetch_kline
+            k = ths_board_chg_history(b["code"], DAYS)
+            src = "同花顺"
             if k:
-                src = "同花顺"
                 fallback_cnt += 1
+        else:
+            k = fetch_kline(b["code"])
+            src = "东财"
+            if not k:
+                # 兜底：同花顺板块指数涨跌幅
+                ths_code = resolve_ths_code(b["name"])
+                k = ths_board_chg_history(ths_code, DAYS) if ths_code else []
+                if k:
+                    src = "同花顺"
+                    fallback_cnt += 1
         if k:
             result[b["name"]] = k
         elif i <= 20 or i % 50 == 0:

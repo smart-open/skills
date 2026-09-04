@@ -130,12 +130,26 @@ def resolve_ths_code(name):
     return None
 
 
+def fetch_board_list_ths(top):
+    """同花顺板块列表兜底：返回 [{name, secid(同花顺代码), fund_today_yi=0}]。
+    东财 push2 被风控时启用，资金流历史走同花顺指数涨跌幅代理。"""
+    codes = fetch_ths_board_codes()
+    rows = [{"name": n, "secid": c, "fund_today_yi": 0.0} for n, c in codes.items()]
+    return rows[:top] if top and top > 0 else rows
+
+
 def main():
     print(f"[collect_fund_15d] 拉取东财板块资金流历史（Top {TOP} × 近 {DAYS} 日，兜底：同花顺指数代理）")
     boards = fetch_board_list(TOP)
-    print(f"  板块列表：{len(boards)} 个")
+    used_ths_list = False
     if not boards:
-        print("  !! 板块列表拉取失败（东财 push2 可能被风控），终止，旧数据不动")
+        boards = fetch_board_list_ths(TOP)
+        used_ths_list = True
+        if boards:
+            print(f"  !! 东财板块列表拉取失败，降级使用同花顺板块列表 {len(boards)} 个")
+    print(f"  板块列表：{len(boards)} 个{'（同花顺兜底）' if used_ths_list else ''}")
+    if not boards:
+        print("  !! 板块列表拉取失败（东财+同花顺均失败），终止，旧数据不动")
         sys.exit(1)
     ths_codes = fetch_ths_board_codes()
     print(f"  同花顺板块代码映射：{len(ths_codes)} 个（兜底源）")
@@ -144,18 +158,26 @@ def main():
     for i, b in enumerate(boards, 1):
         src = "东财"
         hist = {}
-        try:
-            hist = fetch_fund_history(b["secid"], DAYS)
-        except Exception:
-            hist = {}
-        if not hist:
-            # 兜底：同花顺板块指数涨跌幅作资金方向代理（正负与资金流方向一致）
-            ths_code = resolve_ths_code(b["name"])
-            chg = ths_board_chg_history(ths_code, DAYS) if ths_code else []
+        if used_ths_list:
+            # 列表来自同花顺 → 直接走指数涨跌幅代理
+            chg = ths_board_chg_history(b["secid"], DAYS)
             if chg:
-                hist = {d: v for d, v in chg if v != 0}   # 仅保留非零涨跌日（方向信号）
+                hist = {d: v for d, v in chg if v != 0}
                 src = "同花顺代理"
                 fallback_cnt += 1
+        else:
+            try:
+                hist = fetch_fund_history(b["secid"], DAYS)
+            except Exception:
+                hist = {}
+            if not hist:
+                # 兜底：同花顺板块指数涨跌幅作资金方向代理（正负与资金流方向一致）
+                ths_code = resolve_ths_code(b["name"])
+                chg = ths_board_chg_history(ths_code, DAYS) if ths_code else []
+                if chg:
+                    hist = {d: v for d, v in chg if v != 0}   # 仅保留非零涨跌日（方向信号）
+                    src = "同花顺代理"
+                    fallback_cnt += 1
         if hist:
             result[b["name"]] = hist
             latest = sorted(hist.items())[-1] if hist else ("", 0.0)

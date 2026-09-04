@@ -74,9 +74,11 @@ def _eval_one(code, klines, target):
     if not klines:
         return None
     _code_holder["c"] = code
+    # 注意：腾讯 K 线日期为 YYYY-MM-DD（带横杠），target 为 YYYYMMDD（无横杠），统一去横杠再比较
+    target_cmp = str(target).replace("-", "")
     idx = None
     for i in range(len(klines) - 1, -1, -1):
-        if klines[i]["d"] <= target:
+        if str(klines[i]["d"]).replace("-", "") <= target_cmp:
             idx = i
             break
     if idx is None or idx >= len(klines) - 1:

@@ -199,10 +199,10 @@ def get_daily_kline(code, refresh=False):
             return arr
     prefix = stock_prefix(code)
     if prefix == "bj":
-        url = "https://web.ifzq.gtimg.cn/appstock/app/kline/kline"
+        url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/kline/kline"
         params = {"param": f"bj{code},day,,,400"}
     else:
-        url = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
+        url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get"
         params = {"param": f"{prefix}{code},day,,,400,qfq"}
     try:
         r = requests_get(url, params, timeout=12)

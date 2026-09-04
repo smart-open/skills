@@ -141,35 +141,51 @@ def fetch_hot(dates):
     print(f"[hot] 已就绪 {len(os.listdir(C.HOT_DIR))} 文件")
 
 
+def _fetch_one_kline(c):
+    """单只个股日K线抓取，返回 (code, 是否成功)。失败/空数据静默跳过。"""
+    p = os.path.join(C.KLINE_DIR, f"{c}.json")
+    if os.path.exists(p):
+        return c, True
+    prefix = "bj" if str(c).startswith(("8", "4", "920")) else (
+        "sh" if str(c).startswith(("6", "9")) else "sz")
+    # 北交所在 fqkline?qfq 下会触发腾讯 WAF 拦截, 改用 kline 接口(原始日K, 无qfq)
+    # host 用 proxy.finance.qq.com（web.ifzq.gtimg.cn 已失效返回 501）
+    if prefix == "bj":
+        url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/kline/kline"
+        params = {"param": f"bj{c},day,,,200"}
+    else:
+        url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get"
+        params = {"param": f"{prefix}{c},day,,,200,qfq"}
+    try:
+        r = requests.get(url, params=params, headers={"User-Agent": UA}, timeout=12)
+        d = r.json()["data"][f"{prefix}{c}"]
+        kl = d.get("qfqday") or d.get("day") or []
+        if kl:
+            json.dump(kl, open(p, "w", encoding="utf-8"), ensure_ascii=False)
+            return c, True
+    except Exception:
+        pass
+    return c, False
+
+
 def fetch_kline(codes):
     os.makedirs(C.KLINE_DIR, exist_ok=True)
-    done = 0
-    for c in sorted(codes):
-        p = os.path.join(C.KLINE_DIR, f"{c}.json")
-        if os.path.exists(p):
-            done += 1; continue
-        prefix = "bj" if str(c).startswith(("8", "4", "920")) else (
-            "sh" if str(c).startswith(("6", "9")) else "sz")
-        # 北交所在 fqkline?qfq 下会触发腾讯 WAF 拦截, 改用 kline 接口(原始日K, 无qfq)
-        if prefix == "bj":
-            url = "https://web.ifzq.gtimg.cn/appstock/app/kline/kline"
-            params = {"param": f"bj{c},day,,,200"}
-        else:
-            url = "https://web.ifzq.gtimg.cn/appstock/app/fqkline/get"
-            params = {"param": f"{prefix}{c},day,,,200,qfq"}
-        try:
-            r = requests.get(url, params=params, headers={"User-Agent": UA}, timeout=12)
-            d = r.json()["data"][f"{prefix}{c}"]
-            kl = d.get("qfqday") or d.get("day") or []
-            if kl:
-                json.dump(kl, open(p, "w", encoding="utf-8"), ensure_ascii=False)
-        except Exception:
-            pass
-        done += 1
-        if done % 100 == 0:
-            print(f"  已拉 K线 {done}/{len(codes)}")
-        time.sleep(0.12)
-    print(f"[kline] 缓存 {len(os.listdir(C.KLINE_DIR))} 文件")
+    todo = sorted(c for c in codes if not os.path.exists(os.path.join(C.KLINE_DIR, f"{c}.json")))
+    print(f"[kline] 待拉取 {len(todo)}/{len(codes)} 只（并发 8）")
+    if not todo:
+        print(f"[kline] 缓存 {len(os.listdir(C.KLINE_DIR))} 文件")
+        return
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    done = ok = 0
+    with ThreadPoolExecutor(max_workers=8) as ex:
+        for fu in as_completed([ex.submit(_fetch_one_kline, c) for c in todo]):
+            _, success = fu.result()
+            done += 1
+            if success:
+                ok += 1
+            if done % 200 == 0:
+                print(f"  已拉 K线 {done}/{len(todo)}（成功 {ok}）")
+    print(f"[kline] 缓存 {len(os.listdir(C.KLINE_DIR))} 文件（本次成功 {ok}/{len(todo)}）")
 
 
 def run(start, end):
