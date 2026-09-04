@@ -38,7 +38,7 @@ def _iter_historical(rows, code="000001", horizon=5):
         fwd1 = (df["close"][i + 1] / df["close"][i] - 1) * 100 if i + 1 < n else None
         fwd3 = (df["close"][i + 3] / df["close"][i] - 1) * 100 if i + 3 < n else None
         fwd5 = (df["close"][i + horizon] / df["close"][i] - 1) * 100 if i + horizon < n else None
-        t = IND.judge_turn(ind, i)
+        t = IND.judge_turn(ind, i, code=code)
         o = IND.judge_open(ind, i, code=code)
         if not t.get("insufficient") and t["signal"]:
             out.append(("turn", df["date"][i], t["score"], chg, fwd1, fwd3, fwd5))

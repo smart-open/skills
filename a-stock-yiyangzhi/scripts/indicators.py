@@ -121,8 +121,8 @@ def hist_new_high(ind, i):
     return ph > 0 and float(ind["close"][i]) >= ph
 
 
-def judge_turn(ind, i):
-    """一阳指·转势判定（目标日收盘口径）"""
+def judge_turn(ind, i, code="000001"):
+    """一阳指·转势判定（目标日收盘口径；code 用于按板块区分涨停阈值）"""
     n = ind["n"]
     if i < 22 or np.isnan(ind["ma6"][i]) or np.isnan(ind["ma21"][i]) or np.isnan(ind["volma20"][i]):
         return {"signal": False, "insufficient": True, "score": 0, "reasons": [],
@@ -135,6 +135,9 @@ def judge_turn(ind, i):
     sl21 = (float(ind["ma21"][i]) / float(ind["ma21"][i - 1]) - 1) if ind["ma21"][i - 1] > 0 else 0
     d6, d21 = _dir(sl6), _dir(sl21)
     gap = (ma6 - ma21) / ma21 if ma21 else 0
+    # 涨停判定：当日涨幅达涨停阈值(按代码区分)即为涨停，涨停爆量是强势非出货，豁免量能脉冲反例G
+    zt_chg = C.zt_threshold(code) / 100.0
+    is_zt = chg >= zt_chg
 
     big_yang = chg >= C.TURN_BIGYANG_MIN
     # 双阳确认: 前日≈涨停(≥9.4%) + 当日续阳≥4% 视为满足"大阳"(蓄能续攻转势)
@@ -146,7 +149,8 @@ def judge_turn(ind, i):
     ma21_ok = d21 in ("UP", "FLAT")          # 仅供评分, 不作为硬门槛(早段反转MA21仍向下)
     vol_ok = volr >= C.TURN_VOL_MIN          # 资金线: 量能/资金够大(当日量≥20日均量)
     # 量比上限闸门: 当日量过大(≥TURN_VOL_MAX倍20日均量)多为情绪脉冲/出货, 转势后易回落
-    vol_over = volr >= C.TURN_VOL_MAX
+    # 涨停豁免: 涨停爆量是强势特征(封板惜售/抢筹), 非出货脉冲, 不套用反例G
+    vol_over = (volr >= C.TURN_VOL_MAX) and not is_zt
     wash = bottom_wash_ok(ind, i)
     vrev = v_reversal_ok(ind, i)
     # 新规·MA21结构(MA21不作硬门槛): 收盘上穿21日线 OR 趋势走平/向上 OR 低位V反转豁免(深超跌)
@@ -388,7 +392,7 @@ def evaluate(rows, live=False, code="000001"):
     }
     ind = compute(df)
     i = n - 1
-    turn = judge_turn(ind, i)
+    turn = judge_turn(ind, i, code=code)
     open_ = judge_open(ind, i, code=code)
     sells = judge_sell(ind, i)
     return {

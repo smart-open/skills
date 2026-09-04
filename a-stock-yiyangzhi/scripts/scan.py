@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
-"""全市场扫描：实时候选(涨幅约5%) -> 并发抓日K线 -> 判定转势/开门 -> CSV+JSON
+"""全市场扫描：实时候选(涨幅≥5%，无上限) -> 并发抓日K线 -> 判定转势/开门 -> CSV+JSON
 用法：
-  py scripts/scan.py [when] [--live] [--minpct 3] [--maxpct 8]
+  py scripts/scan.py [when] [--live] [--minpct 5] [--maxpct 999] [--force]
   when = YYYY-MM-DD 目标日(默认最近交易日)，结果定位到 scan_{date}.csv
 """
 from __future__ import annotations
@@ -11,6 +11,7 @@ sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import _common as C
 import indicators as IND
 import theme_filter as TF
+import market_emotion as ME
 
 SCAN_SUMMARY = os.path.join(C.OUT_DIR, "scan_summary.json")
 
@@ -37,9 +38,9 @@ def fetch_and_eval(code, name, live, force=False, with_theme=True):
     return ev
 
 
-def scan(min_pct=3.0, max_pct=10.9, live=False, force_kline=False, limit_n=None,
+def scan(min_pct=5.0, max_pct=1e9, live=False, force_kline=False, limit_n=None,
          with_theme=True):
-    print(f"[scan] 抓取全市场实时候选 涨幅[{min_pct}%, {max_pct}%] ...")
+    print(f"[scan] 抓取全市场实时候选 涨幅≥{min_pct}%（无上限，涨停/连板均纳入） ...")
     uni = C.fetch_universe(min_pct=min_pct, max_pct=max_pct)
     source = "实时(push2)"
     if not uni:
@@ -106,7 +107,7 @@ def main(argv):
     live = "--live" in argv
     force = "--force" in argv
     with_theme = "--no-theme" not in argv
-    minpct, maxpct = 3.0, 10.9
+    minpct, maxpct = 5.0, 1e9
     if "--minpct" in argv:
         minpct = float(argv[argv.index("--minpct") + 1])
     if "--maxpct" in argv:
@@ -125,6 +126,15 @@ def main(argv):
     # 主线/热点过滤：识别当日热点板块，标注主线标签，剔除边缘/偶发股
     hot_brief = {"热点概念": [], "热点行业": []}
     excluded = []
+    # 市场情绪：抓取涨跌停/连板/炸板，定位情绪周期，作为扫描上下文（接口失败则降级）
+    emotion = {}
+    try:
+        emotion = ME.fetch_emotion()
+        print(f"[scan] 市场情绪：{emotion.get('emotion','?')}（涨停{emotion.get('limit_up',0)}家 / "
+              f"跌停{emotion.get('limit_down',0)}家 / 最高{emotion.get('max_height',1)}连板 / "
+              f"炸板率{emotion.get('fried_rate',0)*100:.0f}%）")
+    except Exception as e:
+        print(f"[scan] 市场情绪获取失败（降级忽略）：{e}")
     if with_theme and results:
         hot_concepts, hot_industries, hot_brief = TF.fetch_hot_boards()
         kept, excluded = TF.annotate(results, hot_concepts, hot_industries)
@@ -157,6 +167,7 @@ def main(argv):
     summary = {
         "date": date, "live": live, "source": source, "universe": total,
         "kept": len(results), "excluded": len(excluded), "hot_boards": hot_brief,
+        "emotion": emotion,
         "turn_hit": sum(1 for r in rows if r["turn"]),
         "open_hit": sum(1 for r in rows if r["open"]),
         "items": results, "excluded_items": excluded,
@@ -164,7 +175,8 @@ def main(argv):
     C.dump_json(os.path.join(C.OUT_DIR, f"scan_{date}.json"), summary)
     C.dump_json(SCAN_SUMMARY, {"date": date, "live": live, "turn_hit": summary["turn_hit"],
                                "open_hit": summary["open_hit"], "universe": summary["universe"],
-                               "kept": summary["kept"], "excluded": summary["excluded"]})
+                               "kept": summary["kept"], "excluded": summary["excluded"],
+                               "emotion": emotion})
     md = render_markdown(summary, rows, date_disp)
     md_path = os.path.join(C.REPORT_ROOT, f"一阳指报告-{date_disp}.md")
     with open(md_path, "w", encoding="utf-8") as f:
@@ -191,16 +203,23 @@ def render_markdown(summary, rows, date_disp=None):
     hot_brief = summary.get("hot_boards") or {}
     hot_concepts = hot_brief.get("热点概念") or []
     hot_industries = hot_brief.get("热点行业") or []
+    emo = summary.get("emotion") or {}
     excl = summary.get("excluded_items") or []
     L = []
     L.append(f"# 一阳指战法 · 全市场扫描报告 {_d} {live_tag}\n")
     L.append("## 概览\n")
     L.append(f"- 目标交易日：`{_d}`")
     L.append(f"- 候选来源：`{summary.get('source','')}`")
-    L.append(f"- 扫描候选（涨幅约5%带）：{summary.get('universe')} 只")
+    L.append(f"- 扫描候选（涨幅≥5%，无上限，涨停/连板均纳入）：{summary.get('universe')} 只")
     L.append(f"- 主线/热点过滤：保留 `{summary.get('kept', 0)}` 只，剔除边缘/偶发 `{summary.get('excluded', 0)}` 只")
     L.append(f"- **一阳指·转势 命中：{summary.get('turn_hit')} 只**")
     L.append(f"- **一阳指·开门 命中：{summary.get('open_hit')} 只**")
+    if emo:
+        L.append(f"- 市场情绪：**{emo.get('emotion','?')}**（情绪分 {emo.get('emotion_score','?')} / 100）"
+                 f"　涨停 {emo.get('limit_up',0)} 家 · 跌停 {emo.get('limit_down',0)} 家 · "
+                 f"最高 {emo.get('max_height',1)} 连板 · 炸板率 {emo.get('fried_rate',0)*100:.0f}%")
+        if emo.get("hint"):
+            L.append(f"  - 情绪建议：{emo['hint']}")
     if hot_concepts:
         L.append(f"- 当日热点概念：`{'、'.join(hot_concepts)}`")
     if hot_industries:

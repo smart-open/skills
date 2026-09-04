@@ -1,7 +1,7 @@
 # -*- coding: utf-8 -*-
 """一阳指转势/开门 量化技能 · 入口编排
 用法:
-  py scripts/run.py scan [YYYY-MM-DD] [--live] [--minpct 3] [--maxpct 10.9] [--force]
+  py scripts/run.py scan [YYYY-MM-DD] [--live] [--minpct 5] [--maxpct 999] [--force]
   py scripts/run.py judge <代码或名称> [YYYY-MM-DD]
   py scripts/run.py optimize [--codes a,b,c] [--top 60] [--min-samples 30]
   py scripts/run.py verify [--date YYYYMMDD]
