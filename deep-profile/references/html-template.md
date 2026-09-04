@@ -18,7 +18,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{{目标姓名|公司名}} 深度画像 - {{YYYY-MM-DD}}</title>
   <meta name="description" content="{{一句话灵魂定义}}">
-  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'><rect width='64' height='64' rx='14' fill='%230d0e12'/><circle cx='32' cy='32' r='14' fill='%23d4a24e'/></svg>">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='14' fill='%230d0e12'/%3E%3Ccircle cx='32' cy='32' r='14' fill='%23d4a24e'/%3E%3C/svg%3E">
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+SC:wght@300;400;500;700&family=Noto+Serif+SC:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
@@ -79,6 +79,18 @@
     .chip { padding: .3rem .8rem; border: 1px solid var(--accent-line); background: var(--accent-dim); color: var(--accent); border-radius: 999px; font-size: .8rem; font-weight: 500; }
     .chip.neutral { border-color: var(--divider); background: var(--bg-2); color: var(--ink-2); }
     .hero-date { font-family: var(--mono); font-size: .85rem; color: var(--ink-3); }
+
+    /* ===== 入场动效（CSS-only，交错浮现） ===== */
+    @keyframes fadeUp { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
+    .hero-kicker { animation: fadeUp .6s ease .05s both; }
+    .hero-title { animation: fadeUp .7s ease .15s both; }
+    .hero-soul { animation: fadeUp .7s ease .25s both; }
+    .hero-meta { animation: fadeUp .7s ease .35s both; }
+    .summary-card { animation: fadeUp .6s ease both; }
+    .summary-card:nth-child(1) { animation-delay: .45s; }
+    .summary-card:nth-child(2) { animation-delay: .57s; }
+    .summary-card:nth-child(3) { animation-delay: .69s; }
+    .summary-card:nth-child(4) { animation-delay: .81s; }
 
     /* ===== 置信度徽章 ===== */
     .conf { display: inline-flex; align-items: center; gap: .35rem; font-family: var(--mono); font-size: .72rem; font-weight: 500; padding: .12rem .55rem; border-radius: 6px; border: 1px solid; }
@@ -201,6 +213,12 @@
       .contrast { grid-template-columns: 1fr; }
       .contrast-side:first-child { border-right: none; border-bottom: 1px solid var(--divider); }
       .layer { grid-template-columns: 1fr; gap: .4rem; }
+    }
+
+    /* ===== 动效降级（无障碍） ===== */
+    @media (prefers-reduced-motion: reduce) {
+      html { scroll-behavior: auto; }
+      *, *::before, *::after { animation-duration: .01ms !important; animation-delay: 0s !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
     }
   </style>
 </head>
@@ -355,17 +373,17 @@
           <div class="chart">
             <div class="chart-title">关系拓扑图 · 按 diagram-craft.md 规范绘制后内联</div>
             <!-- ⬇ 图表插槽：用按 diagram-craft.md 规范绘制的 SVG 替换下方示例 -->
-            <svg viewBox="0 0 760 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="关系网络拓扑图">
-              <style>.n{fill:#15171d;stroke:#d4a24e;stroke-width:1.5}.t{fill:#e8e6e0;font-size:13px;font-family:sans-serif}.e{stroke:#5b9bd5;stroke-width:1.5;stroke-dasharray:4 4}.r{stroke:#e05656;stroke-width:1.5}</style>
-              <line class="e" x1="380" y1="160" x2="180" y2="80"/>
-              <line class="e" x1="380" y1="160" x2="620" y2="90"/>
-              <line class="r" x1="380" y1="160" x2="560" y2="250"/>
-              <line class="e" x1="380" y1="160" x2="200" y2="240"/>
-              <circle class="n" cx="380" cy="160" r="34"/><text class="t" x="380" y="165" text-anchor="middle">目标</text>
-              <circle class="n" cx="180" cy="80" r="26"/><text class="t" x="180" y="85" text-anchor="middle">家人</text>
-              <circle class="n" cx="620" cy="90" r="26"/><text class="t" x="620" y="95" text-anchor="middle">同事</text>
-              <circle class="n" cx="560" cy="250" r="26"/><text class="t" x="560" y="255" text-anchor="middle">对手</text>
-              <circle class="n" cx="200" cy="240" r="26"/><text class="t" x="200" y="245" text-anchor="middle">伙伴</text>
+            <svg viewBox="0 0 960 600" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="关系网络拓扑图">
+              <style>.n{fill:#15171d;stroke:#d4a24e;stroke-width:1.5}.core{fill:#15171d;stroke:#d4a24e;stroke-width:2}.t{fill:#e8e6e0;font-size:13px;font-family:sans-serif}.e{stroke:#5b9bd5;stroke-width:1.5;stroke-dasharray:4 4;fill:none}.r{stroke:#e05656;stroke-width:1.5;fill:none}</style>
+              <line class="e" x1="450.6" y1="282.9" x2="192.5" y2="133.1"/>
+              <line class="e" x1="509" y1="282.2" x2="717.8" y2="153.6"/>
+              <line class="r" x1="506.8" y1="320.9" x2="639.5" y2="424"/>
+              <line class="e" x1="449.6" y1="315.2" x2="223.3" y2="428.4"/>
+              <circle class="core" cx="480" cy="300" r="34"/><circle class="n" cx="480" cy="300" r="27" stroke-width="1"/><text class="t" x="480" y="305" text-anchor="middle">目标</text>
+              <circle class="n" cx="170" cy="120" r="26"/><text class="t" x="170" y="125" text-anchor="middle">家人</text>
+              <circle class="n" cx="740" cy="140" r="26"/><text class="t" x="740" y="145" text-anchor="middle">同事</text>
+              <circle class="n" cx="660" cy="440" r="26"/><text class="t" x="660" y="445" text-anchor="middle">对手</text>
+              <circle class="n" cx="200" cy="440" r="26"/><text class="t" x="200" y="445" text-anchor="middle">伙伴</text>
             </svg>
             <div class="legend">
               <span><i class="solid"></i>显性关系（股权/任职/合作）</span>
@@ -442,13 +460,13 @@
           <div class="chart">
             <div class="chart-title">时间线 · 按 diagram-craft.md 规范绘制后内联（主轴职业线 / 副轴技术·内容·生活线）</div>
             <!-- ⬇ 图表插槽：用按 diagram-craft.md 规范绘制的 SVG 替换下方示例 -->
-            <svg viewBox="0 0 760 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="时空行为时间线">
+            <svg viewBox="0 0 960 400" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="时空行为时间线">
               <style>.ax{stroke:#262933;stroke-width:2}.pt{fill:#d4a24e}.tt{fill:#e8e6e0;font-size:13px;font-family:sans-serif}.ds{fill:#9b9aa3;font-size:12px;font-family:sans-serif}</style>
-              <line class="ax" x1="40" y1="120" x2="720" y2="120"/>
-              <circle class="pt" cx="100" cy="120" r="8"/><text class="tt" x="100" y="95" text-anchor="middle">20xx</text><text class="ds" x="100" y="145" text-anchor="middle">教育</text>
-              <circle class="pt" cx="260" cy="120" r="8"/><text class="tt" x="260" y="95" text-anchor="middle">20xx</text><text class="ds" x="260" y="145" text-anchor="middle">入职</text>
-              <circle class="pt" cx="430" cy="120" r="8"/><text class="tt" x="430" y="95" text-anchor="middle">20xx</text><text class="ds" x="430" y="145" text-anchor="middle">晋升</text>
-              <circle class="pt" cx="620" cy="120" r="10" fill="#e05656"/><text class="tt" x="620" y="95" text-anchor="middle">20xx</text><text class="ds" x="620" y="145" text-anchor="middle">突变点</text>
+              <line class="ax" x1="60" y1="200" x2="900" y2="200"/>
+              <circle class="pt" cx="140" cy="200" r="8"/><text class="tt" x="140" y="172" text-anchor="middle">20xx</text><text class="ds" x="140" y="228" text-anchor="middle">教育</text>
+              <circle class="pt" cx="340" cy="200" r="8"/><text class="tt" x="340" y="172" text-anchor="middle">20xx</text><text class="ds" x="340" y="228" text-anchor="middle">入职</text>
+              <circle class="pt" cx="540" cy="200" r="8"/><text class="tt" x="540" y="172" text-anchor="middle">20xx</text><text class="ds" x="540" y="228" text-anchor="middle">晋升</text>
+              <circle class="pt" cx="760" cy="200" r="10" fill="#e05656"/><text class="tt" x="760" y="172" text-anchor="middle">20xx</text><text class="ds" x="760" y="228" text-anchor="middle">突变点</text>
             </svg>
           </div>
           <ul class="timeline">
@@ -541,7 +559,8 @@
         var li = document.createElement('li');
         var a = document.createElement('a');
         a.href = '#' + h.id;
-        a.textContent = h.textContent.replace(/^\s*\w+\s*/,''); // 去掉 sec-num 前缀
+        var num = h.querySelector('.sec-num'); // 精确剥离 sec-num 前缀（兼容多词前缀如 EXECUTIVE SUMMARY）
+        a.textContent = (num ? h.textContent.replace(num.textContent, '') : h.textContent).trim();
         a.setAttribute('data-target', h.id);
         li.appendChild(a);
         toc.appendChild(li);

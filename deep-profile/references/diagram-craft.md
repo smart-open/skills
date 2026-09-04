@@ -97,7 +97,7 @@
 
 ## 五、生成方法（防截断）
 
-**强制使用 Python 列表法**逐行生成 SVG（防止长字符串截断与手写语法错）：
+**首选 Python 列表法**逐行生成 SVG（防止长字符串截断与手写语法错）：
 
 ```python
 lines = []
@@ -115,6 +115,8 @@ python -c "import xml.etree.ElementTree as ET; ET.parse('topology.svg')" && echo
 ```
 
 校验通过后，把 `<svg>...</svg>` 整体**内联**进报告 HTML 的 `.chart` 容器（替换模板中的示例 SVG），并在其上保留 `.chart-title` 说明行。
+
+**无 Python 环境时的降级方案**：直接逐行书写 SVG（同样遵循防碰撞与锚点贴边规则），完成后仍必须通过 XML 校验（任何可用的校验方式均可）方可内联；两条路径的产物要求完全一致。
 
 ---
 
