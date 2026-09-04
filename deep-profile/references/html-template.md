@@ -2,7 +2,7 @@
 
 本模板用于生成「全网深度画像」的**单个自包含 HTML 报告**。内联 CSS / JS / SVG，`file://` 直接打开即可，无外部依赖（Google Fonts 可优雅降级为系统字体）。
 
-**使用方式**：LLM 在本模板基础上，用真实采集数据替换所有 `{{...}}` 占位符，并用 `fireworks-tech-graph` 产出的 SVG 替换「图表插槽」。图表统一暗色终端风（bg `#0f0f1a`、accent 同报告强调色）。
+**使用方式**：LLM 在本模板基础上，用真实采集数据替换所有 `{{...}}` 占位符，并按 `references/diagram-craft.md` 规范绘制的 SVG 替换「图表插槽」。图表统一暗色终端风（bg `#0f0f1a`、accent 同报告强调色）。
 
 **设计系统（反俗套纪律）**：
 - 单一强调色 `--accent: #d4a24e`（金琥珀），无紫蓝渐变、无 emoji 图标、无空卡片。
@@ -302,8 +302,8 @@
         <section>
           <h2 id="section-7"><span class="sec-num">NETWORK</span>关系网络拓扑</h2>
           <div class="chart">
-            <div class="chart-title">关系拓扑图 · 由 fireworks-tech-graph 生成后内联</div>
-            <!-- ⬇ 图表插槽：用 fireworks-tech-graph 产出的 SVG 替换下方示例 -->
+            <div class="chart-title">关系拓扑图 · 按 diagram-craft.md 规范绘制后内联</div>
+            <!-- ⬇ 图表插槽：用按 diagram-craft.md 规范绘制的 SVG 替换下方示例 -->
             <svg viewBox="0 0 760 320" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="关系网络拓扑图">
               <style>.n{fill:#15171d;stroke:#d4a24e;stroke-width:1.5}.t{fill:#e8e6e0;font-size:13px;font-family:sans-serif}.e{stroke:#5b9bd5;stroke-width:1.5;stroke-dasharray:4 4}.r{stroke:#e05656;stroke-width:1.5}</style>
               <line class="e" x1="380" y1="160" x2="180" y2="80"/>
@@ -323,14 +323,44 @@
             </div>
           </div>
           <p>{{显性 / 隐性 / 对抗关系的文字解读}}</p>
+          <h3>圈层结构与关键人物</h3>
+          <p>{{核心圈（强连接 x 人，姓名/角色列举）；桥接圈（跨圈层人物）；弱连接长尾概览。关键人物标注：社交枢纽=谁+凭据、信息掮客=谁+桥接了哪两个圈、传播放大器=谁+转发放大量级。核心圈空缺时如实写「查无强连接（孤狼/封闭型）」。}}</p>
+
+          <h3>核心公司穿透卡</h3>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>公司</th><th>本人角色</th><th>法定代表人</th><th>实控人 / 控股链</th><th>高管层</th><th>工商与风险</th><th>置信度</th></tr></thead>
+              <tbody>
+                <tr>
+                  <td class="field">{{XX 科技有限公司}}</td>
+                  <td>{{创始人 / 法定代表人 / 控股 62%}}</td>
+                  <td>{{目标本人}}</td>
+                  <td>{{实控人=本人 · 自然人控股 · 穿透链：本人 → XX 控股 → 目标公司}}</td>
+                  <td>{{CEO=本人 · CTO=张三 · CFO=李四 · 监事=王五}}</td>
+                  <td class="src">{{成立 20xx · 注册资本 xx 万 · 存续 · 涉诉 x 起（被告）}}</td>
+                  <td><span class="conf conf-a">A</span></td>
+                </tr>
+                <tr>
+                  <td class="field">{{YY 集团（历任雇主）}}</td>
+                  <td>{{前 CTO（20xx–20xx）}}</td>
+                  <td>{{赵六}}</td>
+                  <td>{{国资控股 · 实控人=YY 国资委}}</td>
+                  <td>{{CEO=钱七 · 高管备案无本人离职后记录}}</td>
+                  <td class="src">{{成立 19xx · 参保 x 千人 · 无失信}}</td>
+                  <td><span class="conf conf-b">B</span></td>
+                </tr>
+                <!-- ⬇ 每家核心公司一行（现职/历任雇主/法人持股主体/合作方）；同名公司排除结论写进证据链；公司被执行/失信在「工商与风险」列标注「关联风险」 -->
+              </tbody>
+            </table>
+          </div>
         </section>
 
         <!-- ============ 8. 时空行为建模 ============ -->
         <section>
           <h2 id="section-8"><span class="sec-num">TRAJECTORY</span>时空行为建模</h2>
           <div class="chart">
-            <div class="chart-title">时间线 · 由 fireworks-tech-graph 生成后内联</div>
-            <!-- ⬇ 图表插槽：用 fireworks-tech-graph 产出的 SVG 替换下方示例 -->
+            <div class="chart-title">时间线 · 按 diagram-craft.md 规范绘制后内联（主轴职业线 / 副轴技术·内容·生活线）</div>
+            <!-- ⬇ 图表插槽：用按 diagram-craft.md 规范绘制的 SVG 替换下方示例 -->
             <svg viewBox="0 0 760 220" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="时空行为时间线">
               <style>.ax{stroke:#262933;stroke-width:2}.pt{fill:#d4a24e}.tt{fill:#e8e6e0;font-size:13px;font-family:sans-serif}.ds{fill:#9b9aa3;font-size:12px;font-family:sans-serif}</style>
               <line class="ax" x1="40" y1="120" x2="720" y2="120"/>
@@ -343,8 +373,10 @@
           <ul class="timeline">
             <li><div class="t-time">{{20xx}}</div><div class="t-title">{{关键事件}}</div><div class="t-desc">{{能力进化 / 认知疆域 / 突变原因}}</div></li>
             <li><div class="t-time">{{20xx}}</div><div class="t-title">{{关键事件}}</div><div class="t-desc">{{说明}}</div></li>
-            <!-- ⬇ 按时间顺序填充，突变点用红色标记 -->
+            <!-- ⬇ 四线轨迹（职业/技术/内容/生活）按时间顺序填充，突变点用红色标记并注明多线共振 -->
           </ul>
+          <h3>四线轨迹要点</h3>
+          <p>{{职业线（LinkedIn/脉脉/BOSS直聘等任职段）为主干；技术线（GitHub 语言演化/commit 活跃）；内容线（微博/知乎/B站/抖音/视频号/公众号话题演化）；生活线（常驻城市/出行/作息/消费）。标出多线共振的突变点。}}</p>
         </section>
 
         <!-- ============ 9. 数字孪生推演 ============ -->
@@ -448,7 +480,7 @@
 ## 替换指引（实现时遵循）
 
 1. **占位符**：所有 `{{...}}` 用真实采集数据替换；无数据的字段删除对应行，不要留空卡片。
-2. **图表**：`7. 关系网络拓扑` 与 `8. 时空行为建模` 的示例 SVG 必须替换为 `fireworks-tech-graph` 产出的 SVG（暗色 bg `#0f0f1a`、accent `#d4a24e`、最小字号 12px）。
+2. **图表**：`7. 关系网络拓扑` 与 `8. 时空行为建模` 的示例 SVG 必须替换为按 `references/diagram-craft.md` 规范绘制的 SVG（暗色 bg `#0f0f1a`、accent `#d4a24e`、最小字号 12px）。
 3. **置信度徽章**：`conf-a / conf-b / conf-c / conf-d` 四类，配色与 `profile-schema.md` 一致。
 4. **矛盾项**：证据存在多版本时，该项加 `conflict` 类（左侧琥珀竖线）。
 5. **风险卡**：无公开风险时显示单条「未发现公开风险记录」中性卡，不强行造风险。

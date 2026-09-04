@@ -75,7 +75,7 @@
 | `a-stock-lhb-rec` | 龙虎榜 T+3 涨停推荐与自进化模型 | 东方财富/同花顺/腾讯 K 线公开接口 | Python 3.10+（pandas/scikit-learn） | 首次 init 约 10–15 分钟，daily 每条约 1–3 分钟 |
 | `a-stock-board-washout` | A 股首板洗盘 / 炸板洗盘选股器（双策略 + 第二日操作建议） | 东方财富/新浪/腾讯公开接口 | Python 3.10+ | 单次约 2–5 分钟 |
 | `dev-lifecycle` | 端到端软件开发流程编排（5 阶段 + 每阶段 HITL 确认） | 无（纯规范型，仅 SKILL.md） | 无 | 按项目规模而定 |
-| `deep-profile` | 全网深度画像助手（公开数据采集 + 交叉验证 + 深层推理，输出自包含 HTML 画像报告） | WebSearch/WebFetch + fireworks-tech-graph + frontend-design | 无（纯规范型，仅 SKILL.md） | 单目标约 5–15 分钟 |
+| `deep-profile` | 全网深度画像助手（公开数据采集 + 交叉验证 + 深层推理，输出自包含 HTML 画像报告） | WebSearch/WebFetch（图表/设计规范已内置，零外部技能依赖） | 无（纯规范型，仅 SKILL.md） | 单目标约 5–15 分钟 |
 | `skill-data-fetcher`（8 子技能） | 主流 Skill 市场批量抓取备份（Smithery / ClaudeSkills 等 8 家） | 各家 Skill 市场 API | Node.js 12+ | 单家约 1–3 分钟 |
 
 ---
@@ -726,7 +726,7 @@ python scripts/generate_report.py          # 渲染 Markdown 报告 -> {cwd}/首
 
 #### 19. deep-profile — 全网深度画像助手
 
-以个人或企业的少量种子信息（姓名、手机号、邮箱、公司名、域名、社交昵称等）为起点，通过 LLM 自带的 `WebSearch`/`WebFetch` 完成全渠道公开数据采集、交叉验证与深层推理，编排 `fireworks-tech-graph`（技术图表）与 `frontend-design`（前端设计）两个技能，输出**单个自包含 HTML 深度画像报告**。
+以个人或企业的少量种子信息（姓名、手机号、邮箱、公司名、域名、社交昵称等）为起点，通过 LLM 自带的 `WebSearch`/`WebFetch` 完成全渠道公开数据采集、交叉验证与深层推理，输出**单个自包含 HTML 深度画像报告**。SVG 图表绘制规范与前端设计系统已蒸馏内置于技能 `references/`（diagram-craft.md / design-system.md），**零外部技能、零脚本依赖**。
 
 **核心能力：**
 
