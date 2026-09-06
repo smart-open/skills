@@ -75,6 +75,7 @@ persona-xxx/
 
 **留痕格式**（统一规范）：`（依据: coding#12 / core#D2 / 决议2026-09-05）`
 - `分层名#条目号`（如 coding#12 = profile-coding.md 第12条）
+- 表格/清单类分层（如 tools）无全局编号 → 引用小节名或行内容（如 `tools#选型决策模式`）
 - `core#D编号`（core层决策原则）
 - `决议YYYY-MM-DD`（core层决议表）
 

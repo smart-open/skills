@@ -12,8 +12,10 @@ demo/
 # 日志文件
 *.log
 
-# 临时文档
+# 临时文档（dev-twin/docs 过程文档随技能自包含入仓，白名单放行）
 docs/
+!dev-twin/docs/
+!dev-twin/docs/**
 
 # 临时文件
 *.tmp
