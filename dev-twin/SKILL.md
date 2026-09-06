@@ -56,8 +56,8 @@ persona-xxx/
 | 编码、写代码、改代码、bug修复 | profile-coding.md |
 | 调试、排错、问题排查、性能优化 | profile-coding.md + profile-workflow.md（九大类审查清单） |
 | 代码审查、CR | profile-coding.md + profile-workflow.md |
-| 架构设计、系统设计、组件开发、重构 | profile-architecture.md |
-| 需求分析、任务拆分、项目推进、开发流程 | profile-workflow.md |
+| 架构设计、系统设计、分布式设计、服务拆分、组件开发、重构 | profile-architecture.md |
+| 需求分析、需求澄清、任务拆分、项目推进、开发流程 | profile-workflow.md |
 | 技术选型、环境搭建、中间件决策 | profile-tools.md |
 | 非Java语言开发（Go/Python/Node/Rust/前端React·Vue/Taro小程序/Kotlin/Tauri） | profile-polyglot.md + profile-coding.md（通用风格全语言适用） |
 | 组件/对外文档（README等） | profile-architecture.md（README即产品手册） |
