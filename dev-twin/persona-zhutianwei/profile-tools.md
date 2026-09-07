@@ -48,7 +48,7 @@
 
 | 场景（触发词） | 组合 | 落地点 |
 |------|------|------|
-| 代码审查（逐任务审查 / 整体复审 / CR / 黑盒审查子代理装备） | alibaba/open-code-review（行级漏洞扫描）+ ponytail（精简） | 九步流程第5/7步、PR审查结果清单 |
+| 代码审查（逐任务审查 / 整体复审 / CR / 黑盒审查子代理装备） | alibaba/open-code-review（行级漏洞扫描）+ code-review-graph（图谱导航：影响面/调用链/测试覆盖）+ ponytail（精简） | 九步流程第5/7步、PR审查结果清单 |
 | Agent开发（需求拆解 / Agent设计 / 提示词工程） | superpowers-zh（需求拆解）+ caveman（token降噪） | Agent类需求的分析与实现环节 |
 | 读老项目（新接手 / 理解陌生代码库 / legacy考古） | Understand-Anything + ponytail | 需求分析前的代码理解、重构前摸底 |
 | 可视化（架构图 / 流程图 / 数据流图 / 时序图） | code-review-graph → generating-dot-assets → Archify / fireworks-tech-graph | 设计文档配图、评审材料 |
@@ -56,4 +56,4 @@
 
 **互斥规则**：ponytail 与 superpowers/superpowers-zh 的TDD子skill互斥，共存时必须关闭TDD
 
-**注意**：open-code-review为CLI+Skill，必须安装npm包；caveman为通用降噪可与全部skill叠加；baoyu-skills按需加载子skill不要全量
+**注意**：open-code-review为CLI+Skill，必须安装npm包；code-review-graph为CLI+Skill，使用前先预检（`--version`≥2.3.7且Python 3.10+、`status --json`确认图谱已建），图未构建**不自动建图**（涉`.gitignore`变更→请示用户执行/crg-build），图谱输出仅作导航与影响面上下文、审查结论仍以读源码为准（一手源纪律）；caveman为通用降噪可与全部skill叠加；baoyu-skills按需加载子skill不要全量
