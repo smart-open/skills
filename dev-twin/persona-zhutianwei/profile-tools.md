@@ -1,6 +1,6 @@
 # 🛠️ 工具生态层（选型/环境搭建/工具决策任务时加载）
 
-*版本：v0.9 | 确认日期：2026-09-06*
+*版本：v0.10 | 确认日期：2026-09-11*
 
 ## 一、技术栈清单
 
@@ -48,12 +48,20 @@
 
 | 场景（触发词） | 组合 | 落地点 |
 |------|------|------|
-| 代码审查（逐任务审查 / 整体复审 / CR / 黑盒审查子代理装备） | alibaba/open-code-review（行级漏洞扫描）+ code-review-graph（图谱导航：影响面/调用链/测试覆盖）+ ponytail（精简） | 九步流程第5/7步、PR审查结果清单 |
+| 代码审查（逐任务审查 / 整体复审 / CR / 黑盒审查子代理装备） | alibaba/open-code-review（行级漏洞扫描）+ code-review-graph（图谱导航：影响面/调用链/测试覆盖）+ ponytail（精简）——**三件套按规模分档，见下"代码审查分档"** | 九步流程第5/7步、PR审查结果清单 |
 | Agent开发（需求拆解 / Agent设计 / 提示词工程） | superpowers-zh（需求拆解）+ caveman（token降噪） | Agent类需求的分析与实现环节 |
 | 读老项目（新接手 / 理解陌生代码库 / legacy考古） | Understand-Anything + ponytail | 需求分析前的代码理解、重构前摸底 |
 | 可视化（架构图 / 流程图 / 数据流图 / 时序图） | code-review-graph → generating-dot-assets → Archify / fireworks-tech-graph | 设计文档配图、评审材料 |
 | 汇报（技术报告 / 复盘报告 / 演示文稿） | Archify + guizang-material-illustration + report-generator | 阶段交接摘要、案例复盘、上线报告 |
 
 **互斥规则**：ponytail 与 superpowers/superpowers-zh 的TDD子skill互斥，共存时必须关闭TDD
+
+**效果反馈（复盘度量，反向淘汰）**：组合入矩阵不等于恒有效——每次复盘时统计各组合**命中次数**与**是否产出有效结论**（是否真正改变了交付质量、结论被采纳），**连续 2 次复盘低效或零命中**的组合 → 列入淘汰候选，确认后从矩阵移除（防止矩阵只增不减，类比模型层 walk-forward 门控思路）。
+
+**代码审查分档（按改动规模/严重度调深度）**：三件套不每次全上——
+- **小 diff**（单文件、纯格式/命名/重构）：仅 ponytail + code-review-graph 本地影响面
+- **中型改动**（跨多文件）：+ alibaba/open-code-review（行级漏洞）
+- **大型 / 关键路径 / 对外发布**：三者全上，并交给 workflow 层**黑盒审查子代理**（背审查类组合装备）
+- graph 图未建**不自动建图**（涉 `.gitignore` 变更先请示）；open-code-review 为 CLI，使用前先 `npm i` 装好。
 
 **注意**：open-code-review为CLI+Skill，必须安装npm包；code-review-graph为CLI+Skill，使用前先预检（`--version`≥2.3.7且Python 3.10+、`status --json`确认图谱已建），图未构建**不自动建图**（涉`.gitignore`变更→请示用户执行/crg-build），图谱输出仅作导航与影响面上下文、审查结论仍以读源码为准（一手源纪律）；caveman为通用降噪可与全部skill叠加；baoyu-skills按需加载子skill不要全量
