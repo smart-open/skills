@@ -1,4 +1,4 @@
----
+﻿---
 name: "talkshow"
 description: "爆款舞台美女脱口秀视频生成器。用户输入脱口秀段子，自动优化剧本、分镜、生成链式视频并拼接成完整脱口秀视频。当用户想制作脱口秀视频、喜剧短视频、舞台表演视频时调用此 Skill。"
 ---
@@ -9,7 +9,7 @@ description: "爆款舞台美女脱口秀视频生成器。用户输入脱口秀
 
 ## 核心特性
 
-- **Agnes Text API**（`agnes-2.0-flash`）优化剧本：增强幽默感、社会洞察力、大众共鸣，自动拆分为 ~10s 分镜
+- **Agnes Text API**（`agnes-3.0-flash`）优化剧本：增强幽默感、社会洞察力、大众共鸣，自动拆分为 ~10s 分镜
 - **Agnes Image API**（`agnes-image-2.5-flash`）生成首帧：性感现代化长发美女手持话筒在舞台，t2i 首帧 + i2i 末帧重托管
 - **Agnes Video API**（`agnes-video-2.5-flash`）链式生成：每场景取上一场景末帧作为首帧，保证视觉连贯
 - **Edge TTS** 免费中文女声语音合成，默认 `zh-CN-XiaoxiaoNeural`（晓晓），支持多种音色
@@ -70,7 +70,7 @@ pip install torch torchvision --index-url https://download.pytorch.org/whl/cpu -
        ▼
 ┌─────────────────┐
 │  Agnes Text API │  优化幽默感 + 社会洞察 + 拆分 ~10s 分镜
-│  agnes-2.0-flash│  返回 JSON: optimized_script + scenes[]
+│  agnes-3.0-flash│  返回 JSON: optimized_script + scenes[]
 └─────────────────┘
        │
        ▼

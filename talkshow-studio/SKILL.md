@@ -1,6 +1,6 @@
----
+﻿---
 name: "talkshow-studio"
-description: "生产级 AI 脱口秀视频工坊。用户提供脱口秀简稿（演员图片/舞台图片可选，未提供时自动生成默认演员：现代都市美女模特），按生产级 SOP 一次成片：资产锁定（人物/舞台/声音三线一致）→ 分镜表 → 双参考图锁定批量生成带原生口型语音的分镜视频 → 和谐转场拼接 + 响度归一 + 字幕压制。基于 Agnes 全模态 API（agnes-2.0-flash / agnes-image-2.5-flash / agnes-video-2.5-flash）+ FFmpeg。当用户想制作脱口秀视频、单口喜剧舞台视频、需要人物/声音/字幕一致性的成片时调用此 Skill。"
+description: "生产级 AI 脱口秀视频工坊。用户提供脱口秀简稿（演员图片/舞台图片可选，未提供时自动生成默认演员：现代都市美女模特），按生产级 SOP 一次成片：资产锁定（人物/舞台/声音三线一致）→ 分镜表 → 双参考图锁定批量生成带原生口型语音的分镜视频 → 和谐转场拼接 + 响度归一 + 字幕压制。基于 Agnes 全模态 API（agnes-3.0-flash / agnes-image-2.5-flash / agnes-video-2.5-flash）+ FFmpeg。当用户想制作脱口秀视频、单口喜剧舞台视频、需要人物/声音/字幕一致性的成片时调用此 Skill。"
 ---
 
 # TalkShow Studio — 生产级 AI 脱口秀视频工坊
@@ -37,7 +37,7 @@ description: "生产级 AI 脱口秀视频工坊。用户提供脱口秀简稿�
    │    ├─ 多图合成：演员图 + 舞台图 → stage_composite（同时解决本地图 → 公开 URL 托管）
    │    └─ 图生图：stage_composite → 横版定妆照 model_reference（人物一致性锚点）
    │
-   ├─ [阶段二] 脚本拆解（agnes-2.0-flash）
+   ├─ [阶段二] 脚本拆解（agnes-3.0-flash）
    │    └─ 台词逐字保留 → 分镜表 JSON（单镜 ≤12s，笑点不跨镜，景别有变化）→ storyboard.md
    │
    ├─ [阶段三] 分镜视频批量生成（agnes-video-2.5-flash，mode=reference）

@@ -1,10 +1,10 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * talkshow_produce.js — 生产级脱口秀视频流水线（Agnes 全模态 + FFmpeg）
  *
  * 流程（源自《AI脱口秀视频创作操作流程》生产级 SOP）：
  *   [阶段一] 资产锁定：舞台合成图 + 横版定妆照（agnes-image-2.5-flash）
- *   [阶段二] 脚本拆解：分镜表（agnes-2.0-flash，台词逐字保留）
+ *   [阶段二] 脚本拆解：分镜表（agnes-3.0-flash，台词逐字保留）
  *   [阶段三] 分镜视频：reference 模式双参考图锁定 + 原生音画同步（agnes-video-2.5-flash）
  *   [阶段四] 后期合并：xfade 和谐转场拼接 + 响度归一 + 字幕压制（FFmpeg）
  *
@@ -84,7 +84,7 @@ talkshow_produce.js — 生产级脱口秀视频流水线
   --base-url <url>         API Base URL（默认 https://api.agnes-ai.cn/v1）
   --model-video <id>       视频模型（默认 agnes-video-2.5-flash）
   --model-image <id>       图像模型（默认 agnes-image-2.5-flash）
-  --model-text <id>        文本模型（默认 agnes-2.0-flash）
+  --model-text <id>        文本模型（默认 agnes-3.0-flash）
   --seed <n>               视频生成随机种子（默认随机）
   --help                   显示本帮助
 `.trim());

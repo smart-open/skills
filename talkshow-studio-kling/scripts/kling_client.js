@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Kling（可灵）API 客户端（零依赖，Node.js 内置模块）
  *
  * 覆盖三个模态：
- *  - 文本：OpenAI 兼容 chat/completions（可灵不提供 LLM，分镜拆解走独立文本服务，默认 agnes-2.0-flash）
+ *  - 文本：OpenAI 兼容 chat/completions（可灵不提供 LLM，分镜拆解走独立文本服务，默认 agnes-3.0-flash）
  *  - 图像：Kling Image 3.0（kling-v3，/v1/images/generations，异步任务，1K/2K）
  *  - 视频：Kling Video 3.0 Turbo（/image-to-video/kling-3.0-turbo，异步任务，720P/1080P，3–15s，原生音画同步）
  *
@@ -26,7 +26,7 @@ const crypto = require("crypto");
 const DEFAULT_BASE_URL = "https://api-beijing.klingai.com"; // 新系统 API 网关（document-api 快速入门指定）
 const DEFAULT_IMAGE_MODEL = "kling-v3";        // Kling Image 3.0（Omni）
 const DEFAULT_VIDEO_MODEL = "kling-3.0-turbo"; // Kling Video 3.0 Turbo
-const DEFAULT_TEXT_MODEL = "agnes-2.0-flash";  // 仅用于分镜拆解的 OpenAI 兼容文本模型
+const DEFAULT_TEXT_MODEL = "agnes-3.0-flash";  // 仅用于分镜拆解的 OpenAI 兼容文本模型
 const DEFAULT_TEXT_BASE_URL = "https://api.agnes-ai.cn/v1";
 
 // ---------------------------------------------------------------------------

@@ -1,8 +1,8 @@
-/**
+﻿/**
  * Agnes AI API 客户端（零依赖，Node.js 内置模块）
  *
  * 覆盖三个模态：
- *  - 文本：agnes-2.0-flash（/v1/chat/completions）—— 剧本分镜拆解
+ *  - 文本：agnes-3.0-flash（/v1/chat/completions）—— 剧本分镜拆解
  *  - 图像：agnes-image-2.5-flash（/v1/images/generations）—— 舞台合成 + 定妆照
  *  - 视频：agnes-video-2.5-flash（/v1/videos + /agnesapi 轮询）—— 分镜视频（原生音画同步）
  *
@@ -21,7 +21,7 @@ const path = require("path");
 const DEFAULT_BASE_URL = "https://api.agnes-ai.cn/v1";
 const DEFAULT_IMAGE_MODEL = "agnes-image-2.5-flash";
 const DEFAULT_VIDEO_MODEL = "agnes-video-2.5-flash";
-const DEFAULT_TEXT_MODEL = "agnes-2.0-flash";
+const DEFAULT_TEXT_MODEL = "agnes-3.0-flash";
 
 // ---------------------------------------------------------------------------
 // 基础 HTTP

@@ -1,4 +1,4 @@
-# AI Skills 工程集合
+﻿# AI Skills 工程集合
 
 > 一套面向 AI 多媒体创作的 Skills 集合 — 涵盖文生图、图生图、文生视频、图生视频、AI 音乐、跨朝代婚礼电影、脱口秀视频、技术文章、学习手册、企业门户、A 股量化分析与技能数据抓取，以及战略思考与决策。
 
@@ -502,7 +502,7 @@ node talkshow/scripts/talkshow.js `
 
 #### 6. talkshow-studio — 生产级脱口秀视频工坊（Agnes 版）
 
-按生产级 SOP 一次成片：**资产锁定（人物/舞台/声音三线一致）→ 分镜表 → 双参考图锁定批量生成带原生口型语音的分镜视频 → 和谐转场拼接 + 响度归一 + 字幕压制**。基于 Agnes 全模态 API（`agnes-2.0-flash` / `agnes-image-2.5-flash` / `agnes-video-2.5-flash`）+ FFmpeg。
+按生产级 SOP 一次成片：**资产锁定（人物/舞台/声音三线一致）→ 分镜表 → 双参考图锁定批量生成带原生口型语音的分镜视频 → 和谐转场拼接 + 响度归一 + 字幕压制**。基于 Agnes 全模态 API（`agnes-3.0-flash` / `agnes-image-2.5-flash` / `agnes-video-2.5-flash`）+ FFmpeg。
 
 > 相比 `talkshow` 的 Wav2Lip 后处理方案，本技能利用 Agnes 视频模型的**原生音画同步**能力，免去 Python + PyTorch 依赖，且人物/声音/字幕一致性更佳。
 

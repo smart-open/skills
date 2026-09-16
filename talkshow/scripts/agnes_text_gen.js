@@ -1,4 +1,4 @@
-/**
+﻿/**
  * agnes_text_gen.js — Agnes Text API 封装（剧本优化 + 分镜拆分）
  * 仅依赖 Node.js 内置模块
  */
@@ -7,7 +7,7 @@ const { buildSystemPrompt } = require("./character_config");
 
 const API_HOST = "apihub.agnes-ai.com";
 const API_PATH = "/v1/chat/completions";
-const MODEL = "agnes-2.0-flash";
+const MODEL = "agnes-3.0-flash";
 const TIMEOUT_MS = 120000;
 const MAX_RETRIES = 3;
 

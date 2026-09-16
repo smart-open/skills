@@ -1,9 +1,9 @@
-#!/usr/bin/env node
+﻿#!/usr/bin/env node
 /**
  * talkshow_produce.js — 生产级脱口秀视频流水线（Kling 全模态 + FFmpeg）
  *
  * 模型：视频 Kling 3.0 Turbo（720P，原生音画同步）；图像 Kling Image 3.0（kling-v3，2K）；
- *      文本走 OpenAI 兼容接口（可灵不提供 LLM，默认 agnes-2.0-flash，仅用于分镜拆解）。
+ *      文本走 OpenAI 兼容接口（可灵不提供 LLM，默认 agnes-3.0-flash，仅用于分镜拆解）。
  *
  * 流程（源自《AI脱口秀视频创作操作流程》生产级 SOP）：
  *   [阶段一] 资产锁定：演员/舞台/合成图（kling-v3，2K，异步任务）

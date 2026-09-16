@@ -1,4 +1,4 @@
----
+﻿---
 name: "talkshow-studio-kling"
 description: "生产级 AI 脱口秀视频工坊（可灵版）。用户提供脱口秀简稿（演员图片/舞台图片可选，未提供时自动生成默认演员：现代都市美女模特），按生产级 SOP 一次成片：资产锁定（单首帧基准图）→ 分镜表 → 单首帧锁定批量生成带原生口型语音的分镜视频 → 和谐转场拼接 + 响度归一 + 字幕压制。基于 Kling Video 3.0 Turbo（720P，原生音画同步）+ Kling Image 3.0（kling-v3，2K）+ OpenAI 兼容文本模型（分镜拆解）+ FFmpeg，内置电影级质感与真人级细腻表演指令。当用户想用可灵制作脱口秀视频、单口喜剧舞台视频、需要人物/声音/字幕一致性与电影质感的成片时调用此 Skill。"
 ---
@@ -13,7 +13,7 @@ description: "生产级 AI 脱口秀视频工坊（可灵版）。用户提供�
 |---|---|---|
 | 视频模型 | agnes-video-2.5-flash（多参考图 reference 模式） | **Kling Video 3.0 Turbo**（720P/1080P，3–15s，原生音画同步） |
 | 图像模型 | agnes-image-2.5-flash | **Kling Image 3.0（kling-v3）**，2K 高清，异步任务 |
-| 文本模型 | agnes-2.0-flash | OpenAI 兼容接口（可灵不提供 LLM；默认 agnes-2.0-flash，可换任意兼容服务） |
+| 文本模型 | agnes-3.0-flash | OpenAI 兼容接口（可灵不提供 LLM；默认 agnes-3.0-flash，可换任意兼容服务） |
 | 一致性机制 | 双参考图（定妆照 + 舞台合成图）+ Prompt 锚点 | **单首帧基准图**（演员+舞台合成图，全片共用）+ Prompt 锚点 |
 | 鉴权 | Bearer Key | **JWT（AccessKey+SecretKey HS256）** 或代理明文 Key |
 | 单镜时长 | 5–12s | 5–15s（可灵 3.0 上限 15s） |
@@ -163,7 +163,7 @@ node talkshow_produce.js --resume --work-dir work/20260902-143000-abcd --express
 | `--api-key` | 否 | - | 可灵明文 Key（代理用；默认读 KLING_API_KEY，优先于 JWT） |
 | `--base-url` | 否 | `https://api-beijing.klingai.com` | 官方新系统网关（默认）；`https://api.klingai.com` 为旧版 JWT 网关（AK/SK） |
 | `--text-api-key` / `--text-base-url` | 否 | Agnes | 分镜拆解文本模型凭据与地址（OpenAI 兼容） |
-| `--model-video/image/text` | 否 | 见下 | 模型覆盖：`kling-3.0-turbo` / `kling-v3` / `agnes-2.0-flash` |
+| `--model-video/image/text` | 否 | 见下 | 模型覆盖：`kling-3.0-turbo` / `kling-v3` / `agnes-3.0-flash` |
 
 ## 输出结构
 
