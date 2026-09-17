@@ -201,7 +201,7 @@ async function stageAssets(workDir, state, apiKey, baseUrl) {
       apiKey, baseUrl, model: state.models.image,
       prompt:
         "小型脱口秀剧场舞台，暖黄色聚光灯照亮舞台中央，一位立式黑色麦克风立在台中，" +
-        "舞台下是观众席剪影，暗部层次分明，电影感画质，真实自然，无文字无水印。", // 画幅由 ratio 参数控制，文案不硬编码横竖版
+        "舞台下观众满席、清晰可见，随表演呼应（笑、鼓掌），人物剪影层次分明，电影感画质，真实自然，无文字无水印。", // 画幅由 ratio 参数控制，文案不硬编码横竖版
       size: "2K", ratio: state.inputs.ratio,
     });
     const r = await agnes.generateImage({

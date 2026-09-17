@@ -115,8 +115,8 @@ function buildRehostPrompt(characterDesc) {
 function buildVideoPrompt(videoMotion, characterDesc, sceneIndex) {
   // 场景衔接指令
   const continuityHint = sceneIndex > 0
-    ? "Continues from previous shot, same woman same stage same audience, seamless. "
-    : "Opens mid-performance, woman already on stage with audience watching. ";
+    ? "Continues from previous shot, same woman same stage same packed audience reacting, seamless. "
+    : "Opens mid-performance, woman already on stage with packed audience reacting in seats. ";
 
   // 精简 videoMotion：只取前150字符，避免总prompt过长触发内容审查
   const motion = videoMotion ? videoMotion.substring(0, 150) : "calm composed expression, subtle gaze shift, natural speaking gestures, fixed camera. ";
@@ -125,7 +125,8 @@ function buildVideoPrompt(videoMotion, characterDesc, sceneIndex) {
     // ── 1. 基础参数 + 核心主体 ──
     "4K cinematic film style. " +
     "(Chinese woman East Asian features long black hair formal outfit:1.3), one microphone, " +
-    "comedy club stage, audience blurred in background, warm spotlight, premium lighting, shallow depth of field. " +
+    "packed comedy club audience in background clearly visible, reacting with laughs and applause, warm spotlight, premium lighting, shallow depth of field. " +
+    "Actor fixed center stage behind microphone, never moving into the audience. " +
     "Confident relaxed posture, formal speech style, telling jokes with pauses and contrast. " +
 
     // ── 2. 场景衔接 ──
@@ -172,10 +173,12 @@ function buildSystemPrompt(characterDesc) {
 - **手势自然**：手势少而精，偶尔配合内容做出自然动作
 - **轻微自嘲**：接地气、有荒诞感，但不喧闹
 
-## 场景设定：脱口秀舞台 + 观众
+## 场景设定：脱口秀舞台 + 观众（位置恒定铁律）
 
-- 演员站在脱口秀舞台上，台下坐满观众
-- 暖色聚光灯打在演员身上，观众在背景中虚化可见
+- 演员全程站在舞台中央的立式麦克风后，台下观众满席
+- 【位置铁律】演员位置全片恒定，始终在舞台上原地表演——绝不走入观众席、绝不混入人群中、绝不出现在观众之间；只允许手势、站姿微调与表情变化
+- 暖色聚光灯打在演员身上，观众清晰可见且随表演呼应（笑、鼓掌、欢呼）
+- 镜头以演员为主，可偶尔带出观众席满席呼应画面；观众数量可以多，但演员永远是舞台上的视觉中心
 - 舞台有麦克风支架，整体氛围是真实的脱口秀现场
 - 保持电影质感，但不是空旷的电影棚
 
@@ -216,7 +219,7 @@ function buildSystemPrompt(characterDesc) {
 1. **与口播内容对应**：画面动作体现口播含义
 2. **正式演讲姿态**：站姿稳定、正面面对镜头、手势克制
 3. **微表情**：表情克制自然（如"嘴角微微上扬"、"眼神平静自信"），禁止夸张表情
-4. **场景一致**：脱口秀舞台、台下有观众、暖色聚光灯、浅景深虚化观众
+4. **场景一致**：演员固定在脱口秀舞台中央立式麦后、台下观众满席、暖色聚光灯、观众清晰可见并随表演呼应（笑/鼓掌/欢呼）
 5. **景别**：中景（medium shot），人物腰部以上可见
 
 ## video_motion 要求（英文，用于 image2video）
@@ -243,9 +246,10 @@ function buildSystemPrompt(characterDesc) {
 - 人物腰部以上可见，镜头距离一致
 
 ### 4. 场景设定
-- "comedy club stage"
-- "audience blurred in background"
+- "comedy club stage" / "packed audience reacting in background"
+- "audience clearly visible, laughing and applauding"
 - "warm spotlight on performer"
+- "actor fixed center stage behind microphone, never in the audience"
 
 ### 5. 场景衔接（非首场景）
 - "continues from previous shot"

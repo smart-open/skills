@@ -61,7 +61,7 @@ async function optimizeScript(rawScript, apiKey, options = {}) {
   const temperature = options.temperature || 0.6;
 
   const systemPrompt = buildSystemPrompt(characterDesc);
-  const userMessage = `作为导演，请将以下脱口秀段子转化为一部完整的脱口秀短片。先在脑海中看到整部影片的画面流动，再拆解为分镜。\n\n要求：\n1. 所有分镜围绕同一主题，形成有开头、发展、结尾的完整故事\n2. 每个分镜的 video_motion 必须包含景别和运镜描述\n3. 每个分镜的 video_motion 必须包含口型同步描述（lip sync, mouth shapes match syllables）\n4. 每个分镜的动作必须与口播文本内容直接对应（如说到"掏手机"则有手部展示动作）\n5. 全部使用正向描述，禁止使用 NOT 语句（Seedance 2.0 不支持负向提示词）\n6. 动作描述用缓慢、轻柔、自然、流畅的词汇\n7. 场景设定为脱口秀舞台，有观众在台下\n8. 场景间通过视觉元素自然衔接\n\n原始段子：\n${rawScript}`;
+  const userMessage = `作为导演，请将以下脱口秀段子转化为一部完整的脱口秀短片。先在脑海中看到整部影片的画面流动，再拆解为分镜。\n\n要求：\n1. 所有分镜围绕同一主题，形成有开头、发展、结尾的完整故事\n2. 每个分镜的 video_motion 必须包含景别和运镜描述\n3. 每个分镜的 video_motion 必须包含口型同步描述（lip sync, mouth shapes match syllables）\n4. 每个分镜的动作必须与口播文本内容直接对应（如说到"掏手机"则有手部展示动作）\n5. 全部使用正向描述，禁止使用 NOT 语句（Seedance 2.0 不支持负向提示词）\n6. 动作描述用缓慢、轻柔、自然、流畅的词汇\n7. 场景恒定不变：演员全程站在脱口秀舞台中央的立式麦克风后，台下观众满席\n8. 【位置铁律】演员位置全片雷打不动，始终在舞台上原地表演——绝不走入观众席、绝不混入人群中、绝不出现在观众之间；只允许手势/站姿微调/表情与镜头变化\n9. 台下观众满席并随表演呼应（笑、鼓掌、欢呼），观众在画面中清晰可见\n10. 镜头聚焦台上演员，但可偶尔带出观众席满席呼应画面；观众数量可以多，但演员永远是舞台上的视觉中心\n11. 场景间通过视觉元素自然衔接\n\n原始段子：\n${rawScript}`;
 
   const body = JSON.stringify({
     model: MODEL,
