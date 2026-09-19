@@ -45,6 +45,9 @@ function parseArgs(argv) {
     workDir: null,
     concurrencyImage: 3,
     concurrencyVideo: 2,
+    seed: null,
+    bgm: "auto",
+    dryRun: false,
   };
 
   const map = {
@@ -64,6 +67,8 @@ function parseArgs(argv) {
     "--work-dir": "workDir",
     "--concurrency-image": "concurrencyImage",
     "--concurrency-video": "concurrencyVideo",
+    "--seed": "seed",
+    "--bgm": "bgm",
   };
 
   for (let i = 0; i < argv.length; i++) {
@@ -120,6 +125,11 @@ function printHelp() {
     "  --add-title               Add title clip at beginning\n" +
     "  --add-ending              Add ending clip at the end\n" +
     "  --add-subtitles           Add dynasty info subtitles to each segment\n" +
+    "  --bgm <path|auto>         BGM soundtrack: auto = mood arc per dynasty (default),\n" +
+    "                            <path> = user-provided music file, --no-bgm to disable\n" +
+    "  --no-bgm                  Disable BGM soundtrack\n" +
+    "  --dry-run                 Print all ffmpeg commands without executing\n" +
+    "                            (volume 0.28, fade in/out, loudnorm -14 LUFS)\n" +
     "  --output <path>           Final output MP4 path\n" +
     "  --resume                  Resume from previous state.json\n" +
     "  --regenerate <id>         Regenerate a single dynasty\n" +
@@ -252,13 +262,46 @@ class VolcWedding {
     console.log("Ratio: " + this.args.ratio);
     console.log("Resolution: " + this.args.resolution);
     console.log("Work dir: " + this.workDir);
+    if (this.args.seed != null) {
+      console.log("Seed: " + this.args.seed + " (fixed; reuse for reproducible results)");
+    }
     if (this.args.customDesc) {
       console.log("Custom desc: " + this.args.customDesc);
     }
+    if (this.args.bgm) {
+      console.log("BGM: " + (this.args.bgm === "auto" ? "auto（按朝代情绪弧分段）" : this.args.bgm));
+    } else {
+      console.log("BGM: off");
+    }
+    if (this.args.dryRun) {
+      console.log("DRY-RUN: 只打印 ffmpeg 命令，不执行、不消耗额度");
+    }
+    // [预算防线 P0] 生成前报预估：图像/视频调用次数与耗时量级，让成本先于账单出现
+    const nDyn = this.dynasties.length;
+    const isText2v = this.args.mode === "text2video";
+    const imgCalls = (isText2v ? 0 : nDyn * 2) + (isText2v ? 0 : nDyn);
+    const vidCalls = nDyn;
+    console.log(
+      "Estimate: images ~" + imgCalls + " calls (2 portraits + 1 scene per dynasty)" +
+      ", videos " + vidCalls + " x " + this.args.duration + "s" +
+      "; expect ~" + Math.round(nDyn * 3) + "-" + Math.round(nDyn * 6) + " minutes total"
+    );
     console.log("========================================\n");
   }
 
   // ---- Step 1: Generate Portraits ----
+  // [方法论借鉴 short-drama-studio：固定 seed 可复现] 首次运行把 seed 写入 state，
+  // 续跑/重生成沿用同一 seed + 同描述即可复现；未指定 --seed 时自动生成并持久化
+  getSeed() {
+    if (this.state.seed == null) {
+      this.state.seed = this.args.seed != null
+        ? Number(this.args.seed)
+        : Math.floor(Math.random() * 2147483647);
+      this.saveState();
+    }
+    return this.state.seed;
+  }
+
   async generatePortraits() {
     if (this.args.mode === "text2video") {
       console.log("Skipping portrait generation (text2video mode).");
@@ -326,6 +369,7 @@ class VolcWedding {
       returnLastFrame: true,
       customDesc: this.args.customDesc,
       state: this.state,
+      seed: this.getSeed(),
     });
 
     this.state.step = "videos";
@@ -377,6 +421,8 @@ class VolcWedding {
       tempDir: this.tempDir,
       ratio: this.args.ratio,
       resolution: this.args.resolution,
+      bgm: this.args.bgm,
+      dryRun: this.args.dryRun,
     });
 
     this.state.outputPath = outputPath;

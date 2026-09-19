@@ -5,6 +5,12 @@ description: "爆款舞台美女脱口秀视频生成器。用户输入脱口秀
 
 # Talkshow - 爆款舞台美女脱口秀视频生成器
 
+> ⚠️ **[已退役 / 2026-09-19]** 本技能已被 `talkshow-studio`（Agnes 原生音画同步）与
+> `talkshow-studio-kling`（可灵）取代，仅作兼容归档保留，**不再维护**。
+> 保留原因：本技能的「链式重托管 + Wav2Lip 口型同步」是"生成平台无原生音画同步能力时"
+> 的兜底方案参考（统一方法论 L6 声音层第 12 条军规的 Wav2Lip 分支）。
+> 新项目请一律使用 `talkshow-studio` / `talkshow-studio-kling`。
+
 基于 **Agnes AI** 平台（Text + Image + Video 三模态）和 **Edge TTS** 的脱口秀视频生成 Skill。用户输入一段脱口秀段子，系统自动优化剧本、拆分分镜、生成链式舞台视频，最终输出带语音的完整脱口秀视频。
 
 ## 核心特性

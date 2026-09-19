@@ -1,0 +1,93 @@
+{
+  "project": {
+    "title": "示例：最后一单",
+    "logline": "外卖员深夜接到一单给自己的外卖。",
+    "genre": "情感+反转+轻悬疑",
+    "orientation": "9:16",
+    "duration_seconds": 180,
+    "shot_seconds": 10,
+    "style_suffix": "电影感写实风格，35mm胶片质感，自然肤色，冷青色调搭配暖色点光源，浅景深，真实光影，无卡通感，无水印文字",
+    "camera_mode": "first",
+    "seed": 20260918,
+    "language": "zh-CN",
+    "subtitles": true,
+    "audio": { "mode": "dub", "bgm": true, "lufs": -14 }
+  },
+  "characters": [
+    {
+      "id": "char_lin",
+      "name": "阿林",
+      "age_role": "28岁外卖员",
+      "anchor": "28岁男性，清瘦，短寸黑发，右眉有道浅疤，穿洗得发白的蓝色骑手冲锋衣，胸前挂工牌，骑白色电动车，手腕缠红色护腕",
+      "trait": "嘴硬爱逞强 / 却每天给住院的妹妹点一份粥",
+      "catchphrase": "超时是不可能超时的。",
+      "voice": "年轻男声，略疲惫，语速偏快，带轻微南方口音",
+      "portrait_prompt": "以角色定妆照标准生成：28岁男性，清瘦，短寸黑发，右眉一道浅疤，穿洗得发白的蓝色骑手冲锋衣，胸前挂工牌，手腕红色护腕，半身正面，中性灰色背景，柔和侧光，电影感写实风格，35mm胶片质感，自然肤色，浅景深，无卡通感，无水印文字",
+      "portrait_url": "",
+      "portrait_file": "",
+      "seed": 31001
+    }
+  ],
+  "locations": [
+    {
+      "id": "loc_street",
+      "name": "深夜老街路口",
+      "anchor": "南方城市老街十字路口，深夜，潮湿路面倒映霓虹，路灯暖黄，关了一半卷帘门的小吃店，细雨"
+    }
+  ],
+  "script": {
+    "synopsis": "（300-500字，由文本模型生成：钩子—建置—升级—最低点—高潮反转—悬念结尾的完整故事）",
+    "hook_type": "悬念台词",
+    "ending_hook": "（结尾未解之谜的具体描述）",
+    "beats": [
+      { "beat": 1, "name": "冷开场钩子", "shot_ids": ["s01"] },
+      { "beat": 2, "name": "建置", "shot_ids": ["s02", "s03", "s04"] },
+      { "beat": 3, "name": "激励事件", "shot_ids": ["s05", "s06", "s07"] },
+      { "beat": 4, "name": "升级", "shot_ids": ["s08", "s09", "s10", "s11"] },
+      { "beat": 5, "name": "最低点", "shot_ids": ["s12", "s13", "s14"] },
+      { "beat": 6, "name": "高潮反转", "shot_ids": ["s15", "s16", "s17"] },
+      { "beat": 7, "name": "悬念收尾", "shot_ids": ["s18"] }
+    ],
+    "foreshadows": [
+      { "setup_shot": "s03", "payoff_shot": "s16", "note": "（伏笔与回收说明）" }
+    ]
+  },
+  "shots": [
+    {
+      "id": "s01",
+      "index": 1,
+      "beat": "冷开场钩子",
+      "seconds": 10,
+      "location_id": "loc_street",
+      "time_of_day": "深夜细雨",
+      "shot_size": "特写",
+      "camera": "缓推",
+      "camera_pov": "third",
+      "scene_cn": "手机屏幕特写：新订单弹窗，收货地址正是阿林自己的出租屋，备注写着‘生日快乐’。他沾着雨水的手指停在屏幕上。",
+      "first_frame_prompt": "深夜老街路口暖黄路灯下，特写：一只沾着雨水、手腕缠着红色护腕、穿洗得发白蓝色骑手冲锋衣袖口的手，举着亮屏手机，屏幕显示外卖订单弹窗，收货地址栏清晰可见；背景霓虹与雨丝虚化成光斑。冷青色调与暖黄点光源，浅景深，35mm胶片质感，电影感写实，无水印文字。",
+      "last_frame_prompt": "深夜老街路口，近景：28岁清瘦外卖员，短寸黑发，右眉一道浅疤，穿洗得发白的蓝色骑手冲锋衣、胸前工牌、红色护腕，猛地抬头，雨水顺脸淌下，眼神错愕，手机仍举在胸前，路灯在身后拉出长影。冷青色调，浅景深，电影感写实，无水印文字。",
+      "dialogue": [],
+      "vo": "阿林（旁白）：这已经是我今晚送的第 37 单，直到我看见——收货地址，是我家。",
+      "sfx": "雨声、手机提示音、远处车声",
+      "transition": "硬切",
+      "emotion_tag": "悬念",
+      "char_ids": ["char_lin"],
+      "video_prompt": "",
+      "seed": 41001,
+      "assets": {
+        "first_frame_url": "", "last_frame_url": "",
+        "video_id": "", "task_status": "", "clip_url": "", "clip_file": "", "audio_file": ""
+      }
+    }
+  ],
+  "qa": {
+    "hook_present": true,
+    "humor_beats": 0,
+    "sadness_beats": 0,
+    "foreshadow_count": 1,
+    "ending_hook": true,
+    "char_count": 1,
+    "continuity_closed": false,
+    "safety_passed": true
+  }
+}

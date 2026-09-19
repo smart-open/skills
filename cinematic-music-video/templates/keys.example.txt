@@ -1,0 +1,17 @@
+# Agnes API keys — one per line. Lines starting with # are ignored.
+# Copy this file to keys.txt (do NOT commit the real file to a repository).
+#
+# Multiple keys are used round-robin; a key that returns 401/403/429 is put on
+# a cooldown and the next one takes over automatically. The rotation cursor is
+# kept in <cwd>/out/.state/.agnes-key-state.json.
+#
+# sk-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+# sk-yyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy
+#
+# Usage (projects default to <cwd>/out/mv-<song>, so --project is optional):
+#   node run.js    --song "song.mp3" --keys-file keys.txt
+#   node plan.js   --song "song.mp3" --keys-file keys.txt
+#   node images.js --keys-file keys.txt
+#
+# The path may be given relative to the skill root even when you run from
+# somewhere else, i.e. --keys-file templates/keys.txt always resolves.

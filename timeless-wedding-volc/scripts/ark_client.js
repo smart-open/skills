@@ -141,11 +141,34 @@ async function queryVideoTask(taskId, apiKey) {
   }
 }
 
+// ---- Chat Completion（多模态视觉质检用，OpenAI 兼容格式）----
+const CHAT_PATH = "/api/v3/chat/completions";
+
+async function postChatCompletion(body, apiKey) {
+  const res = await retryAsync(() => httpRequest({
+    method: "POST",
+    host: API_HOST,
+    pathStr: CHAT_PATH,
+    headers: {
+      "Authorization": "Bearer " + apiKey,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify(body),
+    timeout: 300000,
+  }), 5, "chat-completion");
+  try {
+    return JSON.parse(res.raw);
+  } catch (e) {
+    throw new Error("Failed to parse chat completion response: " + e.message + "\n" + res.raw.slice(0, 2000));
+  }
+}
+
 // ---- Export ----
 module.exports = {
   postImageGeneration,
   submitVideoTask,
   queryVideoTask,
+  postChatCompletion,
   sleep,
   retryAsync,
 };

@@ -146,6 +146,9 @@ node .trae/skills/timeless-wedding/scripts/timeless_wedding.js \
 | `--resume` | 从 state.json 断点续跑 | 否 | 关闭 |
 | `--regenerate <id>` | 重生成指定朝代 | 否 | — |
 | `--no-face-swap` | 禁用 FaceFusion 换脸 | 否 | 关闭 |
+| `--bgm <path\|auto>` | 为成片混入背景音乐。`auto`（默认）= 按朝代 mood 情绪弧分段；`<path>` = 自备曲目。音量 0.28、淡入 1.5s/淡出 2.5s、loudnorm −14 LUFS；失败保持原片 | 否 | auto |
+| `--no-bgm` | 关闭 BGM 声音层 | 否 | 关闭 |
+| `--dry-run` | 只打印全部 ffmpeg 命令（合并/情绪弧/混音），不执行、不消耗额度 | 否 | 关闭 |
 | `--facefusion-path <path>` | FaceFusion run.py 路径 | 否 | 自动检测 |
 | `--api-key <key>` | Agnes API Key | 否 | 环境变量 `agnes-api-key` |
 | `--work-dir <dir>` | 工作目录 | 否 | `work/{sessionId}/` |
@@ -232,3 +235,27 @@ work/
 9. **照片建议**：使用正面清晰照片，光线均匀，面部无遮挡，换脸效果最佳
 10. **生成耗时**：2 个朝代约 10–15 分钟，4 个朝代约 20–30 分钟（取决于 API 排队情况）
 11. **Prompt 长度**：Agnes API 对长 prompt 敏感，所有 image/video prompt 均保持简洁（~200 字符），避免 content_policy_violation
+
+## 完善记录（2026-09 借鉴 short-drama-studio 一致性方法论）
+
+- **定妆照先行 + 参考基准统一**：`timeless_wedding.js` 的场景帧 i2i 参考优先使用**本朝代男方定妆照**（已穿朝代服装、身份已锁定，`--generate-portraits` 生成），而非原始现代照片——参考图与目标场景语义差距越小，人脸漂移越少；缺定妆照时回退原始照片（老行为）。
+- **identity-lock 身份锚点**：场景帧 prompt 追加身份锁定段——男方面容必须与参考照完全一致（禁止美颜/漂移），男女双方在整幅画面中保持同一张脸，禁止多余人物。
+- **重拍版本归档（archive_old_file）**：`--regenerate <id>` 时旧朝代视频先归档到 `videos/versions/` 再重建，覆盖不再等于销毁。
+- **已知局限**：Agnes 图像 CLI 仅支持单参考图（i2i 单图输入），女方图像锚点依赖 FaceFusion 换脸兜底（步骤 2 已有）；如需双人双参考锁定，改用 `timeless-wedding-volc`（Seedream multi-i2i 支持男女双肖像参考）。
+
+## 完善记录（2026-09-19 统一方法论 P0 落地）
+
+- **BGM 声音层（P0-3，借鉴 ManjuForge 声音四层设计）**：新增 `--bgm <path>`。成片拼接后混入
+  背景音乐（`mixBgm()`）：循环铺满全片、音量 0.28、淡入 1.5s/淡出 2.5s、loudnorm −14 LUFS；
+  本版成片为无声拼接（`-an`），BGM 直接成为音轨；混音失败仅告警、不影响原片。
+  这是"音乐层"最小实现；环境/生理/细节层留待后续。
+- **预算防线（P0-2）**：`run()` 启动时打印生成预估——场景图/定妆照/视频调用次数与
+  每段时长、整片耗时量级，让成本先于账单出现（免费期仍提示限流风险）。
+
+## 完善记录（2026-09-19 补课轮：BGM 情绪弧）
+- **BGM 情绪弧（P0-3 补全，与 -volc 版同源 bgm_arc.js）**：`--bgm` 默认 `auto`——dynasties.js
+  13 朝代各配 `mood` 字段，按 mood 分段选曲拼接情绪弧；成片无声（Agnes 输出 -an）时
+  BGM 直接成为音轨 + loudnorm −14 LUFS。
+- **内置曲库**：`bgm/manifest.json`（mood→曲目映射 + ffmpeg 合成参数）；缺文件自动合成
+  环境垫乐占位。
+- **`--dry-run` / `--no-bgm`**：dry-run 只打印 ffmpeg 命令不执行。

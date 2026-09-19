@@ -45,11 +45,19 @@ async function downloadFile(url, outPath) {
 }
 
 // ---- Build content array based on mode ----
+
+// [方法论借鉴 short-drama-studio：视频 prompt 六段式之"一致性要求"段]
+// 统一追加到每个朝代 videoPrompt 末尾：主体身份 + 不新增不消失 铁律
+const CONSISTENCY_SUFFIX =
+  " Keep the same Chinese man and same Chinese woman as in the first frame throughout the video. " +
+  "Same faces, same hairstyles, same clothing, no character changes, no extra people. " +
+  "No objects appear or disappear. Cinematic film look, photorealistic.";
+
 function buildContent(dynasty, sceneUrl, portraitUrls, mode, customDesc) {
   const content = [];
 
   // Text prompt (always included)
-  let textPrompt = dynasty.videoPrompt;
+  let textPrompt = dynasty.videoPrompt + CONSISTENCY_SUFFIX;
   if (customDesc) {
     textPrompt += " Their personal love story: " + customDesc + ".";
   }
@@ -178,6 +186,11 @@ async function submitVideoTasks(dynasties, apiKey, options) {
     // Filter out parameters not supported by mini/fast models
     if (videoModel.includes("mini") || videoModel.includes("fast")) {
       delete payload.resolution;
+    }
+
+    // [方法论借鉴 short-drama-studio：固定 seed 可复现] 全片各朝代共用同一 seed
+    if (options.seed != null) {
+      payload.seed = Number(options.seed);
     }
 
     tasks.push({ dynasty: d, payload: payload });

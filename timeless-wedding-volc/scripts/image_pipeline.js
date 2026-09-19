@@ -105,12 +105,19 @@ async function generatePortraits(malePhotoPath, femalePhotoPath, dynasties, apiK
       console.log("  [" + d.name + "] Generating " + gender + " portrait...");
 
       const prompt = isMale ? d.portraitPromptMale : d.portraitPromptFemale;
+      // [方法论借鉴 short-drama-studio：identity-lock] 定妆照阶段即锁定身份：
+      // 强调保留参考照片的面部特征，强识别特征（痣/疤等）必须原样保留
+      const identityLock =
+        " Keep the exact same facial features, face shape, eyes, nose, mouth and skin tone as the reference photo. " +
+        "Any distinctive identifying marks (mole, scar) must be preserved exactly, no beautification, no face drift.";
       const payload = {
         model: "doubao-seedream-5-0-pro-260628",
-        prompt: prompt,
+        prompt: prompt + identityLock,
         image: base64,
         size: "1424x800",
       };
+      // [方法论借鉴 short-drama-studio：固定 seed] 同 seed + 同描述可复现
+      if (options.seed != null) payload.seed = Number(options.seed);
 
       try {
         const res = await postImageGeneration(payload, apiKey);
@@ -180,7 +187,11 @@ async function generateSceneFrames(dynasties, apiKey, options) {
       const maleBase64 = fileToBase64(malePortraitPath);
       const femaleBase64 = fileToBase64(femalePortraitPath);
 
-      const prompt = injectCustomDesc(d.couplePrompt, customDesc);
+      const prompt = injectCustomDesc(d.couplePrompt, customDesc) +
+        // [方法论借鉴 short-drama-studio：identity-lock] 双人场景阶段继续锁定身份：
+        // 男女面容必须与两张参考肖像一致，且两人脸在整幅画面中保持不变
+        " The man and the woman must keep the exact same facial features, face shape and skin tone as their respective reference portrait photos; " +
+        "both faces stay consistent throughout the frame, no beautification, no face drift, no extra people.";
 
       const payload = {
         model: "doubao-seedream-5-0-pro-260628",
@@ -188,6 +199,8 @@ async function generateSceneFrames(dynasties, apiKey, options) {
         image: [maleBase64, femaleBase64],
         size: "1424x800",
       };
+      // [方法论借鉴 short-drama-studio：固定 seed] 同 seed + 同描述可复现
+      if (options.seed != null) payload.seed = Number(options.seed);
 
       try {
         const res = await postImageGeneration(payload, apiKey);

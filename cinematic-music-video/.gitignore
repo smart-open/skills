@@ -1,0 +1,14 @@
+# --- Pipeline output -------------------------------------------------------
+# Everything the skill produces lives here: one directory per song, its
+# intermediates (storyboards, reference sheets, keyframes, clips) and the
+# finished film, plus .state/ (key-rotation cursor, vision cache).
+# It is regenerated on every run and can run to hundreds of megabytes, so it
+# is never committed.
+out/
+
+# --- Secrets ---------------------------------------------------------------
+# templates/keys.example.txt is the committed template; any real key file is
+# not. Keys pasted into a repo get scraped within minutes.
+templates/keys.txt
+keys.txt
+.keys

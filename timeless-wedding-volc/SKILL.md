@@ -130,6 +130,9 @@ node timeless_wedding_volc.js `
 | `--add-title` | 否 | false | 添加片头（"几生几世 跨时空相爱"） |
 | `--add-ending` | 否 | false | 添加片尾（"今生今世 永不分离"） |
 | `--add-subtitles` | 否 | false | 每段添加朝代信息字幕 |
+| `--bgm <path\|auto>` | 否 | auto | BGM：`auto`=按朝代 mood 情绪弧分段（bgm_arc.js + sidechain 避让）；`<path>`=自备曲目 amix 垫底 + loudnorm −14 LUFS |
+| `--no-bgm` | 否 | 关闭 | 关闭 BGM 声音层 |
+| `--dry-run` | 否 | 关闭 | 只打印全部 ffmpeg 命令（合并/情绪弧/混音），不执行、不消耗额度 |
 | `--output <path>` | 否 | 自动 | 最终输出 MP4 路径 |
 | `--resume` | 否 | false | 从 state.json 断点续跑 |
 | `--regenerate <id>` | 否 | - | 重生成指定朝代 |
@@ -205,3 +208,32 @@ work/
 ## 许可证
 
 仅供个人学习和非商业用途。请遵守 Volcengine Ark 平台使用条款。
+
+## 完善记录（2026-09 借鉴 short-drama-studio 一致性方法论）
+
+- **固定 seed 可复现**：新增 `--seed <n>` 参数；首次运行自动生成 seed 并持久化到 `state.json`，续跑/重生成沿用同一 seed + 同描述即可复现。Seedream 肖像/场景 payload 与 Seedance 视频 payload 均透传该 seed（各朝代共用同一 seed）。
+- **identity-lock 身份锚点（三层落点）**：
+  - 肖像层：`image_pipeline.js` 的 portrait prompt 追加"面容/脸型/五官/肤色与参考照片完全一致，强识别特征（痣/疤）必须原样保留，禁止美颜漂移"；
+  - 场景层：couple scene prompt 追加"男女面容必须与各自参考肖像一致，整幅画面保持不变，无多余人物"；
+  - 视频层：`video_pipeline.js` 新增统一 `CONSISTENCY_SUFFIX` 追加到每个朝代 videoPrompt 末尾——"全片同男主同女主、同脸同发型同服装、不新增角色、物件不消失"（对应 short-drama-studio 视频 prompt 六段式中的"一致性要求"段）。
+- 之前 volc 版 `videoPrompt` 无一致性要求段（Agnes 免费版有），本次补齐对齐。
+- **多模态自动质检（qa_scenes.js，借鉴 qa_frames.py）**：对每个朝代场景帧，把「男方定妆照 + 女方定妆照 + 待检场景帧」喂给 Ark doubao 视觉模型（默认 `doubao-seed-1-6-flash-250615`，可 `--qa-model` 覆盖），按固定 JSON 维度判定：硬性通过 `couple_present / face_match_male / face_match_female / outfit_match（朝代婚礼服饰）/ scene_match（朝代场景、无现代穿帮）`，硬性排除 `extra_person / watermark_or_text`。输出 `work/scene_qa.json`；`--delete-bad` 把坏帧归档到 `scenes/versions/`（保留 3 版）并清 `state.scenes[id]`，重跑主程序即可补缺。用法：`node qa_scenes.js --work-dir work/xxx [--only tang,ming] [--delete-bad] [--offline]`。
+- **多宫格批量定妆照（grid_portraits.js，借鉴 grid_gen.py）**：把 N 个朝代的同性别定妆照塞进一张 2xN 宫格图一次生成（i2i 单人参考照 + identity-lock），ffmpeg crop 切格后回填 `state.portraits`（结构与逐张生成完全一致，场景帧阶段可直接使用），省 N-1 张图成本；旧图归档到 `portraits/versions/`。⚠ 宫格内一致性弱于逐张 i2i，适合草稿/初稿；对一致性要求高走主流程。用法：`node grid_portraits.js --male-photo him.jpg --female-photo her.jpg --work-dir work/xxx [--gender both] [--grid auto] [--force]`。`ark_client.js` 新增 `postChatCompletion`（OpenAI 兼容 /chat/completions）供质检复用。
+
+## 完善记录（2026-09-19 统一方法论 P0 落地）
+
+- **BGM 声音层（P0-3，借鉴 ManjuForge 声音四层设计）**：`merge_engine.js` 新增 `mixBgm()` +
+  `hasAudioStream()`，`--bgm <path>` 参数三处联动（parseArgs/help/merge options）。
+  成片若有原声：BGM 以 0.28 音量 amix 垫底 + loudnorm −14 LUFS；若无原声：BGM 成为音轨。
+  循环铺满、淡入 1.5s/淡出 2.5s；混音失败仅告警、不影响原片。
+- **预算防线（P0-2）**：`validateInputs()` 配置面板新增 Estimate 行——按朝代数估算
+  图像调用（肖像 ×2 + 场景 ×1）与视频调用（N × duration），并给出整片耗时区间。
+
+## 完善记录（2026-09-19 补课轮：BGM 情绪弧）
+- **BGM 情绪弧（P0-3 补全）**：`--bgm` 默认 `auto`——13 朝代 dynasties.js 各配 `mood` 字段
+  （majestic/solemn/tense/serene/lush/nostalgic/warm），`bgm_arc.js` 按 mood 分段选曲、
+  段间 0.8s 淡入淡出拼接成整条情绪弧；成片有原声时 `sidechaincompress` 自动避让
+  （人声压 BGM，标题卡/转场处原声静默 → 音乐自然浮起）。
+- **内置曲库**：`bgm/manifest.json` 声明 mood→曲目（`bgm/<mood>.mp3`，自备放入即生效）；
+  缺文件时按和弦参数用 ffmpeg lavfi 合成 64s 环境垫乐占位（零新增依赖，可听但简单）。
+- **`--dry-run` / `--no-bgm`**：dry-run 全链路（合并+情绪弧+混音）只打印 ffmpeg 命令不执行。

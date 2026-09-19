@@ -12,6 +12,7 @@
 const DYNASTIES = [
   {
     id: "xia",
+    mood: "majestic",
     name: "夏",
     eraTheme: "华夏初光",
     eraYears: "c.2070–1600 BCE",
@@ -50,6 +51,7 @@ const DYNASTIES = [
   },
   {
     id: "xizhou",
+    mood: "solemn",
     name: "西周",
     eraTheme: "礼乐天下",
     eraYears: "1046–771 BCE",
@@ -88,6 +90,7 @@ const DYNASTIES = [
   },
   {
     id: "warring",
+    mood: "tense",
     name: "战国",
     eraTheme: "烽火佳人",
     eraYears: "475–221 BCE",
@@ -135,6 +138,7 @@ const DYNASTIES = [
   },
   {
     id: "han",
+    mood: "majestic",
     name: "汉",
     eraTheme: "大汉雄风",
     eraYears: "202 BCE–220 CE",
@@ -173,6 +177,7 @@ const DYNASTIES = [
   },
   {
     id: "jin",
+    mood: "serene",
     name: "晋",
     eraTheme: "魏晋风流",
     eraYears: "265–420",
@@ -211,6 +216,7 @@ const DYNASTIES = [
   },
   {
     id: "nanbeichao",
+    mood: "serene",
     name: "南北朝",
     eraTheme: "乱世情缘",
     eraYears: "420–589",
@@ -249,6 +255,7 @@ const DYNASTIES = [
   },
   {
     id: "tang",
+    mood: "lush",
     name: "唐",
     eraTheme: "大唐盛世",
     eraYears: "618–907",
@@ -293,6 +300,7 @@ const DYNASTIES = [
   },
   {
     id: "song",
+    mood: "serene",
     name: "宋",
     eraTheme: "宋韵清雅",
     eraYears: "960–1279",
@@ -331,6 +339,7 @@ const DYNASTIES = [
   },
   {
     id: "yuan",
+    mood: "majestic",
     name: "元",
     eraTheme: "草原雄鹰",
     eraYears: "1271–1368",
@@ -369,6 +378,7 @@ const DYNASTIES = [
   },
   {
     id: "ming",
+    mood: "solemn",
     name: "明",
     eraTheme: "凤冠霞帔",
     eraYears: "1368–1644",
@@ -413,6 +423,7 @@ const DYNASTIES = [
   },
   {
     id: "qing",
+    mood: "lush",
     name: "清",
     eraTheme: "满汉情深",
     eraYears: "1644–1912",
@@ -451,6 +462,7 @@ const DYNASTIES = [
   },
   {
     id: "minguo",
+    mood: "nostalgic",
     name: "民国",
     eraTheme: "十里洋场",
     eraYears: "1912–1949",
@@ -489,6 +501,7 @@ const DYNASTIES = [
   },
   {
     id: "modern",
+    mood: "warm",
     name: "现代",
     eraTheme: "永恒誓言",
     eraYears: "1949–Present",

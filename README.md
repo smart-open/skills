@@ -1,12 +1,12 @@
 ﻿# AI Skills 工程集合
 
-> 一套面向 AI 多媒体创作的 Skills 集合 — 涵盖文生图、图生图、文生视频、图生视频、AI 音乐、跨朝代婚礼电影、脱口秀视频、技术文章、学习手册、企业门户、A 股量化分析与技能数据抓取，以及战略思考与决策。
+> 一套面向 AI 多媒体创作的 Skills 集合 — 涵盖文生图、图生图、文生视频、图生视频、AI 音乐、电影级音乐 MV、爆款短剧、跨朝代婚礼电影、脱口秀视频、技术文章、学习手册、企业门户、A 股量化分析与技能数据抓取，以及战略思考与决策。
 
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-21-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-24-orange)]()
 
 ---
 
@@ -38,7 +38,7 @@
 
 ## 简介
 
-本工程聚合了 **21 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、全网深度画像、A 股操盘分析、首板洗盘选股、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、个人开发分身、战略思考与决策、技能数据抓取**。
+本工程聚合了 **24 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、电影级音乐 MV、爆款短剧、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、全网深度画像、A 股操盘分析、首板洗盘选股、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、个人开发分身、战略思考与决策、技能数据抓取**。
 
 **核心亮点：**
 
@@ -61,6 +61,8 @@
 |------|-----------|---------|---------|---------|
 | `agnes-image-gen-2` | Agnes Image 2.5 Flash 电影级图片生成（文生图 / 图生图） | Agnes Image API | Node.js 12+ | 单张约 10–30 秒 |
 | `agnes-video-gen-2` | Agnes Video 2.5 Flash 电影级视频生成（4 种工作流） | Agnes Video API | Node.js 12+ | 单段约 1–5 分钟 |
+| `cinematic-music-video` | 电影级音乐 MV 制作（七维角色档案 + 地点锚点 + 逐镜身份门禁 + 帧精确拼接） | Agnes Text/Image/Video API + FFmpeg | Node.js 18+、FFmpeg | 单支 MV 视镜头数而定（24 秒小样实测约 8 分钟） |
+| `short-drama-studio` | 爆款短剧成片工作台（剧本→分镜→关键帧→首尾帧视频→配音字幕→成片） | Agnes Text/Image/Video API + FFmpeg | Python 3.10+（requests）、FFmpeg（全功能构建） | 单部短剧视镜头数而定（各阶段可断点续跑） |
 | `timeless-wedding` | 跨时空婚礼电影生成器（Agnes + FaceFusion 换脸） | Agnes API + FaceFusion + FFmpeg | Node.js 12+、Python 3.10+（可选）、FFmpeg 4.4+ | 2 朝代约 10–15 分钟，4 朝代约 20–30 分钟 |
 | `timeless-wedding-volc` | 基于 Volcengine Ark 的跨时空婚礼电影生成器 | 火山方舟 Ark API + FFmpeg | Node.js 12+、FFmpeg 4.4+ | 4 朝代约 15–25 分钟 |
 | `suno-cn-music` | Suno.cn AI 音乐创作助手（8 个 REST API） | Suno.cn API | 无（HTTP REST 调用） | 单首约 1–3 分钟 |
@@ -96,6 +98,16 @@ skills/
 ├── agnes-video-gen-2/                 # 电影级视频生成
 │   ├── SKILL.md
 │   └── scripts/agnes_video_gen.js
+├── cinematic-music-video/             # 电影级音乐 MV 制作
+│   ├── SKILL.md
+│   ├── templates/keys.example.txt     # Key 文件模板（真实 keys.txt 不入库）
+│   ├── scripts/                       # plan/images/videos/assemble + lib/（paths.js 路径唯一真源）
+│   └── test/                          # 四套零 API 离线自检（路径契约/组装/档案/资产管线）
+├── short-drama-studio/                # 爆款短剧成片工作台
+│   ├── README.md / SKILL.md
+│   ├── references/                    # 创作手册 / Agnes API / 视觉圣经 / Schema
+│   ├── assets/templates/              # production_template.json 工程模板
+│   └── scripts/                       # 编剧→分镜→关键帧→单镜视频→配音→成片
 ├── timeless-wedding/                 # 跨时空婚礼电影（Agnes + FaceFusion）
 │   ├── SKILL.md
 │   └── scripts/
@@ -202,12 +214,7 @@ skills/
 │   ├── skillstore-fetcher/
 │   └── smithery-skill-fetcher/
 │
-└── demo/                              # 各技能生成效果示例（不纳入版本控制）
-    ├── comedy_show.mp4
-    ├── timeless_wedding_movie.mp4
-    ├── timeless_wedding_volc_movie.mp4
-    ├── corp-site/                     # 企业门户示例
-    └── mingzhong-machinery/           # 企业门户示例（制造业）
+└── docs/                              # 战略调研报告与行动计划文档（不纳入版本控制）
 ```
 
 ---
@@ -369,6 +376,38 @@ node agnes-video-gen-2/scripts/agnes_video_gen.js \
 ```
 
 > `num_frames` 必须满足 `8n+1` 规则且 ≤441。推荐两步式流程：`--url-only` 获取 URL（长进程），再下载并设只读。
+
+---
+
+#### 2a. cinematic-music-video — 电影级音乐 MV 制作
+
+把「一首歌 + 歌词」变成电影质感的音乐 MV。**七维度角色档案**（三视图 / 五官 / 发型结构 / 服装层次 / 表情库 / 标志动作 / 场景气质）先定全再写分镜，**地点资产库**为每个反复出现的地点生成无人空镜锚点图锁定场景一致性，逐镜头**身份门禁 + 带差异清单自动重画**，最后 ffmpeg 按帧精确拼接并混入原声（恒定帧率、零漂移、歌词字幕可选烧录）。
+
+```bash
+node cinematic-music-video/scripts/run.js \
+  --song "夜曲.mp3" --lyrics "夜曲.lrc" \
+  --brief "创作要求" --style "霓虹雨夜" --aspect 16:9 --shots 26 \
+  --keys "sk-aaa,sk-bbb"
+```
+
+**四阶段流水线：** `plan.js`（分镜规划）→ `images.js`（设定表 + 反读参数 + 逐镜首帧）→ `videos.js`（图生视频 + 运动量门禁）→ `assemble.js`（帧精确拼接 + 质量门禁），可断点续跑、支持分阶段审查。四套零 API 离线自检（`node test/paths.js` 等）共 170+ 断言。
+
+> **产物落点**：统一写到当前会话工作目录的 `out/mv-<歌名>/`，不写回技能目录；`CMV_OUT_DIR` 可整体改根。
+
+---
+
+#### 2b. short-drama-studio — 爆款短剧成片工作台
+
+把一个故事 / 主题 / 一句话想法变成可直接发布的 3–5 分钟（18–30 个 10 秒分镜）竖屏短剧：**剧本 → 分镜 → 角色圣经 + 多图合成定妆照 → N+1 张共享边界关键帧 → 首尾帧图生视频 → TTS 配音 + 字幕 → 成片**。人物长相、声音、场景跨镜头一致由「角色圣经 + 定妆照 + 帧链闭合」三层锁定；钩子开头、结尾悬念、伏笔回收由创作手册硬性约束。
+
+**7 阶段工作流（3 个人工确认点）：** 编剧 → 分镜与工程文件 → 定妆照 → 关键帧 → 单镜视频 → 配音字幕 → 成片，各阶段可断点续跑、逐镜跳过已完成产物。
+
+```bash
+# 前置自检
+python short-drama-studio/scripts/agnes_client.py ping
+```
+
+> **产物落点**：所有产物落在工程目录（`production.json` 所在目录）的 `out/` 下，与技能源码分离；详见 `short-drama-studio/SKILL.md`。
 
 ---
 
@@ -937,6 +976,8 @@ timeless-wedding 和 timeless-wedding-volc 均支持以下 13 个中国历史朝
 |------|---------|------|
 | 生成一张精美 AI 图片 | `agnes-image-gen-2` | 电影级画质，文生图 / 图生图 |
 | 生成一段 AI 视频 | `agnes-video-gen-2` | 4 种工作流，灵活选择 |
+| 把一首歌做成电影级 MV | `cinematic-music-video` | 七维角色档案 + 地点锚点 + 逐镜身份门禁，帧精确拼接混原声 |
+| 把一个想法做成 3–5 分钟短剧 | `short-drama-studio` | 角色圣经 + 首尾帧链 + 配音字幕，人物/声音/场景跨镜一致 |
 | 创作一首 AI 音乐 | `suno-cn-music` | 8 个 API，全流程覆盖 |
 | 下载已有歌曲（MP3 + 歌词） | `music-downloader` | 5 平台回退，批量下载，自动歌词 |
 | 婚礼电影 — 需高面部相似度 | `timeless-wedding` | FaceFusion 换脸 80%+ |

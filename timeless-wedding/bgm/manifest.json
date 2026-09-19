@@ -1,0 +1,13 @@
+{
+  "version": 1,
+  "note": "BGM 情绪弧曲库：把对应 mp3 放入 bgm/ 目录即启用真实配乐；缺文件时按 synth 参数用 ffmpeg 合成环境垫乐占位（可听但简单，建议自备曲目）。mood 对应 dynasties.js 中每朝代的 mood 字段。",
+  "moods": {
+    "majestic":  { "file": "bgm/majestic.mp3",  "label": "恢弘", "synth": { "freqs": [110, 165, 220], "tremolo": 0.3 },  "used_by": ["xia", "han", "yuan"] },
+    "solemn":    { "file": "bgm/solemn.mp3",    "label": "庄重", "synth": { "freqs": [98, 147, 196], "tremolo": 0.2 },   "used_by": ["xizhou", "ming"] },
+    "tense":     { "file": "bgm/tense.mp3",     "label": "紧张", "synth": { "freqs": [123, 185, 233], "tremolo": 1.1 },  "used_by": ["warring"] },
+    "serene":    { "file": "bgm/serene.mp3",    "label": "清雅", "synth": { "freqs": [131, 196, 262], "tremolo": 0.25 }, "used_by": ["jin", "nanbeichao", "song"] },
+    "lush":      { "file": "bgm/lush.mp3",      "label": "华丽", "synth": { "freqs": [147, 220, 294], "tremolo": 0.4 },  "used_by": ["tang", "qing"] },
+    "nostalgic": { "file": "bgm/nostalgic.mp3", "label": "缠绵", "synth": { "freqs": [117, 176, 233], "tremolo": 0.3 },  "used_by": ["minguo"] },
+    "warm":      { "file": "bgm/warm.mp3",      "label": "温馨", "synth": { "freqs": [131, 196, 260], "tremolo": 0.35 }, "used_by": ["modern", "title", "ending"] }
+  }
+}

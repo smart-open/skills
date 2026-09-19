@@ -99,6 +99,8 @@ function parseArgs(argv) {
     frameRate: 24,
     generatePortraits: false,
     useI2IFrames: true,
+    bgm: "auto",
+    dryRun: false,
   };
   const map = {
     "--male-photo": "malePhoto",
@@ -112,12 +114,15 @@ function parseArgs(argv) {
     "--work-dir": "workDir",
     "--num-frames": "numFrames",
     "--frame-rate": "frameRate",
+    "--bgm": "bgm",
   };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === "--add-title") { args.addTitle = true; continue; }
     if (a === "--add-ending") { args.addEnding = true; continue; }
     if (a === "--resume") { args.resume = true; continue; }
+    if (a === "--dry-run") { args.dryRun = true; continue; }
+    if (a === "--no-bgm") { args.bgm = null; continue; }
     if (a === "--no-face-swap") { args.noFaceSwap = true; continue; }
     if (a === "--generate-portraits") { args.generatePortraits = true; continue; }
     if (a === "--use-i2i-frames") { args.useI2IFrames = true; continue; }
@@ -170,6 +175,10 @@ function printHelp() {
     "  --frame-rate <n>           Video frame rate (default: 24)\n" +
     "  --generate-portraits       Generate i2i portrait photos for each dynasty\n" +
     "  --use-i2i-frames           Use i2i to generate scene frames from user photos\n" +
+    "  --bgm <path|auto>          BGM soundtrack: auto = mood arc per dynasty (default),\n" +
+    "                             <path> = user-provided music file\n" +
+    "  --no-bgm                   Disable BGM soundtrack\n" +
+    "  --dry-run                  Print all ffmpeg commands without executing\n" +
     "  --help, -h                 Show this help\n\n" +
     "Dynasty IDs:\n" +
     "  xia, xizhou, warring, han, jin, nanbeichao,\n" +
@@ -463,14 +472,28 @@ class CrossEraWedding {
 
       console.log("  [" + d.name + "] Generating scene frame...");
       const outPath = path.join(this.framesDir, d.id + "_scene.jpg");
-      const prompt = d.imagePromptTemplate;
       const size = "1152x768";
       const apiKeyArg = this.apiKey ? " --api-key " + this.apiKey : "";
 
+      // [方法论借鉴 short-drama-studio：定妆照先行 + 参考基准统一]
+      // 场景帧的 i2i 参考优先用本朝代男方定妆照（已穿朝代服装、身份已锁定），
+      // 而非原始现代照片——参考图与目标场景的语义差距越小，人脸漂移越少；
+      // 缺定妆照时回退原始照片（老行为）。
+      const malePortrait = path.join(this.portraitsDir, d.id + "_male.jpg");
+      const refImage = fs.existsSync(malePortrait) ? malePortrait : this.args.malePhoto;
+      if (refImage === malePortrait) {
+        console.log("  [" + d.name + "] Using dynasty male portrait as i2i reference (identity pre-locked).");
+      }
+      // [identity-lock] 场景帧 prompt 追加身份锚点：男方以参考照为准，女方按朝代特征写死，
+      // 并强调两人面容在整个画面中保持一致（Agnes i2i 单参考限制下最大程度锁脸）
+      const identityAnchor =
+        " The man's face must keep the exact same facial features, face shape and skin tone as the reference photo, no beautification, no face drift. " +
+        "Both the man and the woman keep the same faces throughout the frame, no extra people.";
+      const prompt = d.imagePromptTemplate + identityAnchor;
       let cmd;
       if (this.args.useI2IFrames) {
-        // Use male photo as reference for i2i, prompt describes the couple scene
-        cmd = `node "${IMAGE_GEN_SCRIPT}" --mode i2i --image "${this.args.malePhoto}" --prompt "${prompt}" --size ${size} --output "${outPath}"${apiKeyArg}`;
+        // Use male portrait (preferred) or male photo as i2i reference for the couple scene
+        cmd = `node "${IMAGE_GEN_SCRIPT}" --mode i2i --image "${refImage}" --prompt "${prompt}" --size ${size} --output "${outPath}"${apiKeyArg}`;
       } else {
         cmd = `node "${IMAGE_GEN_SCRIPT}" --mode t2i --prompt "${prompt}" --size ${size} --output "${outPath}"${apiKeyArg}`;
       }
@@ -493,6 +516,17 @@ class CrossEraWedding {
     if (this.args.regenerate) {
       delete this.state.swappedFrames[this.args.regenerate];
       delete this.state.uploadedFrames[this.args.regenerate];
+      // [方法论借鉴 short-drama-studio：版本归档] 旧朝代视频归档到 videos/versions/ 再重建
+      const oldVideo = this.state.videos[this.args.regenerate];
+      if (oldVideo && fs.existsSync(oldVideo)) {
+        try {
+          const versionsDir = path.join(this.videosDir, "versions");
+          fs.mkdirSync(versionsDir, { recursive: true });
+          const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+          fs.renameSync(oldVideo, path.join(versionsDir, this.args.regenerate + "_" + ts + ".mp4"));
+          console.log("  [归档] 旧视频 → videos/versions/" + this.args.regenerate + "_" + ts + ".mp4");
+        } catch (e) { /* best-effort */ }
+      }
       delete this.state.videos[this.args.regenerate];
       this.saveState();
     }
@@ -844,6 +878,11 @@ class CrossEraWedding {
     console.log("  Using xfade cross-dissolve transitions.");
     await this.mergeWithXfade(allInputs, outPath);
 
+    // P0-3: optional BGM soundtrack (final concat is silent `-an`, BGM becomes the soundtrack)
+    if (this.args.bgm) {
+      this.mixBgm(outPath, this.args.bgm);
+    }
+
     this.state.outputPath = outPath;
     this.state.step = "merged";
     this.saveState();
@@ -986,6 +1025,38 @@ class CrossEraWedding {
   }
 
   // ---- Run full pipeline ----
+  // ---- P0-3: BGM soundtrack ----
+  // Final concat output is silent (`-an`), so BGM becomes the soundtrack:
+  // loop to full length, volume 0.28, fade in 1.5s / fade out 2.5s, loudnorm -14 LUFS.
+  // Failure keeps the silent original (warning only).
+  mixBgm(videoPath, bgmPath, dryRun) {
+    if (!fs.existsSync(bgmPath)) {
+      console.error("  Warning: BGM file not found, skipping: " + bgmPath);
+      return;
+    }
+    console.log("  Mixing BGM soundtrack: " + bgmPath);
+    const dur = getDuration(videoPath);
+    const fadeStart = Math.max(0, dur - 2.5);
+    const tmpOut = path.join(this.tempDir, "bgm_mixed.mp4");
+    const cmd =
+      `"${FFMPEG}" -i "${videoPath}" -stream_loop -1 -i "${bgmPath}" ` +
+      `-filter_complex "[1:a]volume=0.28,afade=t=in:st=0:d=1.5,afade=t=out:st=${fadeStart.toFixed(2)}:d=2.5,loudnorm=I=-14:TP=-1.5:LRA=11[aout]" ` +
+      `-map 0:v -map "[aout]" -t ${dur.toFixed(3)} ` +
+      `-c:v copy -c:a aac -b:a 192k -movflags +faststart -y "${tmpOut}"`;
+    if (dryRun) {
+      console.log("  [dry-run] BGM mix command:");
+      console.log("    " + cmd);
+      return;
+    }
+    try {
+      execSync(cmd, { encoding: "utf-8", stdio: "ignore" });
+      fs.renameSync(tmpOut, videoPath);
+      console.log("  BGM mixed into final output (-14 LUFS).");
+    } catch (e) {
+      console.error("  Warning: BGM mix failed, output stays silent: " + e.message.split("\n")[0]);
+    }
+  }
+
   async run() {
     console.log("Timeless Wedding Movie Generator");
     console.log("=================================");
@@ -993,6 +1064,23 @@ class CrossEraWedding {
     console.log("Dynasties: " + this.dynasties.map((d) => d.name).join(", "));
     console.log("Work dir: " + this.workDir);
     console.log("Face swap: " + (this.args.noFaceSwap ? "disabled" : (this.detectFaceFusion() ? "enabled" : "unavailable")));
+    if (this.args.bgm) {
+      console.log("BGM: " + (this.args.bgm === "auto" ? "auto（按朝代情绪弧分段）" : this.args.bgm));
+    } else {
+      console.log("BGM: off");
+    }
+    if (this.args.dryRun) {
+      console.log("DRY-RUN: 只打印 ffmpeg 命令，不执行、不消耗额度");
+    }
+    // [预算防线 P0] 生成前报预估：调用次数与耗时量级
+    const nDyn = this.dynasties.length;
+    const secsPer = (this.args.numFrames / this.args.frameRate).toFixed(1);
+    console.log(
+      "Estimate: " + nDyn + " scene images" +
+      (this.args.generatePortraits ? " + " + nDyn * 2 + " portraits" : "") +
+      " + " + nDyn + " videos (each ~" + secsPer + "s)" +
+      "; expect ~" + Math.round(nDyn * 3) + "-" + Math.round(nDyn * 6) + " minutes total"
+    );
 
     await this.generatePortraits();
     await this.generateFrames();

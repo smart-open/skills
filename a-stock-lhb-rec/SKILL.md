@@ -26,6 +26,7 @@ disable-model-invocation: false
 ## 能力说明
 
 - **盘后推荐**：每个交易日 17:00 后，拉取当日龙虎榜，用当前模型对全部上榜股输出 `P(T+3涨停)` 并排序，给出「纳入观察」候选（满足 主线+连板+净买比+优质买方+未过度透支）。
+- **低位连板聚焦（执行层）**：在全量 Top20 之上再叠一层过滤 —— 剔除**高度板（≥3板）**与今日未涨停上榜，只留「刚刚 1-2 板」，按综合分给 **Top5**。全量 Top20 保留供自学习/回测，聚焦清单供人执行（`daily` 自动产出）。
 - **三维归因**：个股技术 × 席位手法 × 行情研判，可解释（逻辑回归评分卡）。
 - **席位画像**：自动构建游资席位画像（打板/低吸/接力风格、EB 收缩综评、样本可信度），含紫阳东路专项解读。
 - **自我进化**：`optimize` 补最新实际结果 → 重训 → 时间外 AUC 不劣于当前则版本 +1，轨迹写入 `model_history.json`；`verify` 逐日核对推荐命中率。
@@ -81,10 +82,24 @@ py scripts/run.py daily 2026-08-28 # 指定日
 ```bash
 py scripts/run.py recommend 2026-08-28   # 单日推荐(不抓数据, 用缓存)
 py scripts/run.py verify 2026-08-28      # 验证某日推荐命中(需 T+1..T+3 已可得)
+py scripts/run.py focus 2026-09-15 5     # 低位连板聚焦: 剔除高度板, 1-2板综合分 TopN(缺省5)
 py scripts/run.py optimize               # 手动触发自我进化重训
 py scripts/run.py report                 # 重新生成报告(生成后自动触发自我学习)
 py scripts/run.py train                   # 仅重训(不抓数据)
 ```
+
+## 低位连板聚焦（1-2 板，执行层）
+
+> 全量 Top20 用于**自学习/回测**足够，但给人看太多。`focus` 在其上再叠一层可执行过滤：
+> 剔除**高度板（≥3 板）**与**今日未涨停上榜**，只留「刚刚 1-2 板」，按综合分给 TopN（缺省 5）。
+> `daily` 已内嵌该步骤，每天自动产出 `低位连板聚焦-{日期}.md`，无需单独调用。
+
+**综合分口径**（各分量归一化到 0~1，可解释）：
+`0.40×P + 0.20×净买比 + 0.18×质量(主线/游资) + 0.12×换手健康 + 0.10×位置 − 透支惩罚 − 纯机构主买惩罚`
+
+- 换手健康：2%~16% 理想；`<2%` 缩量惜售略扣；`>16%` 递减，`>25%` 加速扣分。
+- 惩罚：前3日透支 ≥35% 扣 0.25、25~35% 扣 0.12；纯机构主买 扣 0.18。
+- 连板高度由 K 线**逐日向前真实判定**（非 `CONSEC_ZT` 的「近3日涨停天数」上限3 口径），可区分 1 板 / 2 板 / ≥3 板。
 
 ## 自进化机制（为什么越来越准）
 
@@ -115,6 +130,7 @@ py scripts/run.py train                   # 仅重训(不抓数据)
 | 特征集 | `scripts/dataset.py`（build_all/build_date，因果特征+统一K线标签）→ `a-stock-lhb-rec/data/model_data_t3.csv` |
 | 训练+版本 | `scripts/train.py` → `a-stock-lhb-rec/model/model_t3.joblib` + `model_meta_t3.json` + `a-stock-lhb-rec/model_history.json` |
 | 每日推荐 | `scripts/recommend.py` → `a-stock-lhb-rec/recommend_{日期}.csv` |
+| 低位聚焦 | `scripts/focus.py` → 剔高度板/只留1-2板 → `低位连板聚焦-{日期}.md` + `a-stock-lhb-rec/focus_{日期}.csv` |
 | 验证 | `scripts/verify.py` → `a-stock-lhb-rec/verify_history.csv` |
 | 自我进化 | `scripts/optimize.py`（抓新数据→重训→版本决策） |
 | 报告 | `scripts/report.py` → `龙虎榜T+3涨停推荐模型报告-{YYYY-MM-DD}.md`（落 `<cwd>` 根目录） |
@@ -127,6 +143,19 @@ py scripts/run.py train                   # 仅重训(不抓数据)
 
 ## 变更日志
 
+- **v1.4.0（2026-09-15）· 新增「低位连板聚焦」（1-2 板 TopN，执行层）**
+  - 背景：每日全量 Top20 用于自学习足够，但直接给人看太多、且头部常被高位连板（≥3 板）占据，接力风险大。
+  - 新增 `scripts/focus.py` + `run.py focus [DATE] [N]`：硬剔除 **≥3 板高度板** 与 **今日未涨停上榜**，只留 1-2 板，按综合分给 TopN（缺省 5）。
+  - 综合分：`0.40×P + 0.20×净买比 + 0.18×质量(主线/游资) + 0.12×换手健康 + 0.10×位置 − 透支惩罚 − 纯机构主买惩罚`。
+  - 连板高度改用 K 线**逐日向前真实判定**（`consec_boards`），修正 `CONSEC_ZT`「近3日涨停天数、上限3」无法区分 1 板/2 板的局限。
+  - `daily`/`init` 已内嵌该步骤，自动产出 `低位连板聚焦-{日期}.md`；全量 Top20 照常保留供自学习。
+- **v1.3.3（2026-09-10）· 修复 daily 回溯窗口对同一交易日的重复验证**
+  - 缺陷：`cmd_daily` 按自然日回退 4~10 天且跳过周末，同一批次会被多个 back 值回退到同一天（如 9-10 跑批时 9-04 批次被重复验证 3 次）。数据无损（按 date 去重覆盖）但浪费计算与日志冗余。
+  - 修复：回溯循环加 `seen_dates` 集合按交易日去重。
+- **v1.3.2（2026-09-09）· 修复 verify 闭环断裂（历史推荐票 K 线不刷新）**
+  - 缺陷：`daily` 只对「当日新上榜股」增量拉 K 线，历史推荐票的 K 线缓存停滞在推荐日 T+1 → verify 的 T+2/T+3 收盘价永远缺失，永远判定「尚未结算」，实际命中无法回填，模型无法吸收真实结果。
+  - 修复：`pipeline.py` 新增 `refresh_kline()`（强制重拉 + 按日期合并去重，保留接口 200 条窗口外历史）与 `recent_watch_codes()`（近 10 个交易日上榜股 + 全部 recommend 文件中的票）；`fetch_latest()` 每日抓取后自动刷新，失败不阻断主流程。
+  - 首批回填（2026-09-03 弱市批次）：T+3 命中 19.6%（9/46）、T+1 命中 10.9%（弱市批次，符合「弱市失效」已知局限）；116 条真实标签解锁触发重训 → v7（同测试集 AUC 0.701 vs 旧 0.694，接受）。
 - **v1.3.0（2026-09-04）· 基于 90 交易日 PIT 回溯诊断的模型优化**
   - 去共线：训练特征移除 `CHANGE_RATE`（与 SEAL_STRENGTH r=0.94）、`THEME_MAIN`（与 THEME_STRENGTH r=0.69）、`LOW_XI`（与 REASON_跌幅偏离 完全重复），消除系数互相抵消导致的方向失真。
   - 方向先验：按真实 T+3 单因子 AUC 锁定 `SEAL_STRENGTH/CONSEC_ZT/LB_FLAG/NET_BUY_RATIO/IS_LIMIT_UP/THEME_STRENGTH` 为正、`BUYER_MEAN_SCORE/HAS_INST/SELLER_MEAN_SCORE/TURNOVERRATE` 为负（符号冲突归零）；`BUYER_TOP_SCORE` 权重收缩至 30%（原 -0.187 过强）。

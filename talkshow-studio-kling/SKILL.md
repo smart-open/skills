@@ -183,7 +183,13 @@ work/<session>/
 ## Agent 执行规范（供调用本技能的 AI 遵循）
 
 1. **验收输入**：简稿 < 50 字要提示用户扩稿；演员图要求面部清晰、正面、≤10MB、宽高比 1:2.5~2.5:1
-2. **分镜评审**：跑完阶段二后向用户展示 `storyboard.md` 要点（镜数/总时长/笑点分布），用户确认再批量生成（可选）
+2. **脚本创作前置（可选）**：用户只有主题没有成稿时，先跑 `node scripts/draft.js --topic "<主题>"`——
+   读 `scripts/kb/`（framework/triggers/styles/hot 四知识库）一题 5 角度出稿，产出
+   `work/drafts/<时间戳>/drafts.md` 供用户选稿；选中的 script 全文存 txt 后作为 `--script-file` 输入
+   （可灵版无内置 LLM，draft.js 走 TEXT_API_KEY/TEXT_BASE_URL 的 OpenAI 兼容接口，默认 agnes-3.0-flash）
+3. **预算播报（预算防线）**：阶段二完成后、批量生成前，必须向用户播报制作预估
+   （镜数 × 单镜秒数 × 可灵刊例价；可灵按量计费，务必先确认再投放）
+4. **分镜评审**：跑完阶段二后向用户展示 `storyboard.md` 要点（镜数/总时长/笑点分布），用户确认再批量生成（可选）
 3. **首批 QC**：S01/S02 生成后提示用户核对人物一致性（漂移判定：脸型变/换装=重拍；发型微变=可接受）
 4. **交付**：成片 + qc_report.md 一起交付
 5. **URL 传参**：在 Git Bash 中传 URL 参数时使用 `MSYS_NO_PATHCONV=1`（防路径转换）；脚本已内置 URL 反斜杠自愈
@@ -224,3 +230,24 @@ work/<session>/
 ## 分发规范
 
 打包仅含 `SKILL.md` + `scripts/`（剥离 work/、output/ 等运行时产物；技能内不含任何凭据文件）。
+
+## 完善记录（2026-09 借鉴 short-drama-studio 一致性方法论）
+
+- **identity-lock 身份锁定段**：`prompts.js` 新增 `IDENTITY_LOCK` 常量，每镜视频 prompt 在一致性锚点之后逐字注入。可灵版仅单首帧参考、更依赖合成图质量，身份锁定尤其重要——不可变身份锚点（脸型/五官/发型发色/肤色）与本场可变项（表情/动作/光线/景别）分离，强识别特征在任何景别/光线/角度下必须保留，且每镜与首帧画面对应。
+- **默认演员强识别特征锚点**：`DEFAULT_ACTOR_DESC` 增加"左眼角下方一颗明显的小痣"作为跨镜认脸锚点；`stageCompositePrompt`（演员图参考分支）同步强调"强识别特征必须原样保留，不得删除或移位"。
+- **重拍版本归档（archive_old_file）**：`talkshow_produce.js` 在 `--regenerate` 时把旧分镜视频归档到 `videos/versions/`（保留最近 3 版，可对比可回滚）；生成循环结束后自动清扫 `videos/` 中不被 `state.json` 引用的残留旧命名文件。
+- **多模态自动质检（qa_shots.js，借鉴 qa_frames.py）**：对每个已完成分镜视频抽帧（默认 2 帧），把「演员+舞台合成图（全片首帧基准）+ 抽帧」喂给 OpenAI 兼容视觉模型（`--qa-api-key/TEXT_API_KEY/AGNES_API_KEY`，默认 `agnes-3.0-flash`），按固定 JSON 维度判定：硬性通过 `face_match / feature_match / hair_match / outfit_match / mic_check / scene_match`，硬性排除 `extra_person / extra_hands / watermark_or_text`。输出 `work/shot_qa.json`；`--delete-bad` 归档坏镜头到 `videos/versions/` 并清 state，`--resume --regenerate <n>` 补拍。用法：`node qa_shots.js --work-dir work/xxx [--only S03,S05] [--delete-bad] [--offline]`。
+
+## 完善记录（2026-09-19 统一方法论 P0 落地）
+
+- **脚本创作知识库（scripts/kb/，与 talkshow-studio 同步）**：`framework.md`（3 种爆款叙事结构）、
+  `triggers.md`（8 类心理触发点）、`styles.md`（5 种人设 + 禁用词清单）、`hot.md`（热点库占位）。
+- **一题 5 角度出稿（scripts/draft.js）**：与 talkshow-studio 版完全同源；走 TEXT_API_KEY/TEXT_BASE_URL
+  的 OpenAI 兼容接口（默认 agnes-3.0-flash），输出 `<cwd>/talkshow-studio-kling/out/drafts/<时间戳>/drafts.json + drafts.md`（跟随会话工作目录）。
+- **预算防线**：Agent 执行规范新增"阶段二后播报制作预估"必选项（可灵按量计费，先确认后投放）。
+
+## 完善记录（2026-09-19 补课轮：kb 单源化）
+- **kb 单源化**：本技能不再自带 `scripts/kb/` 副本；`draft.js`（与 talkshow-studio 同源）
+  按 `--kb-dir` → 本地 → 同级 `talkshow-studio/scripts/kb/` 回退链加载知识库。
+  更新 kb 内容只需改 talkshow-studio 一处。draft.js 输出默认
+  `<cwd>/talkshow-studio-kling/out/drafts/<时间戳>`（跟随会话工作目录）。

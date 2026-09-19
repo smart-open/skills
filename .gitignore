@@ -43,3 +43,10 @@ a-stock-yiyangzhi/output/
 
 # 编辑器/IDE 目录
 .trae/
+
+# 技能 out/ 契约产物（视频技能统一输出根）
+out/
+*/out/
+
+# music-downloader 默认下载目录（跟随会话 cwd）
+music_download/

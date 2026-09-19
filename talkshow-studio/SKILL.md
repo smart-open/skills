@@ -171,7 +171,13 @@ work/<session>/
 ## Agent 执行规范（供调用本技能的 AI 遵循）
 
 1. **验收输入**：简稿 < 50 字要提示用户扩稿；演员图要求面部清晰、正面；舞台图 ≥ 1024px
-2. **分镜评审**：跑完阶段二后向用户展示 `storyboard.md` 要点（镜数/总时长/笑点分布），用户确认再批量生成（可选）
+2. **脚本创作前置（可选）**：用户只有主题没有成稿时，先跑 `node scripts/draft.js --topic "<主题>"`——
+   读 `scripts/kb/`（framework/triggers/styles/hot 四知识库）一题 5 角度出稿
+   （干货效率/痛点共鸣/悬念反转/对比冲击/热点借势），产出 `work/drafts/<时间戳>/drafts.md`
+   供用户选稿；选中的 script 全文存 txt 后作为 `--script-file` 输入
+3. **预算播报（预算防线）**：阶段二完成后、批量生成前，必须向用户播报制作预估
+   （镜数 × 单镜秒数 × ¥0.15/s 刊例价；Agnes 限时免费期实际 ¥0，仍要提示限流 1 次/分钟）
+4. **分镜评审**：跑完阶段二后向用户展示 `storyboard.md` 要点（镜数/总时长/笑点分布），用户确认再批量生成（可选）
 3. **首批 QC**：S01/S02 生成后提示用户核对人物一致性（漂移判定：脸型变/换装=重拍；发型微变=可接受）
 4. **交付**：成片 + qc_report.md 一起交付，报告人工清单供用户勾选
 5. **URL 传参**：在 Git Bash 中传 URL 参数时使用 `MSYS_NO_PATHCONV=1`（防路径转换）；脚本已内置 URL 反斜杠自愈
@@ -217,3 +223,30 @@ work/<session>/
 ## 分发规范
 
 打包仅含 `SKILL.md` + `scripts/`（剥离 work/、output/ 等运行时产物；技能内不含任何 API Key 文件）。附文件大小 / MD5 / 条目数校验。
+
+## 完善记录（2026-09 借鉴 short-drama-studio 一致性方法论）
+
+- **identity-lock 身份锁定段**：`prompts.js` 新增 `IDENTITY_LOCK` 常量，每镜视频 prompt 在一致性锚点之后逐字注入——把"脸型/五官/发型发色/肤色"定义为全片不可变的身份锚点，与"表情/动作/光线/景别"等本场可变项分离；要求强识别特征在任何景别、光线、角度下保留，防止远景/逆光/大动作镜把脸漂掉。
+- **默认演员强识别特征锚点**：`DEFAULT_ACTOR_DESC` 增加"左眼角下方一颗明显的小痣"——强识别特征是跨镜认脸的关键，无特征泛化脸极易隔镜漂移；`modelReferencePrompt` 同步强调"强识别特征必须原样保留，不得删除或移位"。
+- **重拍版本归档（archive_old_file）**：`talkshow_produce.js` 在 `--regenerate` 时把旧分镜视频归档到 `videos/versions/`（保留最近 3 版，可对比可回滚），根治"补拍后残留旧分镜文件"问题；生成循环结束后自动清扫 `videos/` 中不被 `state.json` 引用的残留旧命名文件（如改名后并存的 `shot_S05_10s.mp4`）。
+- **多模态自动质检（qa_shots.js，借鉴 qa_frames.py）**：对每个已完成分镜视频抽帧（默认 2 帧，30%/70% 处），把「定妆照 + 舞台合成图 + 抽帧」喂给 `agnes-3.0-flash` 视觉模型，按固定 JSON 维度逐项判定：硬性通过 `face_match / feature_match（强识别特征）/ hair_match / outfit_match / mic_check（恰好一支立麦）/ scene_match`，硬性排除 `extra_person / extra_hands / watermark_or_text`。输出 `work/shot_qa.json`；`--delete-bad` 把坏镜头归档到 `videos/versions/` 并清 state，随后 `--resume --regenerate <n>` 补拍。用法：`node qa_shots.js --work-dir work/xxx [--only S03,S05] [--delete-bad] [--offline]`。
+
+## 完善记录（2026-09-19 统一方法论 P0 落地）
+
+- **脚本创作知识库（scripts/kb/，借鉴 ai-script-generation-skill）**：新增
+  `framework.md`（3 种爆款叙事结构：铺垫-反转-回环 / 递进吐槽 / 故事嵌套，含节拍与结束钩规则）、
+  `triggers.md`（8 类心理触发点手册 + 挂钩三问自检）、`styles.md`（5 种核心人设 + 7 条禁用词清单）、
+  `hot.md`（热点库占位，只借情绪不借事实）。知识库是文件而非 prompt，可版本化迭代。
+- **一题 5 角度出稿（scripts/draft.js）**：输入主题 → 读 kb → 5 角度各出一稿
+  （干货效率/痛点共鸣/悬念反转/对比冲击/热点借势），每稿标注框架/触发点/人设/预估时长/难度/预计镜数，
+  输出 `<cwd>/talkshow-studio/out/drafts/<时间戳>/drafts.json + drafts.md`（跟随会话工作目录）；
+  零生成成本（仅文本模型），选稿后交
+  talkshow_produce.js 制作。零 npm 依赖，OpenAI 兼容接口（TEXT_API_KEY/AGNES_API_KEY）。
+- **预算防线**：Agent 执行规范新增"阶段二后播报制作预估"必选项。
+
+## 完善记录（2026-09-19 补课轮：kb 单源化）
+- **kb/draft.js 单源化**：本技能 `scripts/kb/`（framework/triggers/styles/hot 4 件）为
+  唯一真源；`draft.js` 支持 `--kb-dir` 覆盖 → 本地 kb → 同级 `talkshow-studio/scripts/kb`
+  回退链。draft.js 输出默认迁至 `<cwd>/talkshow-studio/out/drafts/<时间戳>`（跟随会话工作目录，
+  不写回技能目录）。
+  talkshow-studio-kling 改为经回退链引用本技能 kb，删除其重复副本，消除双份漂移。

@@ -49,7 +49,7 @@ requests.packages.urllib3.disable_warnings()
 
 PROJECT_ROOT = Path(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 EXCEL_FILE = PROJECT_ROOT / "中国各年代流行歌曲推荐500首.xlsx"
-DEFAULT_OUTPUT = PROJECT_ROOT / "music_download"
+DEFAULT_OUTPUT = Path.cwd() / "music_download"
 
 # Quality mapping per platform
 QUALITY_MAP = {

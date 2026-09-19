@@ -11,6 +11,9 @@ const fs = require("fs");
 const path = require("path");
 const os = require("os");
 const { execSync } = require("child_process");
+const bgmArc = require("./bgm_arc");
+
+const SKILL_DIR = path.join(__dirname, "..");
 
 // ---- Full FFmpeg path detection ----
 // TRAE bundles a minimal ffmpeg that lacks xfade/drawtext/concat-safe.
@@ -296,7 +299,7 @@ async function mergeWithXfade(inputs, outPath, transitionDuration) {
 }
 
 // ---- Merge with concat demuxer (fallback) ----
-async function mergeWithConcat(inputs, outPath) {
+async function mergeWithConcat(inputs, outPath, dryRun) {
   const tempDir = path.dirname(outPath);
   const listPath = path.join(tempDir, "concat_list.txt");
   const lines = inputs.map((v) => `file '${v.replace(/\\/g, "/").replace(/'/g, "'\\''")}'`).join("\n");
@@ -304,11 +307,78 @@ async function mergeWithConcat(inputs, outPath) {
 
   // Use re-encode to ensure consistent codec parameters across segments
   const cmd = `"${FFMPEG}" -f concat -safe 0 -i "${listPath}" -c:v libx264 -preset fast -crf 20 -pix_fmt yuv420p -c:a aac -b:a 192k -movflags +faststart -y "${outPath}"`;
+  if (dryRun) {
+    console.log("  [dry-run] merge command:");
+    console.log("    " + cmd);
+    return;
+  }
   try {
     execSync(cmd, { encoding: "utf-8", stdio: "inherit" });
   } catch (e) {
     console.error("FFmpeg concat merge failed: " + e.message.split("\n")[0]);
     throw e;
+  }
+}
+
+// ---- BGM soundtrack (P0-3 预算防线配套：婚礼片声音层最小实现) ----
+function hasAudioStream(videoPath) {
+  try {
+    const out = execSync(
+      `"${FFPROBE}" -v error -select_streams a -show_entries stream=index -of csv=p=0 "${videoPath}"`,
+      { encoding: "utf-8" }
+    );
+    return out.trim().length > 0;
+  } catch (e) {
+    return false;
+  }
+}
+
+/**
+ * Mix a BGM file into the final movie (in place).
+ * - BGM loops to full length, base volume 0.28, fade in 1.5s / fade out 2.5s
+ * - If the final already has audio: sidechaincompress 让原声自动压低 BGM
+ *   （人声/对白处避让；标题卡、转场等原声静默处 BGM 自然浮起）+ loudnorm -14 LUFS
+ * - If silent: BGM becomes the soundtrack + loudnorm
+ * - dryRun: 只打印 ffmpeg 命令，不执行
+ * - Failure keeps the original output untouched (warning only).
+ */
+async function mixBgm(videoPath, bgmPath, tempDir, opts) {
+  opts = opts || {};
+  if (!fs.existsSync(bgmPath)) {
+    console.error("  Warning: BGM file not found, skipping: " + bgmPath);
+    return;
+  }
+  console.log("  Mixing BGM soundtrack: " + bgmPath);
+  const dur = getDuration(videoPath);
+  const fadeStart = Math.max(0, dur - 2.5);
+  const tmpOut = path.join(tempDir, "bgm_mixed.mp4");
+  const bgChain =
+    `[1:a]volume=0.28,afade=t=in:st=0:d=1.5,afade=t=out:st=${fadeStart.toFixed(2)}:d=2.5[bg]`;
+  let filter;
+  if (hasAudioStream(videoPath)) {
+    // P0-3+：sidechain 避让——原声作侧链压 BGM，音乐在标题卡/间隙自动浮起
+    filter =
+      `${bgChain};` +
+      `[bg][0:a]sidechaincompress=threshold=0.02:ratio=8:attack=30:release=500[duck];` +
+      `[0:a][duck]amix=inputs=2:duration=first:dropout_transition=0,loudnorm=I=-14:TP=-1.5:LRA=11[aout]`;
+  } else {
+    filter = `${bgChain};[bg]loudnorm=I=-14:TP=-1.5:LRA=11[aout]`;
+  }
+  const cmd =
+    `"${FFMPEG}" -i "${videoPath}" -stream_loop -1 -i "${bgmPath}" ` +
+    `-filter_complex "${filter}" -map 0:v -map "[aout]" -t ${dur.toFixed(3)} ` +
+    `-c:v copy -c:a aac -b:a 192k -movflags +faststart -y "${tmpOut}"`;
+  if (opts.dryRun) {
+    console.log("  [dry-run] BGM mix command:");
+    console.log("    " + cmd);
+    return;
+  }
+  try {
+    execSync(cmd, { encoding: "utf-8", stdio: "ignore" });
+    fs.renameSync(tmpOut, videoPath);
+    console.log("  BGM mixed into final output (sidechain ducking, -14 LUFS).");
+  } catch (e) {
+    console.error("  Warning: BGM mix failed, keeping original output: " + e.message.split("\n")[0]);
   }
 }
 
@@ -374,13 +444,18 @@ async function mergeVideos(dynasties, state, options) {
   const resString = getResolutionString(ratio, resolution);
   console.log("  Generating dynasty title cards...");
   const cardInputs = [];
+  const inputMoods = []; // 与 allInputs 一一对应（P0-3+ 情绪弧用）
   for (const item of videoFiles) {
+    const mood = item.dynasty.mood || "majestic";
     const card = buildDynastyCard(item.dynasty, resString, tempDir);
     if (card) {
       cardInputs.push(card);
+      inputMoods.push(mood);
       cardInputs.push(item.path);
+      inputMoods.push(mood);
     } else {
       cardInputs.push(item.path);
+      inputMoods.push(mood);
     }
   }
 
@@ -389,13 +464,29 @@ async function mergeVideos(dynasties, state, options) {
   const endingClip = addEnding ? buildEndingClip(resString, tempDir) : null;
 
   const allInputs = [];
-  if (titleClip) allInputs.push(titleClip);
+  if (titleClip) { allInputs.push(titleClip); inputMoods.unshift("warm"); }
   allInputs.push(...cardInputs);
-  if (endingClip) allInputs.push(endingClip);
+  if (endingClip) { allInputs.push(endingClip); inputMoods.push("warm"); }
 
   // Merge - use concat demuxer (reliable merge).
   console.log("  Using concat demuxer (reliable merge).");
-  await mergeWithConcat(allInputs, outputPath);
+  await mergeWithConcat(allInputs, outputPath, options.dryRun);
+
+  // P0-3+: BGM soundtrack — "auto" 走情绪弧（按朝代 mood 分段），否则用用户指定文件
+  let bgmFile = null;
+  if (options.bgm === "auto") {
+    const segs = allInputs.map((p, i) => ({ mood: inputMoods[i] || "warm", dur: getDuration(p) }));
+    bgmFile = bgmArc.buildBgmArc(segs, {
+      skillDir: SKILL_DIR, tempDir, ffmpeg: FFMPEG, dryRun: options.dryRun,
+    });
+  } else if (options.bgm) {
+    bgmFile = options.bgm;
+  }
+  if (bgmFile) {
+    await mixBgm(outputPath, bgmFile, tempDir, { dryRun: options.dryRun });
+  } else if (options.bgm === "auto" && !options.dryRun) {
+    console.log("  No BGM resolved (auto arc empty), keeping movie as-is.");
+  }
 
   console.log("\n=== Wedding movie complete ===");
   console.log("  Output: " + outputPath);
@@ -404,6 +495,8 @@ async function mergeVideos(dynasties, state, options) {
 
 module.exports = {
   mergeVideos,
+  mixBgm,
+  hasAudioStream,
   checkFfmpeg,
   getDuration,
   getResolutionString,

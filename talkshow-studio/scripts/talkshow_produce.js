@@ -385,6 +385,30 @@ async function stageStoryboard(workDir, state, apiKey, baseUrl) {
 // 阶段三：分镜视频生成
 // ---------------------------------------------------------------------------
 
+/**
+ * [方法论借鉴 short-drama-studio：版本归档] 把旧分镜视频移入 videos/versions/，
+ * 保留最近 3 版（按时间倒序），更早的删除。覆盖不再等于销毁。
+ */
+function archiveOldVideo(videosDir, oldPath) {
+  try {
+    const versionsDir = path.join(videosDir, "versions");
+    fs.mkdirSync(versionsDir, { recursive: true });
+    const base = path.basename(oldPath, ".mp4");
+    const ts = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 14);
+    fs.renameSync(oldPath, path.join(versionsDir, `${base}_${ts}.mp4`));
+    const files = fs.readdirSync(versionsDir)
+      .filter((f) => f.startsWith(base + "_") && f.endsWith(".mp4"))
+      .sort()
+      .reverse();
+    for (const f of files.slice(3)) {
+      try { fs.unlinkSync(path.join(versionsDir, f)); } catch { /* best-effort */ }
+    }
+    console.log(`  [归档] 旧片 → videos/versions/${base}_${ts}.mp4`);
+  } catch (e) {
+    console.warn(`  [归档] 失败（忽略，继续重拍）：${e.message}`);
+  }
+}
+
 async function stageVideos(workDir, state, apiKey, baseUrl, regenSpec = null) {
   console.log("\n========== 阶段三：分镜视频生成 ==========");
   const shots = state.storyboard.shots;
@@ -404,6 +428,11 @@ async function stageVideos(workDir, state, apiKey, baseUrl, regenSpec = null) {
               ? `${regenSpec.from + 1}（到末尾）`
               : Array.from(regenSpec).map((i) => i + 1).join(",");
         console.log(`  [${v.shotId}] 标记重拍（--regenerate ${tag}）`);
+        // [方法论借鉴 short-drama-studio：版本归档 archive_old_file]
+        // 重拍不直接覆盖/残留旧文件，归档到 videos/versions/ 保留最近 3 版，可对比可回滚
+        if (v.videoPath && fs.existsSync(v.videoPath)) {
+          archiveOldVideo(path.join(workDir, "videos"), v.videoPath);
+        }
         v.videoPath = null; v.url = null; v.videoId = null; v.durationSec = 0; v.ok = false;
       }
     }
@@ -470,6 +499,20 @@ async function stageVideos(workDir, state, apiKey, baseUrl, regenSpec = null) {
       // 单镜失败不中断整体：记录后继续（后续可 --regenerate 补）
     }
   }
+
+  // [方法论借鉴 short-drama-studio：幂等/防残留] 生成结束后，清扫 videos/ 中
+  // 不被 state.json 引用的旧命名残留（如改名后并存的 shot_S05_10s.mp4），避免 QC 抽帧混淆
+  try {
+    const referenced = new Set(state.videos.filter((v) => v.videoPath).map((v) => path.resolve(v.videoPath)));
+    for (const f of fs.readdirSync(videosDir)) {
+      if (!f.endsWith(".mp4")) continue;
+      const fp = path.resolve(videosDir, f);
+      if (!referenced.has(fp)) {
+        fs.unlinkSync(fp);
+        console.log(`  [清扫] 移除残留旧片 ${f}`);
+      }
+    }
+  } catch { /* best-effort */ }
 
   const failed = state.videos.filter((v) => !v.ok);
   if (failed.length) {

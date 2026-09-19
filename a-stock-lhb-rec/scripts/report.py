@@ -22,13 +22,13 @@ def _rate(v, hi=None):
     return f"{v:.1f}% {mark}".strip()
 
 
-def dim_table(col, order, train, base_rate):
-    """二分因子 → Markdown 行（是/否 × 样本数 × T+3涨停率）。"""
+def dim_table(label, col, order, train, base_rate):
+    """二分因子 → Markdown 行（因子名×是/否 × 样本数 × T+3涨停率）。"""
     lines = []
     for v in order:
         sub = train[train[col] == v]
         rate = sub["T3_ZT"].mean() * 100 if len(sub) else 0
-        lines.append(f"| {'是' if v == 1 else '否'} | {len(sub)} | {_rate(rate, base_rate)} |")
+        lines.append(f"| {label}：{'是' if v == 1 else '否'} | {len(sub)} | {_rate(rate, base_rate)} |")
     return "\n".join(lines)
 
 
@@ -62,17 +62,17 @@ def main(date=None):
         win_rows += (f"| {r['TRADE_DATE']} | {r['CODE']} | **{r['NAME']}** | "
                      f"{r['CHANGE_RATE']:.1f} | {r['TURNOVERRATE']:.1f} | {r['NET_YI']:.2f} | {r['REASON']} | "
                      f"{'主线' if r['THEME_MAIN'] else '—'} | {'Y' if r['FAMOUS_YZ'] else '—'} | {'Y' if r['HAS_INST'] else '—'} | "
-                     f"{r['BUYER_TOP_SCORE']:.1f} | {r['NET_BUY_RATIO']:.2f} | {pct(r['D1'])}/{pct(r['D2'])}/{pct(r['D3'])} |")
+                     f"{r['BUYER_TOP_SCORE']:.1f} | {r['NET_BUY_RATIO']:.2f} | {pct(r['D1'])}/{pct(r['D2'])}/{pct(r['D3'])} |\n")
 
     coef_rows = ""
     if len(coef):
         for _, r in coef.iterrows():
-            coef_rows += f"| {r['feature']} | {r['coef']:+.3f} | {r['odds']:.2f} |"
+            coef_rows += f"| {r['feature']} | {r['coef']:+.3f} | {r['odds']:.2f} |\n"
     else:
         coef_rows = "| 无系数文件 | — | — |"
 
     tt = meta.get("temporal_top", {})
-    top_rows = "".join(f"| Top{k.strip('top')} | {v}% |" for k, v in tt.items())
+    top_rows = "\n".join(f"| Top{k.strip('top')} | {v}% |" for k, v in tt.items())
     wf = meta.get("wf", {}) or {}
     top20_wf = f"{wf['top20_wf']}%" if wf.get("top20_wf") is not None else "—"
     auc_wf = wf.get("auc_wf") if wf.get("auc_wf") is not None else "—"
@@ -92,19 +92,19 @@ def main(date=None):
                 verify_rows += (f"| {r['TRADE_DATE']} | {r['CODE']} | **{r['NAME']}** | "
                                 f"{r['P']*100:.1f}% | {'✅涨停' if hit else '❌未涨'} | "
                                 f"{'主线' if r['THEME_MAIN'] else '—'} | {'Y' if r['IS_LIMIT_UP'] else '—'} | "
-                                f"{'Y' if r['FAMOUS_YZ'] else '—'} | {r['NET_BUY_RATIO']:.2f} | {pct(r['D1'])}/{pct(r['D2'])}/{pct(r['D3'])} |")
+                                f"{'Y' if r['FAMOUS_YZ'] else '—'} | {r['NET_BUY_RATIO']:.2f} | {pct(r['D1'])}/{pct(r['D2'])}/{pct(r['D3'])} |\n")
             te_hit = int(te.head(20)["T3_ZT"].sum())
 
     # 席位手法专题
     style_rows = seat_rows = ""
     if len(seat):
         style_cnt = seat["风格"].value_counts()
-        style_rows = "".join(f"| {k} | {v} | {round(v/len(seat)*100,1)}% |" for k, v in style_cnt.items())
+        style_rows = "\n".join(f"| {k} | {v} | {round(v/len(seat)*100,1)}% |" for k, v in style_cnt.items())
         sd = seat[(seat["样本可信度"] == "高") & (seat["风格"] == "打板")].sort_values("综评", ascending=False).head(12)
         for _, r in sd.iterrows():
             seat_rows += (f"| {r['OPERATEDEPT_NAME']} | {r['上榜次数']} | "
                           f"{r['买入总额亿']:.1f} | {r['净买入亿']:.1f} | {r['单票均买万']:.0f} | "
-                          f"{r['打板率']:.1f} | {r['T5均值_s']:.1f} | {r['T5胜率_s']:.1f} | {r['综评']:.1f} |")
+                          f"{r['打板率']:.1f} | {r['T5均值_s']:.1f} | {r['T5胜率_s']:.1f} | {r['综评']:.1f} |\n")
 
     zy_match = seat[seat["OPERATEDEPT_NAME"].str.contains("紫阳东路")] if len(seat) else pd.DataFrame()
     zy = zy_match.iloc[0] if len(zy_match) else None
@@ -121,14 +121,14 @@ def main(date=None):
         hist = json.load(open(C.HISTORY_PATH, encoding="utf-8"))
         for h in hist[-10:]:
             evo_rows += (f"| v{h['version']} | {h['date']} | {h['n']} | "
-                         f"{h['auc_temporal']} | {h['top20']}% | {'✅接受' if h['accepted'] else '✗保留'} | {h['note']} |")
+                         f"{h['auc_temporal']} | {h['top20']}% | {'✅接受' if h['accepted'] else '✗保留'} | {h['note']} |\n")
     # 最近验证
     ver_rows = ""
     if os.path.exists(C.VERIFY_PATH):
         vh = pd.read_csv(C.VERIFY_PATH, dtype={"DATE": str}).tail(10)
         for _, r in vh.iterrows():
             ver_rows += (f"| {r['DATE']} | {r['推荐数']} | {int(r['T1涨停数'])} | "
-                         f"{int(r['T3涨停数'])} | {r['T3命中率']}% |")
+                         f"{int(r['T3涨停数'])} | {r['T3命中率']}% |\n")
 
     n_seat = len(seat)
     top20 = tt.get('top20', '—')
@@ -161,10 +161,10 @@ def main(date=None):
 
 | 因子 | 赢家数 | T+3涨停率 |
 |---|---|---|
-{dim_table('LB_FLAG',[1,0],train,base_rate)}
-{dim_table('IS_LIMIT_UP',[1,0],train,base_rate)}
-{dim_table('THEME_MAIN',[1,0],train,base_rate)}
-{dim_table('LOW_XI',[1,0],train,base_rate)}
+{dim_table('连板上榜','LB_FLAG',[1,0],train,base_rate)}
+{dim_table('当日涨停上榜','IS_LIMIT_UP',[1,0],train,base_rate)}
+{dim_table('题材主线','THEME_MAIN',[1,0],train,base_rate)}
+{dim_table('低吸型席位介入','LOW_XI',[1,0],train,base_rate)}
 
 | 前3日透支度 | 赢家数 | T+3涨停率 |
 |---|---|---|
@@ -174,9 +174,9 @@ def main(date=None):
 
 | 因子 | 赢家数 | T+3涨停率 |
 |---|---|---|
-{dim_table('FAMOUS_YZ',[1,0],train,base_rate)}
-{dim_table('HAS_INST',[1,0],train,base_rate)}
-{dim_table('HAS_HK',[1,0],train,base_rate)}
+{dim_table('知名游资','FAMOUS_YZ',[1,0],train,base_rate)}
+{dim_table('机构参与','HAS_INST',[1,0],train,base_rate)}
+{dim_table('北向参与','HAS_HK',[1,0],train,base_rate)}
 
 | 买卖净比 | 赢家数 | T+3涨停率 |
 |---|---|---|
