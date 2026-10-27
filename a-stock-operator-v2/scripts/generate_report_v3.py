@@ -31,6 +31,13 @@ lu = d.get("limit_up", {}).get("list", []); total_up = d.get("limit_up", {}).get
 zb = d.get("broken", {}).get("list", []); total_zb = d.get("broken", {}).get("total", 0)
 total_dn = d.get("limit_down", {}).get("total", 0)
 breadth = d.get("breadth", {"up": 0, "down": 0, "flat": 0, "total": 0, "top_gainers": [], "top_losers": []})
+# 涨跌家数有效性检测：盘前/回补运行时，实时接口会返回"全平"（up=down=0 且 flat==total），
+# 该情形下数据无效；展示统一降级为「—」，避免输出误导性的 0/0。
+_b_up, _b_dn = breadth.get("up") or 0, breadth.get("down") or 0
+_b_flat, _b_tot = breadth.get("flat") or 0, breadth.get("total") or 0
+breadth_ok = bool(_b_tot) and not (_b_up == 0 and _b_dn == 0 and _b_flat >= _b_tot)
+_BUP = _b_up if breadth_ok else "—"
+_BDN = _b_dn if breadth_ok else "—"
 hot_reason_rows = d.get("hot_reason", {}).get("rows", [])
 # sectors：collect_data 产出 {"industry": [...], "concept": [...]}，collect_v2 产出扁平 list，统一归一化为 list
 _sectors_raw = d.get("sectors", [])
@@ -40,10 +47,21 @@ sectors = _sectors_raw if isinstance(_sectors_raw, list) else []
 sectors = sorted(sectors, key=lambda x: safe_float(x.get("chg_pct")), reverse=True)
 seal_rate, break_rate = seal_break_rates(total_up, total_zb)
 max_lbc = max((x.get("lbc", 1) for x in lu), default=0)
-up_ratio = round(breadth["up"] / breadth["down"], 2) if breadth.get("down") else 0
-sh_amt = next((x["amount_yi"] for x in indexes if x["code"] == "000001"), 0)
-sz_amt = next((x["amount_yi"] for x in indexes if x["code"] == "399001"), 0)
-total_amt = sh_amt + sz_amt
+up_ratio = round(breadth["up"] / breadth["down"], 2) if (breadth_ok and breadth.get("down")) else "—"
+sh_amt = next((x.get("amount_yi") for x in indexes if x["code"] == "000001"), 0)
+sz_amt = next((x.get("amount_yi") for x in indexes if x["code"] == "399001"), 0)
+total_amt = (sh_amt or 0) + (sz_amt or 0)
+amt_txt = f"{total_amt:,.0f} 亿" if total_amt else "—"
+
+# 历史日回补提示：涨跌家数/资金/板块接口无历史参数，落盘的是"运行时点"快照，必须显式标注
+_stale_note = ""
+if d.get("trade_date") and d["trade_date"] != datetime.now().strftime("%Y-%m-%d"):
+    _stale_note = ("\n> ⚠️ **数据说明**：本报告为历史日回补。"
+                   "「涨跌家数 / 涨跌幅榜 / 板块资金」数据源不提供历史查询，取的是运行时点快照，"
+                   "与目标日实际值可能存在偏差；行情指数为日K精确值，涨停/炸板/跌停、连板、情绪指标均为目标日精确数据。\n")
+if not breadth_ok:
+    _stale_note += ("\n> ⚠️ **涨跌家数缺失**：运行时点实时接口返回「全平」（未开盘/无行情），"
+                    "该字段无有效数据，报告已统一展示为「—」，不作为判断依据。\n")
 
 lbc_counter = Counter(x["lbc"] for x in lu)
 ladder = sorted(lbc_counter.items(), reverse=True)
@@ -161,12 +179,15 @@ elif seal_rate <= 50:
     mood = "情绪偏冷"
 else:
     mood = "情绪中性"
-verdict = f'{lead_idx["name"]} **{s(lead_idx["change_pct"])}** 领涨，全市场 **涨 {breadth["up"]} · 跌 {breadth["down"]}**，封板率 {seal_rate}%。连板高度 {max_lbc} 板{gap_short}，**{mood}**，宜聚焦主线、控制追高。'
+_bdisp = f"全市场 **涨 {_BUP} · 跌 {_BDN}**，" if breadth_ok else ""
+verdict = f'{lead_idx["name"]} **{s(lead_idx["change_pct"])}** 领涨，{_bdisp}封板率 {seal_rate}%。连板高度 {max_lbc} 板{gap_short}，**{mood}**，宜聚焦主线、控制追高。'
 
 up_idx_cnt = sum(1 for x in indexes if x["change_pct"] > 0)
 dn_idx_cnt = sum(1 for x in indexes if x["change_pct"] < 0)
 idx_tone = "指数普涨" if up_idx_cnt >= 6 else ("指数普跌" if dn_idx_cnt >= 6 else "指数分化")
-if breadth["up"] > breadth["down"]:
+if not breadth_ok:
+    structure = "个股涨跌家数缺失"
+elif breadth["up"] > breadth["down"]:
     structure = "个股涨多跌少"
 elif breadth["up"] < breadth["down"]:
     structure = "个股跌多涨少"
@@ -210,7 +231,7 @@ if _emo:
         (f'{_m.get("seal_rate", seal_rate)}%', "封板率"),
         (f'{_m.get("break_rate", break_rate)}%', "炸板率"),
         (str(_m.get("zd_total", total_dn)), "跌停数"),
-        (f'{_m.get("up_cnt", breadth["up"])}/{_m.get("down_cnt", breadth["down"])}', "涨/跌家数"),
+        ((f'{_m.get("up_cnt", breadth["up"])}/{_m.get("down_cnt", breadth["down"])}' if breadth_ok else f'{_BUP}/{_BDN}'), "涨/跌家数"),
         (str(_m.get("big_loss_cnt", big_loss_cnt)), "大面家数"),
         (f'{_m.get("advance_rate", 0.0):.0f}%', "昨板晋级率"),
         (f'{_m.get("advance_cnt", 0)} 只', "晋级涨停"),
@@ -316,7 +337,18 @@ def _build_rotation_md(td):
             lines.append(f"- **{cn}**（{len(items)}）：{names}")
         lines.append("")
     else:
-        lines.append("资金轮动数据暂缺。\n")
+        # 四象限全空：如实呈现模型判定（多为资金流中性/无历史），而非"数据暂缺"
+        neutral = quad.get("neutral", []) or []
+        rs = rot.get("rotation_speed", 0) or 0
+        bi = rot.get("breadth_index", 0) or 0
+        rs_label = "快" if rs >= 0.6 else ("中" if rs >= 0.3 else "慢")
+        lines.append(f"- **四象限判定：无明显象限**——当日 {len(neutral)} 个热点板块资金流偏中性/无历史，"
+                     f"未落入主线 / 接力 / 脉冲 / 退潮分桶，暂无强资金主线。")
+        if neutral:
+            names = "、".join(f"{x['name']}（{x.get('fund_net_yi', 0):+.1f}亿 / {x.get('chg_pct', 0):+.1f}%）" for x in neutral[:12])
+            lines.append(f"- **中性区板块**（{len(neutral)}）：{names}")
+        lines.append(f"- **轮动速度** {rs:.2f}（轮动{rs_label}）· **扩散指数** {bi:.2f}")
+        lines.append("")
 
     # ---- 板块多因子趋势榜 ----
     trend_board = rot.get("trend_board", [])
@@ -342,7 +374,8 @@ def _md_table(header, rows):
     sep = "| " + " | ".join(["---"] * len(header)) + " |"
     return "\n".join([head, sep] + rows)
 
-index_rows = [f"| {x['name']} | {s(x['change_pct'])} | {fmt_px(x['price'])} | {x['amount_yi']:,.0f} 亿 |" for x in indexes]
+index_rows = [f"| {x['name']} | {s(x['change_pct'])} | {fmt_px(x['price'])} | " +
+              (f"{x['amount_yi']:,.0f} 亿 |" if x.get("amount_yi") else "— |") for x in indexes]
 index_table = _md_table(["名称", "涨跌幅", "收盘价", "成交额"], index_rows)
 
 ladder_rows = []
@@ -396,12 +429,22 @@ def stock_lines(picks, source):
 first_cards = stock_lines(first_pick, fb_map)
 break_cards = stock_lines(break_pick, gb_map)
 
-gain_rows = [f"| {r.get('name', '')} | {r.get('code', '')} | {s(r.get('chg'))} |" for r in (breadth.get("top_gainers") or [])[:10]]
-loss_rows = [f"| {r.get('name', '')} | {r.get('code', '')} | {s(r.get('chg'))} |" for r in (breadth.get("top_losers") or [])[:10]]
-gain_table = _md_table(["名称", "代码", "涨幅"], gain_rows)
-loss_table = _md_table(["名称", "代码", "跌幅"], loss_rows)
+if breadth_ok:
+    gain_rows = [f"| {r.get('name', '')} | {r.get('code', '')} | {s(r.get('chg'))} |" for r in (breadth.get("top_gainers") or [])[:10]]
+    loss_rows = [f"| {r.get('name', '')} | {r.get('code', '')} | {s(r.get('chg'))} |" for r in (breadth.get("top_losers") or [])[:10]]
+    gain_table = _md_table(["名称", "代码", "涨幅"], gain_rows)
+    loss_table = _md_table(["名称", "代码", "跌幅"], loss_rows)
+else:
+    gain_table = "涨跌幅榜数据不可用（回补/盘前运行时实时接口无有效数据）。"
+    loss_table = "涨跌幅榜数据不可用（回补/盘前运行时实时接口无有效数据）。"
 zb_rows = [f"| {x['name']} | {x['hybk']} | 炸{x['zbc']}次 | {s(x['chg_pct'])} |" for x in zb[:14]]
 zb_table = _md_table(["名称", "行业", "炸板", "收盘"], zb_rows)
+
+if breadth_ok:
+    breadth_line = (f"- 上涨 **{breadth['up']}** 家（{up_pct}%）· 下跌 **{breadth['down']}** 家（{dn_pct}%）· "
+                    f"平盘 **{breadth['flat']}** 家（{fl_pct}%）")
+else:
+    breadth_line = "- 涨跌家数：**—**（数据源无有效数据，回补/盘前运行时实时接口返回空，已留空）"
 
 md = f"""# A股行情复盘 · {TRADE_DATE}
 
@@ -419,15 +462,15 @@ md = f"""# A股行情复盘 · {TRADE_DATE}
 | 封板率 | {seal_rate}% |
 | 连板高度 | {max_lbc} 板 |
 | 涨跌比 | {up_ratio} |
-| 两市成交 | {total_amt:,.0f} 亿 |
-
+| 两市成交 | {amt_txt} |
+{_stale_note}
 ## 01 核心指数
 
 {index_table}
 
 ## 02 市场情绪
 
-- 上涨 **{breadth['up']}** 家（{up_pct}%）· 下跌 **{breadth['down']}** 家（{dn_pct}%）· 平盘 **{breadth['flat']}** 家（{fl_pct}%）
+{breadth_line}
 - 涨停 / 跌停：{total_up} / {total_dn} · 炸板率 {break_rate}%
 
 {emotion_md}
@@ -495,4 +538,4 @@ out = os.path.join(REPORT_ROOT, f"行情复盘-{TRADE_DATE}.md")
 with open(out, "w", encoding="utf-8") as f:
     f.write(md)
 print("Markdown 复盘报告已生成:", out)
-print(f"指数 {len(indexes)} | 涨停{total_up} | 封板率{seal_rate}% | 涨跌 {breadth['up']}/{breadth['down']}")
+print(f"指数 {len(indexes)} | 涨停{total_up} | 封板率{seal_rate}% | 涨跌 {_BUP}/{_BDN}")

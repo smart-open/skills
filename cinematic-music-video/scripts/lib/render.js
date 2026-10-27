@@ -95,10 +95,115 @@ function wardrobeText(id, override) {
 }
 
 /**
+ * Clauses of `wardrobe_layers.accessories` that sit ON THE HEAD.
+ *
+ * Why this exists: the facial anchor deliberately drops the wardrobe (naming the
+ * full outfit makes the model render a second full-body shot — see
+ * `buildFaceRefPrompt`). But the wardrobe layer is also where a project declares
+ * its hair ornaments, and a hairpin *is* part of the head. Dropping the whole
+ * layer therefore silently dropped the character's most identifying accessory:
+ * measured on 春风许我再少年, the signed sheet carried a pair of pearl-and-gold
+ * buyao, while the derived `ref_face.png` came back with a bare centre-part —
+ * and since `pickShotRefs` attaches the facial anchor to every character shot,
+ * that loss would have propagated to all 48 keyframes.
+ *
+ * The split is by clause, not by field, because a single `accessories` string
+ * routinely mixes a headpiece with a waist sash.
+ */
+const HEAD_ORNAMENT_RE =
+  /(hairpin|hair\s*(pin|ornament|jewel|piece|clip|comb)|buyao|circlet|tiara|diadem|headdress|fascinator|headpiece|步摇|发簪|簪|发钗|钗|发冠|冠|头饰|额饰|珠花|绢花|发饰)/i;
+
+function headOrnaments(id) {
+  const acc = (id && id.wardrobe_layers && id.wardrobe_layers.accessories) || "";
+  if (!acc) return "";
+  return String(acc)
+    .split(/[;；]/)
+    .map((s) => s.trim())
+    .filter((s) => s && HEAD_ORNAMENT_RE.test(s))
+    .join("; ");
+}
+
+/**
+ * The head-ornament clause, single-sourced, for the facial anchor, the full-body
+ * turnaround refs AND every character keyframe.
+ *
+ * Why this exists: on 春风许我再少年 (2026-10-04) the prompts drifted apart on the
+ * same accessory. The facial anchor carried its own bespoke HEAD paragraph and
+ * came back with an inflated pearl-chandelier version, chains swinging well past
+ * the chin; the full-body refs buried the identical clause inside the wardrobe
+ * list and came back with ONE small pin — the mirrored second pin simply absent.
+ * Two prompts, three different hairpins. And because the keyframe prompt ALSO
+ * reached the ornament only through the wardrobe list, the film's own frames were
+ * queued to inherit the same degradation. So the clause is emitted once, verbatim,
+ * into all three.
+ *
+ * Three locks, in this order — count, symmetry, size:
+ *   • COUNT      a pair is stated as TWO, one per side, counted out loud.
+ *   • SYMMETRY   "mirrored, identical in size and shape" — otherwise the model
+ *                draws one piece and lets the other side go bare.
+ *   • SIZE CAP   a *quantified* ratio against the head, never a bare adjective.
+ *                Measured in practice: `small` / `no larger than the section of
+ *                hair it grips` are read as tone, not constraint — the model
+ *                complies about 70% and spends the rest on its own taste. Only
+ *                "about a third of the height of the head", with the jaw and the
+ *                shoulder given as the two reference points, actually held.
+ *
+ * Boolean negation is deliberately absent: enumerating what NOT to draw
+ * summons it (HARDENING 坑位 70). Every lock is phrased positively.
+ *
+ * @param {object} id
+ * @param {object} [o]  { framing: "ref" (default) | "shot" }
+ *                      "shot" relaxes "both clearly visible" into "both present
+ *                      whenever the head is in frame", so a wide or over-the-
+ *                      shoulder frame is not pushed to manufacture a second pin
+ *                      out of nothing — while the count and the size stay locked.
+ */
+function headOrnamentBlock(id, o) {
+  o = o || {};
+  const isShot = o.framing === "shot";
+  const ho = headOrnaments(id);
+  if (!ho) return "";
+  const paired = /(both sides|either side|\bpair\b|a pair|两侧|左右|一对|双)/i.test(ho);
+  const out = [
+    `HAIR ORNAMENTS — EXACTLY AS REFERENCED, reproduced in full: ${ho}.`,
+  ];
+  if (paired) {
+    out.push(
+      isShot
+        ? "There are TWO of them, one on each side of the parting — mirrored, identical in shape, size and drop — " +
+            "and both are present whenever the head is in frame."
+        : "There are TWO of them, one pinned on each side of the parting. They are mirrored: " +
+            "identical shape, identical size, identical drop, and both are present and clearly visible."
+    );
+  } else {
+    out.push("It sits at the same place on the head as referenced, at the same size and drop.");
+  }
+  out.push(
+    "SIZE AND SCALE ARE LOCKED TO THE REFERENCE, measured against the head: the pin is a small flat " +
+      "ornament gripping a short section of hair above and behind the ear, and the whole piece — pin and " +
+      "chain together — spans only about a third of the height of the head. The lowest bead hangs level with " +
+      "the jawline and stays well above the shoulder."
+  );
+  if (isShot) {
+    // 全身/远景是这条约束最容易失效的地方：头一小，模型就把配饰省掉或缩成一个金点。
+    out.push(
+      "This holds at every shot size. When the head is small in the frame the ornaments are correspondingly " +
+        "small — still two of them, still the same shape and the same size relative to the head."
+    );
+  } else {
+    out.push(
+      "The piece keeps the size, the number of beads and the chain length it has in the reference, " +
+        "whatever the framing of this photograph."
+    );
+  }
+  return out.join(" ");
+}
+
+/**
  * Compact, directly quotable identity block.
  *
  * @param {object} id   output of vision.extractIdentity() (or a planner fallback)
- * @param {object} [o]  { wardrobeOverride }
+ * @param {object} [o]  { wardrobeOverride, noWardrobe, headOrnaments }
  */
 function identityBlock(id, o) {
   o = o || {};
@@ -130,6 +235,12 @@ function identityBlock(id, o) {
   }
   const wardrobe = o.noWardrobe ? "" : wardrobeText(id, o.wardrobeOverride);
   if (wardrobe) p.push(`Wardrobe (layer by layer): ${wardrobe}.`);
+  // Head ornaments survive `noWardrobe`: a hairpin lives on the head, so the
+  // facial anchor is exactly the image that must not lose it.
+  if (o.headOrnaments) {
+    const ho = headOrnaments(id);
+    if (ho) p.push(`Hair ornaments (worn in the hair — keep them exactly): ${ho}.`);
+  }
   return p.join(" ");
 }
 
@@ -393,8 +504,62 @@ const ANGLE_POSE = {
 const SHEET_ANGLES = ["front", "3q-left", "3q-right", "side", "back"];
 
 function anglePose(angle) {
-  return ANGLE_POSE[angle] || { key: `${angle} view`, desc: "standing straight, arms relaxed at the sides, full figure facing the camera" };
+  return ANGLE_POSE[angle] || { key: `${angle} view`, desc: "standing straight, arms relaxed at the sides, facing the camera" };
 }
+
+/**
+ * The FRAMING axis of a character reference — how much of her the picture takes in.
+ *
+ * The reference set has TWO axes, not one:
+ *   angle   — which way she is turned (front / 3q-left / 3q-right / side / back)
+ *   framing — how much of her the picture takes in (full figure / waist-up)
+ *
+ * Every keyframe picks ONE reference by `shot_size -> framing` and
+ * `characters_view -> angle`. One image per shot is the rule that fixed the
+ * two-person bug (HARDENING 坑位 75 补记三): each extra reference is another
+ * chance for the model to read one face as two people. Matching the framing to
+ * the shot size means the reference no longer FIGHTS the framing — it agrees
+ * with it, which is the whole reason a `close-up` can come back as a close-up.
+ *
+ * `close` (the face anchor) already exists as `ref_face.png` and needs no
+ * separate angle derivation — it is front-only, which is what a face anchor is for.
+ */
+const FRAMINGS = {
+  full: {
+    key: "full figure",
+    intro: "A full-length studio photograph of one person.",
+    framingPhrase: "full length, standing against a seamless studio backdrop",
+    composition:
+      "COMPOSITION: one person fills the frame vertically. Their whole figure is inside the picture — " +
+      "the top of the head and the soles of both shoes are both visible with a little space to spare. " +
+      "The person is centred, standing still, facing the camera position described above.",
+    headNote:
+      "The figure is full length, so the head is small within the frame — that does not license simplifying " +
+      "the hair ornaments. They keep the exact shape, size, count and chain length they have in the reference, " +
+      "readable at true scale against the head.",
+    setting:
+      "a seamless light-grey studio backdrop, evenly lit and completely plain, filling the whole " +
+      "background. Soft frontal key light with gentle fill, uniform exposure, natural contact shadow under " +
+      "the feet, floor and wall blending into one continuous grey surface.",
+  },
+  waistup: {
+    key: "waist-up",
+    intro: "A waist-up studio portrait photograph of one person.",
+    framingPhrase: "framed from the waist up, against a seamless studio backdrop",
+    composition:
+      "COMPOSITION: the person is framed from the waist upward — the whole head, shoulders, arms and upper " +
+      "torso are inside the picture, the top of the head near the upper edge with a little space to spare, " +
+      "and the bottom edge cutting across her at the waist. The person is centred and still, turned as " +
+      "described above. This is a half-length portrait, NOT a full figure: her legs are not in the frame.",
+    headNote:
+      "The head is large in this frame, so the hair ornaments read clearly — keep the exact shape, size, " +
+      "count and chain length they have in the reference.",
+    setting:
+      "a seamless light-grey studio backdrop, evenly lit and completely plain, filling the whole " +
+      "background. Soft frontal key light with gentle fill, uniform exposure, a natural soft shadow " +
+      "falling behind her on the backdrop, floor and wall blending into one continuous grey surface.",
+  },
+};
 
 /**
  * A single full-body studio view at a specific angle, derived from the sheet.
@@ -430,23 +595,20 @@ function anglePose(angle) {
  * invent the whole body AND the face at a new scale — the single largest cause
  * of identity drift measured in testing.
  */
-function buildAngleRefPrompt(id, angle) {
+function buildAngleRefPrompt(id, angle, framing) {
   const A = anglePose(angle);
+  const F = FRAMINGS[framing] || FRAMINGS.full;
 
   const parts = [];
-  parts.push("A full-length studio photograph of one person.");
+  parts.push(F.intro);
   parts.push("");
   parts.push(
     `The attached image is a portrait of the actor. Photograph the same person again, ` +
-    `full length, standing against a seamless studio backdrop, shot from the ${A.key}.`
+    `${F.framingPhrase}, shot from the ${A.key}.`
   );
   parts.push("");
   parts.push("POSE: " + A.desc + ".");
-  parts.push(
-    "COMPOSITION: one person fills the frame vertically. Their whole figure is inside the picture — " +
-    "the top of the head and the soles of both shoes are both visible with a little space to spare. " +
-    "The person is centred, standing still, facing the camera position described above."
-  );
+  parts.push(F.composition);
   parts.push("");
   parts.push("THE PERSON (keep identical to the attached portrait):");
   parts.push(identityBlock(id));
@@ -454,12 +616,17 @@ function buildAngleRefPrompt(id, angle) {
     "This is the same individual: same face, same hairstyle and hair colour, same skin tone, " +
     "same height and body proportions, same garment cut and colour, same material, same footwear."
   );
+  // 头饰必须与面部锚点逐字一致 —— 同一个 headOrnamentBlock 同时喂给两类参考图。
+  // 这里额外补一句"人物全身、头在画面里很小"的提醒：正因为头小，模型最容易把
+  // 步摇简化成一个孤零零的小件、或者干脆只画一边（实测两版 5 张全身图全中）。
+  const hoBlock = headOrnamentBlock(id);
+  if (hoBlock) {
+    parts.push("");
+    parts.push(hoBlock);
+    parts.push(F.headNote);
+  }
   parts.push("");
-  parts.push(
-    "SETTING: a seamless light-grey studio backdrop, evenly lit and completely plain, filling the whole " +
-    "background. Soft frontal key light with gentle fill, uniform exposure, natural contact shadow under " +
-    "the feet, floor and wall blending into one continuous grey surface."
-  );
+  parts.push("SETTING: " + (F.setting || "a seamless light-grey studio backdrop."));
   parts.push("");
   parts.push(
     "RENDER: photorealistic, natural skin texture, sharp facial detail, true fabric weave, " +
@@ -491,7 +658,23 @@ function buildFaceRefPrompt(id) {
   );
   parts.push("");
   parts.push("THE PERSON — identical to the attached image:");
-  parts.push(identityBlock(id));
+  // 只描述脸 / 发型 / 肤色 / 体型。把整套服装（尤其下装与鞋）写进这一段，模型就会
+  // 倾向于把人物画成全身，于是这张"面部锚点"变成第二张全身照 —— 实测确认过。
+  // 面部锚点的唯一职责是锁定五官，服装由逐镜的 SHOT-LOCAL STATE 负责。
+  // 唯一的例外是**头饰**：步摇/发簪长在头上，属于这张图该管的东西，丢一次就全片丢。
+  // 注意：这里不再用 identityBlock 的 headOrnaments 开关，改由 headOrnamentBlock 统一
+  // 出词——否则全身参考图与面部锚点会各自长出自己的头饰版本（2026-10-04 实测走样）。
+  parts.push(identityBlock(id, { noWardrobe: true }));
+  // 正向表述，不写否定枚举（否定=反向召唤，见 HARDENING 坑位 70）。
+  parts.push(
+    "HEAD, EXACTLY AS REFERENCED: the same hairline and parting, the same length and fall of the hair. " +
+      "The same age impression."
+  );
+  const hoBlockFace = headOrnamentBlock(id);
+  if (hoBlockFace) {
+    parts.push("");
+    parts.push(hoBlockFace);
+  }
   parts.push("");
   parts.push(
     "SETTING: a seamless light-grey studio backdrop, evenly lit and completely plain, filling the whole background. " +
@@ -549,7 +732,56 @@ function buildStyleBoardPrompt(sb) {
  * @param {object} scene  storyboard scene, { id, name, description|prompt }
  * @param {object} sb     whole storyboard (for the film's visual style)
  */
-function buildSceneRefPrompt(scene, sb) {
+/**
+ * The framing axis for LOCATION anchors — the same idea as FRAMINGS, applied to
+ * places instead of people.
+ *
+ * A location anchor is drawn so the whole space reads at once, which makes it a
+ * wide, empty frame. Handing that frame to a close-up reproduces the wide framing
+ * wholesale: measured on 春风许我再少年, S04 (close-up) and S13 (medium close-up)
+ * each came back as a full-length figure standing in a wide vista — because the
+ * anchor they were handed was exactly such a vista.
+ *
+ * So a place is drawn at more than one distance too, and a shot picks the anchor
+ * whose framing matches its size — the same rule as for people (坑位 75 补记五).
+ *
+ *   full   — the whole space (the historical ref_scene_<key>.png)
+ *   medium — one area of the space: a wall, a corner, its furniture
+ *   close  — one surface or fixture, at arm's length
+ */
+const SCENE_FRAMINGS = {
+  full: {
+    key: "全景",
+    intro: "An empty establishing frame of a single film location",
+    composition:
+      "COMPOSITION: a wide, level, eye-height view of the space with clear depth — a foreground, a midground " +
+      "and a background plane. The architecture and the layout of the place are unmistakable and easy to " +
+      "recognise again, because this frame is the visual reference an entire sequence will be built from.",
+  },
+  medium: {
+    key: "中景",
+    intro: "An empty medium frame of ONE PART of a single film location",
+    composition:
+      "COMPOSITION: a medium view of one area of the space, level at eye height — nearer than the whole room, " +
+      "but far enough back that one wall or one corner together with its furniture fills the frame. This is " +
+      "the SAME place as the wide establishing frame, only closer: the same architecture, materials, light " +
+      "sources and palette, cropping into the space instead of showing all of it. No person, no figure, no " +
+      "silhouette occupies the frame — this is a location plate.",
+  },
+  close: {
+    key: "近景",
+    intro: "An empty close-up frame of ONE DETAIL of a single film location",
+    composition:
+      "COMPOSITION: a close, level view of one surface or fixture of the space — a section of wall, a window " +
+      "frame, a table top, a corner of a room — filling the frame at arm's length. This is the SAME place as " +
+      "the wide establishing frame, only much nearer: the same architecture, materials, light and palette. " +
+      "Shallow depth of field, the rest of the room falling softly out of focus behind. No person, no figure, " +
+      "no silhouette occupies the frame — this is a location plate.",
+  },
+};
+
+function buildSceneRefPrompt(scene, sb, framing) {
+  const F = SCENE_FRAMINGS[framing] || SCENE_FRAMINGS.full;
   const style = (sb && sb.visual_style) || {};
   const prose = [scene && (scene.prompt || scene.description), scene && scene.lighting, scene && scene.architecture]
     .filter(Boolean)
@@ -563,16 +795,12 @@ function buildSceneRefPrompt(scene, sb) {
 
   const parts = [];
   parts.push(
-    `An empty establishing frame of a single film location` +
+    `${F.intro}` +
     (scene && scene.name ? ` — "${scene.name}".` : ".")
   );
   parts.push("");
   if (prose) parts.push("THE PLACE: " + prose.replace(/[。.\s]+$/, "") + ".");
-  parts.push(
-    "COMPOSITION: a wide, level, eye-height view of the space with clear depth — a foreground, a midground " +
-    "and a background plane. The architecture and the layout of the place are unmistakable and easy to " +
-    "recognise again, because this frame is the visual reference an entire sequence will be built from."
-  );
+  parts.push(F.composition);
   parts.push(
     "LIGHT: the practical light sources of the location are visible and their direction is unambiguous, " +
     "so every later shot can match them."
@@ -603,6 +831,74 @@ function ordinalList(nums) {
   return `images ${a.slice(0, -1).join(", ")} and ${a[a.length - 1]}`;
 }
 
+/** Lower-case, collapse separators: "Medium Close-Up" / "medium_close up" -> "medium close-up". */
+function normaliseSize(s) {
+  return String(s == null ? "" : s).toLowerCase().replace(/[\s_-]+/g, " ").trim();
+}
+
+/**
+ * Shot size -> the picture it actually describes, stated positively.
+ *
+ * The storyboard stores a shot as a single word (`close-up`). On its own that
+ * word loses to the pull of an attached full-body reference, which drags every
+ * frame back to a standing wide shot — measured on 春风许我再少年 S04, scripted
+ * "Close-up of the protagonist's face … fine hair strands drifting across the
+ * cheek", rendered three times as a full-length two-shot. The fix is to say
+ * what the frame IS, not what it isn't.
+ *
+ * Keys are space-normalised so `close-up`, `close_up`, `Close Up` all land on
+ * the same entry — `normaliseSize()` folds hyphens AND underscores to spaces,
+ * so hyphenated keys here would never match (that mismatch silently produced an
+ * empty clause on the first attempt).
+ */
+const SHOT_SIZE_CLAUSE = {
+  "extreme close up": "The frame is cropped extremely tight — a single detail (the eyes, the hands, a fold of silk) fills the whole picture.",
+  "close up": "The frame is cropped tight on the head and shoulders: the face is large, central and sharply detailed, with the surroundings soft behind her.",
+  "medium close up": "The frame is cropped at the chest: head, shoulders and upper torso fill the picture.",
+  "medium": "The frame is cropped around the waist: head and torso fill the upper two thirds of the picture.",
+  "medium wide": "The frame takes in the figure down to below the knee, with some room around her.",
+  "wide": "The frame takes in the whole figure with generous space around her.",
+  "extreme wide": "The figure is small inside a vast landscape — the environment dominates the picture.",
+  // 同义词/增量景别。`macro` 是实测遇到的第一个漏网值（春风 9:16 的 S23 影子镜）——
+  // 漏一个值就意味着那个镜头静默退回"只有关键词"，而关键词压不住参考图的构图惯性。
+  "macro": "The frame is a macro shot: a tiny surface detail fills the entire picture, far closer than a face — texture and material are the subject.",
+  "insert": "The frame is a tight insert on a single object or detail, which fills the picture.",
+  "detail": "The frame is a tight detail shot: one small part of the scene fills the picture.",
+  "full": "The frame takes in the whole figure from head to feet with a little space around her.",
+  "establishing": "The frame is a wide establishing view: the place dominates and any figure is small within it.",
+};
+
+/**
+ * 空镜版景别句 —— 与 SHOT_SIZE_CLAUSE 一一对应，但**一个字都不提人**。
+ *
+ * 存在的理由（2026-10-04 实测）：空镜 S01 连跑 3 次、每次都画出一个人
+ * （门禁判"人物数=1"，最佳 40 分）。根因不是否定枚举，而是上面那张表被
+ * **无条件套用**：空镜拿到的 SHOT 段写着
+ *
+ *     "The frame takes in the whole figure with generous space around her."
+ *
+ * 那是给角色镜写的句子。提示词明确要求"容纳**整个人物**"，模型当然画一个人 ——
+ * 于是"晨光书斋空镜"变成了"主角站在窗边的全身镜"，连 `no people` 都压不住
+ * （同一段里两个指令直接矛盾，模型挑了那个人）。
+ *
+ * 空镜的景别只该描述**取景范围**（画面收进这块空间的多少），
+ * 不该描述"人物在画面里多大"——因为画面里根本不该有人。
+ */
+const SHOT_SIZE_CLAUSE_EMPTY = {
+  "extreme close up": "The frame is cropped extremely tight on one small surface of this place — a single detail fills the whole picture.",
+  "close up": "The frame is cropped tight on one surface or fixture of this place, close enough to read its material and its grain.",
+  "medium close up": "The frame is cropped on one bay or corner of this place, filling the picture with its architecture and its light.",
+  "medium": "The frame takes in one part of this place — a wall, a corner, or the furniture that belongs to it — filling the upper two thirds of the picture.",
+  "medium wide": "The frame takes in a broad part of this place, with depth running from the near foreground to the far wall.",
+  "wide": "The frame is a wide establishing view of this place, with generous space and depth across it.",
+  "extreme wide": "The frame is an extreme wide establishing view: the place itself dominates, vast and quiet, with a great deal of air around it.",
+  "macro": "The frame is a macro shot: a tiny surface detail of this place fills the entire picture — texture and material are the subject.",
+  "insert": "The frame is a tight insert on a single object in this place, which fills the picture.",
+  "detail": "The frame is a tight detail shot: one small part of this place fills the whole picture.",
+  "full": "The frame is a full establishing view of this place, taking in the whole space.",
+  "establishing": "The frame is a wide establishing view: the place itself dominates the picture.",
+};
+
 /**
  * Spell out what each attached image is FOR.
  *
@@ -616,7 +912,26 @@ function ordinalList(nums) {
  * @param {{label:string, role:"identity"|"scene"|"style"}[]} roles
  */
 function refHandlingBlock(roles) {
-  const pick = (r) => roles.map((x, i) => (x.role === r ? i + 1 : 0)).filter(Boolean);
+  // `roles` arrives in two shapes in the wild: the string form that
+  // `pickShotRefs` actually produces (["identity","identity","scene"]) and the
+  // object form ({role, label}). Reading `x.role` off a string yields
+  // `undefined`, so every `pick()` came back empty and the block silently
+  // emitted ZERO per-image lines — only the generic closing sentence survived.
+  //
+  // Measured on 春风许我再少年 S04 (2026-10-04): three attached references (a
+  // full-body studio view, a face close-up of the SAME girl, and an empty
+  // location anchor) arrived with no statement of what each one was for. The
+  // model resolved the ambiguity by rendering the two portraits as TWO
+  // DIFFERENT WOMEN standing side by side, and took its composition from the
+  // full-body reference, turning a scripted close-up into a wide two-shot.
+  // Both halves of that failure trace back to these missing lines.
+  // See HARDENING 坑位 75.
+  const norm = (Array.isArray(roles) ? roles : []).map((x) =>
+    typeof x === "string"
+      ? { role: x, label: x }
+      : { role: (x && x.role) || "", label: (x && x.label) || "" }
+  );
+  const pick = (r) => norm.map((x, i) => (x.role === r ? i + 1 : 0)).filter(Boolean);
   const idIdx = pick("identity");
   const sceneIdx = pick("scene");
   const styleIdx = pick("style");
@@ -628,13 +943,26 @@ function refHandlingBlock(roles) {
       "skin tone and body proportions. Reproduce that individual exactly. Wardrobe is taken from the " +
       "description below, not from these images."
     );
+    if (idIdx.length > 1) {
+      // 同一人从不同角度拍的多张参考图，必须明说"这是同一个人"，否则模型会把
+      // 两张肖像当成两个人并排画出来（S04/S13 实测）。
+      // 措辞**纯正向**：第一版写了 "none of them is a second character" /
+      // "none of them may be placed beside her"，结果 S13 反而画出一个并排的
+      // 现代装女孩 —— 正是坑位 70 的反向召唤（否定枚举把概念请了进来）。
+      lines.push(
+        `  • Those identity images all show ONE AND THE SAME individual, photographed from different angles. ` +
+        "This frame contains exactly one person: merge every one of those references into a single woman, " +
+        "standing on her own, occupying the frame by herself."
+      );
+    }
   }
   if (sceneIdx.length) {
     lines.push(
-      `  • ${ordinalList(sceneIdx)} — the LOCATION anchor. Copy its architecture, its spatial layout, its ` +
-      "materials and textures, the placement of its practical lights, the direction of the light and the " +
-      "overall palette. It is an empty room: there is no person in it, so do not look for a face in it and " +
-      "do not carry anything human out of it."
+      `  • ${ordinalList(sceneIdx)} — the LOCATION anchor: it fixes the PLACE. Take from it the architecture, ` +
+      "the materials and textures, the palette, the direction of the light and where its practical lights sit. " +
+      "It is an empty frame with no person in it, so nothing human comes out of it. Reproduce the PLACE, not " +
+      "the picture: the attached frame shows how much of this place the shot size above calls for, and the " +
+      "camera sits at that distance on the same location."
     );
   }
   if (styleIdx.length) {
@@ -643,9 +971,31 @@ function refHandlingBlock(roles) {
       "and texture only; copy no subject from it."
     );
   }
+  // 道具锚（prop anchor）—— 2026-10-09 新增。
+  // 起因：要给一个"空镜"里的道具（长剑）统一形制，唯一的可靠办法是把**已经画对的道具图**
+  // 喂回去当参考。但原来的 --ref-image 只能挂 identity 角色，于是参考说明写成
+  // "this person's FACE, hairstyle, body proportions" —— 空镜照样被画进一个人。
+  // 道具锚的说明必须说清三件事：它管的是**物体**、只取**那个物体的形制**、
+  // 不许从它带出人物或背景。
+  const propIdx = pick("prop");
+  if (propIdx.length) {
+    lines.push(
+      `  • ${ordinalList(propIdx)} — the PROP reference: a photograph of a single OBJECT (no person, no scene) ` +
+      "shown so its form can be copied exactly. Take from it ONLY the shape, materials, colours and proportions " +
+      "of that object, and render that same object into this frame at the size and angle the SHOT block calls for. " +
+      "Do NOT copy its background, its studio lighting or its framing, and do NOT let anything human or any " +
+      "second object come out of it."
+    );
+  }
+  // 正向表述。原句是 "NONE of the references may dictate this frame's shot size …"
+  // —— 否定式，按坑位 70 力度打折。实测（春风 S04/S13）：分镜写 close-up / medium
+  // close-up，参考图只有面部锚点 + 一张**大远景场景锚点**，构图仍被锚点拽成全景全身。
+  // 所以改成正向声明，并把"取景归 SHOT 块管"这件事说成"参考物被放进这个取景里"。
   lines.push(
-    "  • NONE of the references may dictate this frame's shot size, camera angle or composition — those come " +
-    "from the SHOT block below. Never reproduce a reference's own framing, backdrop or camera position."
+    "  • FRAMING BELONGS TO THE SHOT BLOCK below: it states the shot size, the camera angle and the " +
+    "orientation of the subject, and the frame is composed exactly to that. Everything the references " +
+    "contribute — the face, the person, the place, the palette — is placed INTO that framing, at whatever " +
+    "distance the shot size names."
   );
   return "REFERENCE HANDLING — each attached image has one job:\n" + lines.join("\n");
 }
@@ -688,6 +1038,39 @@ function buildKeyframePrompt(shot, sb, o) {
       "states layered on top of the SAME person, never as a reason to change the face, the hairstyle, the hair " +
       "colour, the hair length or the garment itself."
     );
+    // 头饰在关键帧里只从服装层经过（和当初出问题的全身参考同一条路径），
+    // 远景/小头时会被省掉或缩成一个金点。这里用与参考图同一段文字再锁一次
+    // （framing:"shot" 把"两侧都要清晰可见"放宽成"头在画面里就两侧都在"）。
+    const hoShot = headOrnamentBlock(id, { framing: "shot" });
+    if (hoShot) {
+      parts.push("");
+      parts.push(hoShot);
+    }
+    // 正向人数锁。排除后缀里那句 "absent: a second person" 是**否定枚举**，
+    // 按坑位 70 它只会反向召唤；多张参考图更会让模型把同一人的不同角度
+    // 当成不同角色并排画出来（S04/S13 实测）。所以这里补一句正向的。
+    // 措辞同样**不提"第二个人"** —— 第一次写成了 "none of them is a second
+    // character … may be placed beside her"，S13 立刻画出一个并排的现代装女孩。
+    const castNames = Array.isArray(shot.characters_in_shot)
+      ? shot.characters_in_shot.map((n) => String(n == null ? "" : n).trim()).filter(Boolean)
+      : [];
+    if (castNames.length === 1) {
+      // 合并句只在**真的挂了多张身份图**时才写。近景镜现在只挂面部锚点一张，
+      // 此时"多张参考是同一个人的不同角度、请合并成一个人"这句自相矛盾
+      // （没有"多张"可合并），而句子里"different angles"反而给了模型
+      // "多拍几张/多个人"的暗示。一张就是一张。
+      const idRefCount = (Array.isArray(o.refRoles) ? o.refRoles : []).filter((x) =>
+        typeof x === "string" ? x === "identity" : (x && x.role) === "identity"
+      ).length;
+      parts.push("");
+      parts.push(
+        "ON SCREEN: one person only — this single individual, alone in the frame, filling it by herself." +
+          (idRefCount > 1
+            ? " All of the attached identity references are the same woman seen from different angles, " +
+              "and they merge into that one figure."
+            : "")
+      );
+    }
     parts.push("");
   } else if (o.hasScene && o.refRoles && o.refRoles.length) {
     // A location-only shot still anchors to the location asset, so the empty
@@ -703,7 +1086,28 @@ function buildKeyframePrompt(shot, sb, o) {
   }
 
   parts.push("SHOT:");
+  // 景别句在这里**再写一次**：模型读 SHOT 散文之前先把构图立住。
+  // 实测（春风 S04/S13）FRAMING 段单独说一次压不住场景锚点的全景惯性 ——
+  // 重复是特效药，但两处的措辞必须同源（坑位 74）。
+  // 空镜（hasCharacter=false）走 EMPTY 表：角色版句式里的 "the whole figure … her"
+  // 会把一个人请进空镜 —— 这正是 S01 连画三次人的原因（见 SHOT_SIZE_CLAUSE_EMPTY 注释）。
+  const SIZE_TABLE = o.hasCharacter ? SHOT_SIZE_CLAUSE : SHOT_SIZE_CLAUSE_EMPTY;
+  const sizeClauseShot = SIZE_TABLE[normaliseSize(shot.shot_size)] || "";
+  if (sizeClauseShot) parts.push(sizeClauseShot);
   parts.push(String(shot.keyframe_prompt || shot.visual || "").trim());
+
+  // 近景角色镜不带场景锚点**图**，改用场景**文字**。
+  // 图片的"地方"会把构图拽回它自己的取景（实测 S13 的 medium close-up 被山巅大远景
+  // 连拽三次）；文字的"地方"只提供环境信息，不携带构图。见 HARDENING 坑位 75 补记二。
+  if (o.sceneText) {
+    parts.push("");
+    parts.push(
+      "SETTING — the place she is in, given in words rather than attached as a picture: " +
+      String(o.sceneText).replace(/\s+/g, " ").trim() +
+      " This frame takes in only as much of that place as the shot size above names; " +
+      "the rest of it falls away, softly out of focus, behind her."
+    );
+  }
 
   // The expression is a transient muscle state, not a likeness change — it is
   // spelled out separately from both the shot prose and the identity block so
@@ -719,10 +1123,20 @@ function buildKeyframePrompt(shot, sb, o) {
   const frameBits = [];
   if (shot.shot_size) frameBits.push(`shot size ${shot.shot_size}`);
   if (shot.camera_angle) frameBits.push(`camera angle ${shot.camera_angle}`);
-  if (shot.characters_view) frameBits.push(`subject oriented ${shot.characters_view}`);
+  // 空镜的 characters_view 常写成 "none"，照搬会输出 "subject oriented none"（自相矛盾）。
+  const view = String(shot.characters_view || "").trim();
+  if (view && !/^(none|n\/a|-|无)$/i.test(view)) frameBits.push(`subject oriented ${view}`);
   if (frameBits.length) parts.push("");
   if (frameBits.length) {
-    parts.push("FRAMING: " + frameBits.join(", ") + ".");
+    // 把景别从"一个词"展开成**正向的构图句**。
+    //
+    // 为什么：一个全身参考图挂在人像镜上时，构图会被那张参考硬拽成全身远景 ——
+    // 实测 S04 分镜写 close-up（"发丝拂过脸颊、腰带落在指间"），连续三次都出成
+    // 全身横移双人镜。`shot size close-up` 三个字压不住参考图的构图惯性，
+    // "NONE of the references may dictate … composition" 又是否定句（坑位 70）。
+    // 所以补一句把画面**正面画出来**的构图描述。
+    const clause = (o.hasCharacter ? SHOT_SIZE_CLAUSE : SHOT_SIZE_CLAUSE_EMPTY)[normaliseSize(shot.shot_size)] || "";
+    parts.push("FRAMING: " + frameBits.join(", ") + "." + (clause ? " " + clause : ""));
   }
 
   if (shot.lighting) {
@@ -749,8 +1163,12 @@ function buildKeyframePrompt(shot, sb, o) {
   if (o.fix && o.fix.length) {
     parts.push("");
     parts.push(
-      "CORRECTION FROM THE PREVIOUS ATTEMPT — the previous render produced a person who did not match the " +
-      "reference closely enough. Fix each of these specifically, while keeping everything else the same:"
+      hasCharacter
+        ? "CORRECTION FROM THE PREVIOUS ATTEMPT — the previous render produced a person who did not match the " +
+          "reference closely enough. Fix each of these specifically, while keeping everything else the same:"
+        : "CORRECTION FROM THE PREVIOUS ATTEMPT — the previous render violated the hard frame requirements below " +
+          "(this is an EMPTY establishing shot: no person may appear at all). Fix each of these specifically, " +
+          "while keeping everything else the same:"
     );
     o.fix.slice(0, 6).forEach((d) => parts.push("  • " + d));
   }
@@ -775,9 +1193,13 @@ module.exports = {
   EXCLUSION_SUFFIX,
   ANGLE_POSE,
   SHEET_ANGLES,
+  FRAMINGS,
+  SCENE_FRAMINGS,
   DEFAULT_EXPRESSIONS,
   IMMUTABLE_FIELDS,
   wardrobeText,
+  headOrnaments,
+  headOrnamentBlock,
   identityBlock,
   identityImmutableBlock,
   localStateBlock,

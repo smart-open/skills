@@ -95,20 +95,58 @@ const INTERACTION_RE =
 /**
  * Validate the planner's storyboard.
  *
- * Returns { hard, soft }:
- *   hard — structural problems that make the storyboard unusable (missing
- *          required fields, durations outside the API's 4..12s window, wildly
- *          wrong shot count or total duration). These trigger a repair request.
- *   soft — quality nits, chiefly a video prompt that fails to spell out camera /
- *          subject motion. `videos.js` lints and auto-patches these at submit
- *          time, so they are worth at most one repair and must never block the
- *          pipeline: paying four 60-second planner calls to fix a phrase is a
- *          bad trade.
+ * Returns { hard, soft, advisory }:
+ *   hard     — structural problems that make the storyboard unusable (missing
+ *              required fields, durations outside the API's 4..12s window,
+ *              wildly wrong shot count or total duration). These trigger a
+ *              repair request.
+ *   soft     — quality nits, chiefly a video prompt that fails to spell out
+ *              camera / subject motion. `videos.js` lints and auto-patches these
+ *              at submit time, so they are worth at most one repair and must
+ *              never block the pipeline: paying four 60-second planner calls to
+ *              fix a phrase is a bad trade.
+ *   advisory — taste-level findings (two shots that read as the same picture, a
+ *              single expression eating half the film, a shot count the fitter
+ *              will have to reconcile). Printed for the operator but NEVER sent
+ *              back to the planner — a 3-minute model round on these risks
+ *              destabilising a storyboard that is otherwise fine.
  */
+/**
+ * Character-bigram Jaccard similarity of two short Chinese action strings, 0..1.
+ *
+ * Used to catch "the same beat described twice": the planner wrote
+ * 「双手捧起油纸包月饼，凑到嘴边，做出夸张的咬合动作，嘴角上扬至最大」 verbatim for
+ * both S06 and S11, and an exact-match test alone would miss the near-misses.
+ * Bigrams (not word tokens) because Chinese has no reliable tokenizer here, and
+ * punctuation is stripped so formatting differences do not change the score.
+ */
+function bigramJaccard(a, b) {
+  const norm = (s) => String(s == null ? "" : s)
+    .replace(/[\s，。、；：！？,.!?;:～~「」『』（）()【】\[\]"'“”‘’—\-…·]/g, "")
+    .toLowerCase();
+  const grams = (s) => {
+    const t = norm(s);
+    const out = new Set();
+    for (let i = 0; i + 1 < t.length; i++) out.add(t.slice(i, i + 2));
+    if (t.length === 1) out.add(t);
+    return out;
+  };
+  const A = grams(a);
+  const B = grams(b);
+  if (!A.size || !B.size) return 0;
+  let inter = 0;
+  A.forEach((g) => { if (B.has(g)) inter++; });
+  return inter / (A.size + B.size - inter);
+}
+
 function validateStoryboard(sb, ctx) {
   const hard = [];
   const soft = [];
-  if (!sb || typeof sb !== "object") { hard.push("输出不是 JSON 对象"); return { hard, soft }; }
+  // Declared up here (not next to the other collector arrays) because the two
+  // early returns below reference it — a `const` declared further down would be
+  // in the temporal dead zone and throw on a malformed storyboard.
+  const advisory = [];
+  if (!sb || typeof sb !== "object") { hard.push("输出不是 JSON 对象"); return { hard, soft, advisory }; }
 
   if (!sb.title) hard.push("缺少 title");
   if (!sb.visual_style || typeof sb.visual_style !== "object") hard.push("缺少 visual_style 对象");
@@ -237,10 +275,59 @@ function validateStoryboard(sb, ctx) {
       `scenes[] 定义了 ${scenes.length} 个场景，偏多——每多一个场景就多一张锚点图和一份光照一致性风险，建议压到 2-4 个`
     );
   }
+  // ---- medium self-contradiction -------------------------------------------
+  // 媒介（实拍 / 卡通）是唯一一个「分镜里写错就污染全部镜头」的字段：
+  // visual_style.look 会拼进每一镜的 GRADE: 行，negatives 会拼进每一镜的负向清单。
+  // 「月饼卖不动」的代价：look 写着「卡通化的夸张俏皮质感」、negatives 却躺着
+  // 「cartoon」和「documentary」，16 镜里冒出多张 3D 卡通脸；而一致性门禁只比
+  // 「是不是同一个人」，根本看不见媒介差异 —— 一直烧到人眼目检才发现，整轮重做。
+  // 这个检查不花钱：读的是规划器刚写完的 JSON，改一个词就能省掉一轮生图。
+  //
+  // 放在所有结构性早退**之前**：它是 advisory 里代价最高的一条，
+  // 分镜哪怕还不完整，也值得先把这句话说出来。
+  //
+  // 关键是要把正向与负向分开算：styleHint 里的「不要 X」是负向，
+  // 不剥掉的话，修好的文案（「不要 3D 卡通」）会被误判成仍在要求卡通。
+  const CARTOON = /(cartoon|anime|toon|卡通|二次元|动画|插画|手绘|CGI|3D render|illustration)/i;
+  const LIVE = /(photorealistic|live.?action|photograph|写实|实拍|真人|摄影|纪录片|documentary|film stock)/i;
+  const rawStyle = [
+    sb.styleHint,
+    sb.meta && sb.meta.styleHint,
+    sb.visual_style && sb.visual_style.look,
+    sb.visual_style && sb.visual_style.grade,
+  ].filter(Boolean).map(String).join(" ");
+  const negPhrases = rawStyle.match(/不要[^;；。.、，,]*/g) || [];
+  const posText = rawStyle.replace(/不要[^;；。.、，,]*/g, " ");
+  const negText = [
+    Array.isArray(sb.visual_style && sb.visual_style.negatives)
+      ? sb.visual_style.negatives.join(" ")
+      : "",
+    negPhrases.join(" "),
+  ].join(" ");
+
+  // 只报「同一件事既要求又否定」的纯自相矛盾。
+  // 不报「正向卡通 + 负向写实」——那恰恰是想要卡通时的正当写法，
+  // 规划阶段无从知道参考图走的是哪种媒介，报了就是误伤。
+  const contradictions = [];
+  if (CARTOON.test(posText) && CARTOON.test(negText)) {
+    contradictions.push("正向要求「卡通」，负向清单里却又写着 cartoon");
+  }
+  if (LIVE.test(posText) && LIVE.test(negText)) {
+    contradictions.push("正向要求「写实/实拍」，负向却又否定「写实／documentary」——否定写实等于把画面推向卡通");
+  }
+  if (contradictions.length) {
+    advisory.push(
+      `媒介风格自相矛盾：${contradictions.join("；")}。` +
+      "媒介是唯一会污染全部镜头的字段（look 进每一镜的 GRADE: 行，negatives 进每一镜的负向清单），" +
+      "必须统一成一种——要实拍就写「真人实拍电影质感」并删掉 negatives 里的 documentary；" +
+      "要卡通就删掉 negatives 里的 cartoon，并让参考图也一并走卡通。"
+    );
+  }
+
   if (!sb.style_board_prompt) hard.push("缺少 style_board_prompt");
   if (!Array.isArray(sb.shots) || sb.shots.length < 4) {
     hard.push(`shots 必须是非空数组且至少 4 个镜头（当前 ${Array.isArray(sb.shots) ? sb.shots.length : 0}）`);
-    return { hard, soft };
+    return { hard, soft, advisory };
   }
 
   const minShots = Math.ceil(ctx.totalDuration / 12);
@@ -289,13 +376,17 @@ function validateStoryboard(sb, ctx) {
     // Action safety zone. Physical interaction between two people is where
     // image-to-video models fuse limbs together; the fix is to shoot the beat
     // as separate reaction shots rather than as two bodies entangled on screen.
-    const peopleCount = Array.isArray(s.characters_in_shot) ? s.characters_in_shot.length : 0;
+    const peopleCount = Array.isArray(s.characters_in_shot)
+      ? s.characters_in_shot.filter((n) => String(n == null ? "" : n).trim()).length
+      : 0;
     if (peopleCount >= 2 &&
         INTERACTION_RE.test(String(s.subject_action || "") + " " + String(s.visual || ""))) {
       interactionRisk.push(id);
     }
 
-    const hasChar = Array.isArray(s.characters_in_shot) && s.characters_in_shot.length > 0;
+    const hasChar =
+      Array.isArray(s.characters_in_shot) &&
+      s.characters_in_shot.some((n) => String(n == null ? "" : n).trim());
     if (hasChar) {
       const v = String(s.characters_view || "").toLowerCase();
       if (!v || v === "none") noView.push(id);
@@ -401,7 +492,70 @@ function validateStoryboard(sb, ctx) {
       `镜头时长之和为 ${durSum.toFixed(1)}s，与歌曲总时长 ${ctx.totalDuration.toFixed(1)}s 相差过大（超过 25%）。请重新分配，使之和接近总时长。`
     );
   }
-  return { hard, soft };
+  // ---- shot count outside the physically feasible window -------------------
+  // Not a hard failure: fitTimeline() reconciles the count itself (merging or
+  // splitting). But the operator should know it happened, because a reconciled
+  // shot carries two beats and its prompt may deserve a second look.
+  if (sb.shots.length > maxShots || sb.shots.length < minShots) {
+    advisory.push(
+      `镜头数 ${sb.shots.length} 个超出了 ${ctx.totalDuration.toFixed(1)}s 歌曲的可行区间（${minShots}-${maxShots} 个），` +
+      "时间轴拟合会自动合并/拆分到可行数量——请留意被合并的镜头会承载两个节拍。"
+    );
+  }
+
+  // ---- shot-to-shot variety ------------------------------------------------
+  // A shot can be individually well-formed and still be a duplicate of another:
+  // 「月饼卖不动」第一版 16 镜里有三组重复（S06/S11 连 subject_action 都一字不差，
+  // S12/S16 都是天台中近景满足）。每镜都合法，规划器也从不觉得有问题，
+  // 但观众会在 20 秒和 40 秒看到同一张图。这个检查很便宜，
+  // 而等到花完图像额度再靠人眼看出来就很贵。
+  //
+  // 两个判据都要有：
+  //   A. 同景别 + 同表情 + 同场景  → 同一个机位同一个地点，观众直接读成同一张图
+  //   B. 同景别 + 同表情 + 动作近乎相同 → 换个场景也救不了（夜市摊位近景本来就长得一样）
+  // 只查 A 会漏掉 S06/S11：它们分属 SC2/SC4，但都是"特写 + 开怀 + 捧着月饼咬一口"。
+  const pairNote = [];
+  for (let i = 0; i < sb.shots.length; i++) {
+    for (let j = i + 1; j < sb.shots.length; j++) {
+      const a = sb.shots[i];
+      const b = sb.shots[j];
+      const sameSize = a.shot_size && a.shot_size === b.shot_size;
+      const sameExpr = a.expression && a.expression === b.expression;
+      if (!sameSize || !sameExpr) continue;
+      const sameScene = a.scene_id && a.scene_id === b.scene_id;
+      const actionSim = bigramJaccard(a.subject_action, b.subject_action);
+      if (sameScene) pairNote.push(`${a.id || "#" + (i + 1)}/${b.id || "#" + (j + 1)}（同景别+同表情+同场景）`);
+      else if (actionSim >= 0.7) pairNote.push(`${a.id || "#" + (i + 1)}/${b.id || "#" + (j + 1)}（同景别+同表情+动作重合 ${(actionSim * 100).toFixed(0)}%）`);
+    }
+  }
+  if (pairNote.length) {
+    advisory.push(
+      `以下镜头互为重复，观众会读成同一张画面放了两遍：${pairNote.slice(0, 8).join("、")}。` +
+      "请至少改动其中一项——换景别、换表情，或换一个能拉开构图的动作。"
+    );
+  }
+
+  // ---- expression monotony -------------------------------------------------
+  // 本片的表情就是喜剧引擎，一个表情吃掉一半镜头时，片子会显得"一直在笑"。
+  // 注意 expression_bank 里不同名字的表情才是真正的变化，"微笑"与"浅笑"不算两种。
+  const withChar = sb.shots.filter(
+    (s) => Array.isArray(s.characters_in_shot) &&
+      s.characters_in_shot.some((n) => String(n == null ? "" : n).trim())
+  );
+  const exprCount = {};
+  withChar.forEach((s) => {
+    const e = String(s.expression || "").trim();
+    if (e && e !== "none" && e !== "neutral") exprCount[e] = (exprCount[e] || 0) + 1;
+  });
+  const dominant = Object.entries(exprCount).sort((a, b) => b[1] - a[1])[0];
+  if (dominant && withChar.length >= 6 && dominant[1] / withChar.length >= 0.5) {
+    advisory.push(
+      `表情过于单一：${dominant[1]}/${withChar.length} 个含主角镜头都用「${dominant[0]}」。` +
+      "含主角镜头的表情是情绪弧线的主要载体，建议从 expression_bank 里再分 2-3 个表情给中段的镜头。"
+    );
+  }
+
+  return { hard, soft, advisory };
 }
 
 // ---------------------------------------------------------------------------
@@ -704,7 +858,19 @@ async function main() {
 
   // --- planner -----------------------------------------------------------
   const songTitle = args.title || path.basename(songPath).replace(/\.[^.]+$/, "");
-  const targetShots = args.shots || Math.max(6, Math.round(totalDuration / 7));
+  // A shot count is only achievable inside [ceil(total/maxDur), floor(total/minDur)].
+  // --shots is a request, not a guarantee: clamp it here so the prompt and the
+  // fitter agree, instead of letting the planner overshoot into an unfittable list.
+  const minFeasibleShots = Math.max(1, Math.ceil(totalDuration / lyricsLib.MAX_SHOT_DUR));
+  const maxFeasibleShots = Math.max(1, Math.floor(totalDuration / lyricsLib.MIN_SHOT_DUR));
+  const requestedShots = args.shots || Math.max(6, Math.round(totalDuration / 7));
+  const targetShots = Math.min(Math.max(requestedShots, minFeasibleShots), maxFeasibleShots);
+  if (targetShots !== requestedShots) {
+    agnes.log(
+      `      note: ${requestedShots} shots is unreachable for ${totalDuration.toFixed(1)}s ` +
+      `(feasible ${minFeasibleShots}-${maxFeasibleShots}) — using ${targetShots}`
+    );
+  }
 
   const pool = cli.buildKeyPool(args);
   agnes.log(`[3/6] Planning storyboard with ${agnes.MODEL_CHAT} ...`);
@@ -795,7 +961,27 @@ async function main() {
     pendingSoft.slice(0, 8).forEach((p) => agnes.log("        - " + p));
   }
 
+  // Advisory notes on the ACCEPTED storyboard (duplicate framings, monotonous
+  // expression, count outside the feasible window). Re-running the validator
+  // here is cheap — it is a pure function — and keeps the repair loop untouched.
+  const finalAdvisory = validateStoryboard(sb, ctx).advisory || [];
+  if (finalAdvisory.length) {
+    agnes.log("      note: 分镜质量提示（不阻塞、也不会送去模型返修，请人工过目）：");
+    finalAdvisory.forEach((p) => agnes.log("        - " + p));
+  }
+
   // --- fit the timeline to the real duration -----------------------------
+  // Checkpoint the ACCEPTED planner output before any mechanical repair runs.
+  // Timestamp fitting and duration normalisation used to happen first, so a
+  // failure in either one threw away ten minutes of model calls with nothing on
+  // disk to recover from. The raw storyboard is worth keeping in every outcome.
+  try {
+    agnes.writeFileSyncDurable(path.join(planDir, "storyboard.raw.json"), JSON.stringify(sb, null, 2));
+    agnes.log(`      checkpointed planner output -> ${path.join(cli.STAGE_DIRS.plan, "storyboard.raw.json")}`);
+  } catch (e) {
+    agnes.log(`      note: could not write storyboard.raw.json (${e.message}) — continuing`);
+  }
+
   agnes.log("[4/6] Fitting shot timeline to the exact song duration ...");
   const idealShots = sb.shots.map((s) => ({ ...s }));
   const fit = lyricsLib.fitTimeline(idealShots, totalDuration, {});
@@ -817,6 +1003,25 @@ async function main() {
       }
     });
   }
+
+  // Normalise characters_in_shot before writing.
+  //
+  // The planner sometimes emits [""] — an array holding ONE EMPTY STRING —
+  // instead of [] for a frame with nobody in it. Every downstream consumer
+  // decides "character shot vs empty shot" with `characters_in_shot.length > 0`,
+  // so [""] silently routed pure object / establishing shots through the
+  // identity gate: the model was told "the person in this frame must match the
+  // reference" while the shot description said "macro of a teacup", and the
+  // vision pass then reported a phantom protagonist. Measured on 爱你老己:
+  // S03/S07/S38 (cup macro, cup close-up, empty room) all went through
+  // compareIdentity instead of the empty-frame audit.
+  shots.forEach((s) => {
+    if (Array.isArray(s.characters_in_shot)) {
+      s.characters_in_shot = s.characters_in_shot.filter(
+        (n) => String(n == null ? "" : n).trim()
+      );
+    }
+  });
 
   const out = {
     ...sb,
@@ -876,6 +1081,16 @@ async function main() {
   process.stdout.write(`镜头数     : ${shots.length}\n`);
   process.stdout.write(`画幅       : ${args.aspect}\n`);
   process.stdout.write(`主角       : ${(out.character && out.character.name) || "-"}\n`);
+  // Shot-size / expression spread at a glance: one glance at these two lines
+  // tells you whether the film has visual variety or 16 variations of one face.
+  const tally = (key) =>
+    Object.entries(shots.reduce((m, s) => {
+      const v = String(s[key] || "-").trim() || "-";
+      m[v] = (m[v] || 0) + 1;
+      return m;
+    }, {})).sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k}×${v}`).join("  ");
+  process.stdout.write(`景别分布   : ${tally("shot_size")}\n`);
+  process.stdout.write(`表情分布   : ${tally("expression")}\n`);
   process.stdout.write(`段落结构   : ${(out.sections || []).map((s) => s.name).join(" → ")}\n`);
   process.stdout.write("\n");
   const rows = shots.map((s, i) => [

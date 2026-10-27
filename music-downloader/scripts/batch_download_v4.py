@@ -617,29 +617,34 @@ class MusicDownloader:
         content_id = song["id"]
         copyright_id = song["copyrightId"]
         q = QUALITY_MAP["migu"][quality]
+        url = ""
+        # listen-url 策略接口可能返回 brotli/加密载荷导致 json() 抛异常，失败时仍走兜底直链
         try:
-            # Build listen URL
             params = [("contentId", content_id), ("copyrightId", copyright_id),
                       ("resourceType", "E"), ("netType", "01"), ("toneFlag", q),
                       ("scene", ""), ("lowerQualityContentId", content_id)]
-            h = {"Content-Type": "application/json;charset=UTF-8", "birth": "h5page", "signature": "1"}
+            h = {"Content-Type": "application/json;charset=UTF-8", "birth": "h5page", "signature": "1",
+                 "Accept-Encoding": "gzip, deflate"}
             resp = self.session.get("https://c.musicapp.migu.cn/strategy/listen-url/h5/v2.4",
                                     params=params, headers=h, timeout=10)
             data = resp.json()
             url = data.get("data", {}).get("url", "")
+        except Exception:
+            url = ""
+        try:
             # Fallback URL
             if not url:
                 url = f"https://app.pd.nf.migu.cn/MIGUM3.0/v1.0/content/sub/listenSong.do?channel=mx&copyrightId={copyright_id}&contentId={content_id}&toneFlag={q}&resourceType=E&userId=15548614588710179085069&netType=00"
             if url and self._download_file(url, mp3_path):
                 # Try to get lyric
+                lyric = ""
                 try:
-                    resp2 = self.session.get(f"https://app.c.nf.migu.cn/MIGUM3.0/strategy/pc/listen/v1.0?scene=&netType=01&resourceType=2&copyrightId={copyright_id}&contentId={content_id}&toneFlag=PQ", timeout=10)
+                    resp2 = self.session.get(f"https://app.c.nf.migu.cn/MIGUM3.0/strategy/pc/listen/v1.0?scene=&netType=01&resourceType=2&copyrightId={copyright_id}&contentId={content_id}&toneFlag=PQ",
+                                             headers={"Accept-Encoding": "gzip, deflate"}, timeout=10)
                     lyric_url = resp2.json().get("data", {}).get("lrcUrl", "")
                     if lyric_url:
                         resp3 = self.session.get(lyric_url, headers={"User-Agent": "Mozilla/5.0"}, allow_redirects=True, timeout=10)
                         lyric = resp3.text
-                    else:
-                        lyric = ""
                 except:
                     lyric = ""
                 with open(lrc_path, "w", encoding="utf-8") as f:

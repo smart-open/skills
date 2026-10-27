@@ -238,11 +238,19 @@ function buildUserPrompt(ctx) {
   } = ctx;
 
   const parts = [];
+  // Shot count is bounded by physics, not by taste: n shots need at least n*4s
+  // and at most n*12s, so a count outside [ceil(total/12), floor(total/4)] can
+  // never be fitted onto the song. State the bounds as HARD limits — telling the
+  // model "±20% around the target" let a 16-shot target become 18 on a 66s song,
+  // which is unfittable (18*4 = 72 > 66) and cost a whole planning run.
+  const minShots = Math.max(1, Math.ceil(totalDuration / 12 - 1e-9));
+  const maxShots = Math.max(1, Math.floor(totalDuration / 4 + 1e-9));
+  const targetShots = Math.min(Math.max(Number(shotCountTarget) || minShots, minShots), maxShots);
   parts.push("## 歌曲信息");
   parts.push(`- 歌曲名：${songTitle || "（未提供）"}`);
   parts.push(`- 演唱者：${artist || "（未提供）"}`);
   parts.push(`- 总时长：${totalDuration.toFixed(2)} 秒（这是硬约束，所有镜头时长之和必须精确等于此值）`);
-  parts.push(`- 镜头数量目标：约 ${shotCountTarget} 个镜头（每个镜头 4-12 秒）`);
+  parts.push(`- 镜头数量：${targetShots} 个。**硬边界：不得少于 ${minShots} 个，不得超过 ${maxShots} 个**（每个镜头 4-12 秒，是视频生成 API 的硬限制）`);
   parts.push(`- 画幅比例：${aspectRatio}`);
   if (styleHint) parts.push(`- 用户指定的风格方向：${styleHint}`);
   if (brief) parts.push(`- 用户的创作要求：${brief}`);
@@ -256,7 +264,7 @@ function buildUserPrompt(ctx) {
   parts.push("");
 
   parts.push("## 现在请输出分镜 JSON");
-  parts.push(`要求：镜头数与 ${shotCountTarget} 相近（可在 ±20% 内浮动）；每个镜头 duration 在 4.0-12.0 秒之间；` +
+  parts.push(`要求：镜头数必须不少于 ${minShots} 个且不超过 ${maxShots} 个（建议 ${targetShots} 个）；每个镜头 duration 在 4.0-12.0 秒之间；` +
     `所有镜头 duration 之和精确等于 ${totalDuration.toFixed(2)} 秒；` +
     `全片视觉语言统一；每个 video_prompt 都包含主体运动 + 摄影机运动 + 环境次级运动。`);
   parts.push(
@@ -286,16 +294,37 @@ function buildUserPrompt(ctx) {
  * A repair prompt used when the planner's JSON fails validation.
  * We send back the concrete problem instead of re-asking blindly.
  */
+// The previous reply can be 40k+ chars. Pasting it verbatim made the repair
+// request exceed the model's context window, so the repair round came back
+// truncated (unbalanced JSON) or degraded (e.g. only 7 shots left). Embed only
+// a head+tail excerpt: enough for the model to locate the offending fields,
+// small enough to leave room for a full 28-shot rewrite.
+const REPAIR_EXCERPT_HEAD = 9000;
+const REPAIR_EXCERPT_TAIL = 4000;
+
+function repairExcerpt(previousJson) {
+  const prev = typeof previousJson === "string" ? previousJson : JSON.stringify(previousJson);
+  if (!prev) return "";
+  if (prev.length <= REPAIR_EXCERPT_HEAD + REPAIR_EXCERPT_TAIL) return prev;
+  const dropped = prev.length - REPAIR_EXCERPT_HEAD - REPAIR_EXCERPT_TAIL;
+  return (
+    prev.slice(0, REPAIR_EXCERPT_HEAD) +
+    `\n... [中间省略 ${dropped} 字符，仅保留首尾用于定位问题] ...\n` +
+    prev.slice(-REPAIR_EXCERPT_TAIL)
+  );
+}
+
 function buildRepairPrompt(problems, previousJson) {
   return [
     "你上一次输出的分镜 JSON 存在以下问题，必须修正：",
     ...problems.map((p, i) => `${i + 1}. ${p}`),
     "",
     "请重新输出完整的、修正后的 JSON（结构不变，不要输出任何解释文字，不要用 markdown 代码块）。",
+    "注意：必须输出**完整**分镜——全部 sections、全部 shots、完整的角色档案与 scenes，不允许省略或截断。",
     "",
-    "上一次的输出如下（仅供你定位问题，不要照抄错误部分）：",
+    "上一次的输出（首尾节选，仅供你定位问题，不要照抄错误部分）：",
     "```json",
-    typeof previousJson === "string" ? previousJson.slice(0, 60000) : JSON.stringify(previousJson).slice(0, 60000),
+    repairExcerpt(previousJson),
     "```",
   ].join("\n");
 }

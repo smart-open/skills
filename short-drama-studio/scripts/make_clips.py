@@ -131,7 +131,7 @@ def render_one(shot, loc, ratio, style, clips_dir, poll_timeout, force, log, pro
                     assets["task_status"] = d.get("status", "")
 
                 final = ag.video_poll(vid, max_wait=poll_timeout, on_progress=prog)
-                url = final["metadata"]["url"]
+                url = (final.get("metadata") or {}).get("url") or final.get("url")
                 ag.download(url, out)
                 assets["task_status"] = "completed"
                 assets["clip_url"] = url

@@ -21,6 +21,7 @@ if os.environ.get("YZ_RUNTIME"):
 else:
     RUNTIME = os.path.join(os.getcwd(), "a-stock-yiyangzhi")
 DATA = os.path.join(RUNTIME, "data")
+NAME_CACHE = os.path.join(DATA, "name_cache.json")   # {code: 名称}，离线兜底时补名称
 KLINE_DIR = os.path.join(DATA, "kline_cache")
 MIN_DIR = os.path.join(DATA, "min_cache")
 OUT_DIR = os.path.join(RUNTIME, "output")
@@ -221,15 +222,95 @@ def mah(series, n):
     return out
 
 
-# ===== 日K线抓取(增量缓存) =====
+# ===== 名称缓存（离线兜底时补名称；腾讯K线接口的 qt 字段自带名称） =====
+_name_mem = {}
+_name_dirty = [0]
+
+
+def _remember_name(code, name):
+    c = str(code).zfill(6)
+    if name and _name_mem.get(c) != name:
+        _name_mem[c] = name
+        _name_dirty[0] += 1
+        if _name_dirty[0] % 200 == 0:
+            flush_names()
+
+
+def flush_names():
+    """把内存中的名称落盘（批量，scan 结束时调用一次即可）。"""
+    if not _name_mem:
+        return
+    alln = load_json(NAME_CACHE, {}) or {}
+    alln.update(_name_mem)
+    dump_json(NAME_CACHE, alln)
+    _name_dirty[0] = 0
+
+
+def get_name(code):
+    c = str(code).zfill(6)
+    if c in _name_mem:
+        return _name_mem[c]
+    return (load_json(NAME_CACHE, {}) or {}).get(c, "")
+
+
+def prefetch_names(codes, batch=60):
+    """批量预取股票名称（腾讯 qt.gtimg.cn，一次多代码），补齐 name_cache。
+    离线兜底/历史模式下 K 线走缓存不会触发抓取，名称需单独补。返回 {code: name}。"""
+    import requests as _rq
+    names = load_json(NAME_CACHE, {}) or {}
+    todo = [str(c).zfill(6) for c in codes if str(c).zfill(6) not in names]
+    for i in range(0, len(todo), batch):
+        chunk = todo[i:i + batch]
+        q = ",".join(f"{stock_prefix(c)}{c}" for c in chunk)
+        try:
+            r = _rq.get("https://qt.gtimg.cn/q=" + q,
+                        headers={"User-Agent": UA}, timeout=10)
+            r.encoding = "gbk"
+            for line in r.text.split(";"):
+                line = line.strip()
+                if "=" not in line:
+                    continue
+                key, val = line.split("=", 1)
+                code = key.split("_")[-1].strip()[-6:]
+                parts = val.strip().strip('"').split("~")
+                if len(parts) > 1 and parts[1].strip():
+                    names[code] = parts[1].strip()
+        except Exception:
+            continue
+        time.sleep(0.05)
+    if names:
+        dump_json(NAME_CACHE, names)
+    return names
+
+
+def local_codes():
+    """离线兜底：本地K线缓存目录里的全部代码（名称取 name_cache，首次可能为空）。"""
+    names = load_json(NAME_CACHE, {}) or {}
+    out = []
+    for fn in os.listdir(KLINE_DIR):
+        if fn.endswith(".json"):
+            c = fn[:-5]
+            out.append({"code": c, "name": names.get(c, "")})
+    return out
+
+
+# ===== 日K线抓取(增量缓存 + 失败重试) =====
 def get_daily_kline(code, refresh=False):
-    """返回 list of [date,open,close,high,low,vol,amount] 或 []"""
+    """返回 list of [date,open,close,high,low,vol,amount] 或 []
+
+    增量缓存：仅当「缓存最后一根K线日期 ≥ 最近交易日」时才复用，否则重新抓取并覆盖
+    （旧实现"文件存在即返回"会让跨交易日复用过期数据）；抓取失败自动重试 3 次，
+    仍失败才回退旧缓存（避免全市场并发下偶发丢包导致静默丢股）。
+    """
     code = str(code).zfill(6)
     p = os.path.join(KLINE_DIR, f"{code}.json")
-    if not refresh and os.path.exists(p):
-        arr = load_json(p, [])
-        if isinstance(arr, list) and arr:
-            return arr
+    cached = load_json(p, []) if os.path.exists(p) else []
+    if not isinstance(cached, list):
+        cached = cached or []
+    if not refresh and cached:
+        last_bar = str(cached[-1][0])[:10] if cached[-1] else ""
+        if last_bar >= latest_trade_date(sep="-"):   # 已覆盖最近交易日 -> 复用
+            return cached
     prefix = stock_prefix(code)
     if prefix == "bj":
         url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/kline/kline"
@@ -237,28 +318,37 @@ def get_daily_kline(code, refresh=False):
     else:
         url = "https://proxy.finance.qq.com/ifzqgtimg/appstock/app/fqkline/get"
         params = {"param": f"{prefix}{code},day,,,400,qfq"}
-    try:
-        r = requests_get(url, params, timeout=12)
-        d = r.json()["data"][f"{prefix}{code}"]
-        kl = d.get("qfqday") or d.get("day") or []
-        norm = []
-        for row in kl:
-            # 腾讯日K: [date,open,close,high,low,volume(手),成交额(元)?]
-            if len(row) < 6:
-                continue
-            try:
-                norm.append([str(row[0]),
-                             float(row[1]), float(row[2]), float(row[3]),
-                             float(row[4]), float(row[5]),
-                             float(row[6]) if len(row) > 6 else 0.0])
-            except (TypeError, ValueError):
-                continue
-        if norm:
-            dump_json(p, norm)
-            return norm
-    except Exception:
-        pass
-    return []
+    for attempt in range(3):
+        try:
+            r = requests_get(url, params, timeout=12)
+            d = r.json()["data"][f"{prefix}{code}"]
+            kl = d.get("qfqday") or d.get("day") or []
+            norm = []
+            for row in kl:
+                # 腾讯日K: [date,open,close,high,low,volume(手),成交额(元)?]
+                if len(row) < 6:
+                    continue
+                try:
+                    norm.append([str(row[0]),
+                                 float(row[1]), float(row[2]), float(row[3]),
+                                 float(row[4]), float(row[5]),
+                                 float(row[6]) if len(row) > 6 else 0.0])
+                except (TypeError, ValueError):
+                    continue
+            if norm:
+                try:    # qt 字段形如 {"sh600048": [_, "保利发展", "600048", ...]}，第 2 位是名称
+                    qt = d.get("qt") or {}
+                    arr = qt.get(f"{prefix}{code}") if isinstance(qt, dict) else None
+                    if isinstance(arr, list) and len(arr) > 1:
+                        _remember_name(code, str(arr[1]))
+                except Exception:
+                    pass
+                dump_json(p, norm)
+                return norm
+        except Exception:
+            pass
+        time.sleep(0.3 + attempt * 0.5)
+    return cached
 
 
 # ===== 全市场实时候选(push2) =====
@@ -321,6 +411,29 @@ def fetch_universe(min_pct=5.0, max_pct=1e9, top_n=2000):
                 "mktcap_yi": safe_float(d.get("f20")) / 1e8,
             })
     return out
+
+
+def fetch_all_codes():
+    """全市场代码表（沪深A + 北交所），用于「历史模式」重建候选池。
+    返回 [{"code","name"}]；接口不可达返回 []。"""
+    params0 = {
+        "pn": "1", "po": "1", "np": "1", "fltt": "2", "invt": "2", "fid": "f3",
+        "fs": "m:0+t:6,m:0+t:80,m:1+t:2,m:1+t:23,m:0+t:81+s:2048",
+        "fields": "f12,f14",
+    }
+    out = {}
+    for pg in range(1, 80):
+        part = _clist(dict(params0, pn=str(pg), pz="100"))
+        if not part:
+            break
+        for d in part:
+            c = str(d.get("f12", "")).zfill(6)
+            if c:
+                out[c] = str(d.get("f14", ""))
+        if len(part) < 100:
+            break
+        time.sleep(0.05)
+    return [{"code": c, "name": n} for c, n in out.items()]
 
 
 def cache_universe(min_pct=5.0, max_pct=1e9):

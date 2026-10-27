@@ -8,7 +8,7 @@ import os
 import argparse
 
 from _common import OUT_DIR, load_json, data_path, UP_COLOR, DOWN_COLOR, WARN_COLOR, \
-    MUTED_COLOR, GOLD_COLOR, ACC_COLOR, ACC2_COLOR, fmt_dash
+    MUTED_COLOR, GOLD_COLOR, ACC_COLOR, ACC2_COLOR, fmt_dash, VERIFY_PATH
 
 ap = argparse.ArgumentParser(description="渲染首板洗盘选股 Markdown 报告")
 ap.add_argument("--date", default=None)
@@ -23,6 +23,34 @@ def resolve_target():
     if not files:
         raise SystemExit("!! 未找到 screen_*.json，请先跑 screen_washout.py")
     return files[-1].split("screen_")[-1].split(".")[0]
+
+
+def empirical_risk_stats():
+    """从 verify_history.csv 动态计算「急退日 vs 平常日」实证口径，避免报告引用过时数字。
+
+    返回 (risk, norm)，各为 dict(n, hit_t1_pct, avg_t1, avg_t3) 或 None（样本不足）。
+    """
+    import csv as _csv
+    if not os.path.exists(VERIFY_PATH):
+        return None, None
+    try:
+        rows = list(_csv.DictReader(open(VERIFY_PATH, "r", encoding="utf-8-sig")))
+    except Exception:
+        return None, None
+
+    def _agg(rs):
+        rs = [r for r in rs if r.get("T1_ret_c") not in ("", None)]
+        if len(rs) < 20:
+            return None
+        n = len(rs)
+        hit1 = sum(1 for r in rs if r.get("hit_t1") == "1")
+        avg1 = sum(float(r["T1_ret_c"]) for r in rs) / n
+        k3 = [r for r in rs if r.get("known") == "3" and r.get("T3_ret_c") not in ("", None)]
+        avg3 = sum(float(r["T3_ret_c"]) for r in k3) / len(k3) if k3 else None
+        return {"n": n, "hit_t1_pct": hit1 / n * 100, "avg_t1": avg1, "avg_t3": avg3}
+
+    return _agg([r for r in rows if r.get("mkt_risk") == "1"]), \
+           _agg([r for r in rows if r.get("mkt_risk") == "0"])
 
 
 # ================= SVG 生成 =================
@@ -196,7 +224,9 @@ def _stock_md(x, rank, is_s2=False):
     L.append(f"- 综合评分：**{score}**｜洗盘强度 `{x.get('washout',0):.2f}`｜趋势 `{tr.get('label','—')}`（{tr.get('score','—')}）")
     L.append(f"- 分时洗盘判定：**{ws.get('tag','—')}**" + (f"（{ws.get('note','')}）" if ws.get('note') else ""))
     L.append(f"- 主力资金：净流入 `{fund:+.2f}亿`（占成交 {fr_txt}）")
-    L.append(f"- 题材/涨停原因：{x.get('reason') or '—'}")
+    _hybk = x.get("hybk") or ""
+    _theme = x.get("reason") or (f"{_hybk}（行业分类）" if _hybk and _hybk != "—" else "") or "—"
+    L.append(f"- 题材/涨停原因：{_theme}")
     L.append(f"- 硬性门槛：{_gate_miss(x)}")
     L.append("")
     L.append("**第二日操作建议**")
@@ -265,6 +295,25 @@ def render_markdown(screen, target):
     L.append(f"- 策略一（首板后放量洗盘）精选：{len(s1)} 只")
     L.append(f"- 策略二（炸板洗盘）精选：{len(s2)} 只")
     L.append(f"- 邻近达标观察：{len(near)} 只")
+    mk = screen.get("market") or {}
+    if mk:
+        L.append(f"- 市场情绪：T 日涨停 {mk.get('zt_T', 0)} 家（炸板 {mk.get('zb_T', 0)} 家，"
+                 f"炸板率 {mk.get('zb_rate_T', 0)}%），涨停家数较前日 {mk.get('zt_chg_pct', 0)}%")
+        if mk.get("risk_off"):
+            _risk, _norm = empirical_risk_stats()
+            if _risk and _norm:
+                _t3 = ""
+                if _risk.get("avg_t3") is not None and _norm.get("avg_t3") is not None:
+                    _t3 = f"；T+3 均收益 {_risk['avg_t3']:+.1f}% vs 平常日 {_norm['avg_t3']:+.1f}%"
+                L.append(
+                    f"- ⚠️ **情绪急退提示**：涨停池单日回撤超 25%。全样本实证（急退 {_risk['n']} 条 / 平常 {_norm['n']} 条）："
+                    f"急退日 T+1 冲高命中 {_risk['hit_t1_pct']:.0f}%、T+1 均收益 {_risk['avg_t1']:+.1f}%"
+                    f"（平常日 {_norm['hit_t1_pct']:.0f}% / {_norm['avg_t1']:+.1f}%）{_t3}。"
+                    "两端整体差异有限，说明急退并非必然失效；但退潮环境个股波动加大、容错率下降，"
+                    "建议适当降低仓位、只做最强标的并严格执行止损。")
+            else:
+                L.append("- ⚠️ **情绪急退提示**：涨停池单日回撤超 25%，市场情绪明显退潮。"
+                         "建议适当降低仓位、只做最强标的并严格执行止损，或暂缓低吸观望一日。")
     L.append("")
     L.append("> 硬性门槛：流通市值≥50亿 · 换手率≥5% · 成交额≥5亿 · 量比≥2 · 非高位。以上基于公开行情整理，仅供复盘参考，不构成投资建议。")
     L.append("")

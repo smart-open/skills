@@ -44,9 +44,11 @@ const SPEC = {
   "--motion-retries": { key: "motionRetries", type: "int", default: 2, desc: "Regeneration attempts when a clip is too static" },
   "--candidates": { key: "candidates", type: "int", default: 1, desc: "Shoot N takes per shot and keep the liveliest (default 1). Costs N x video credits" },
   "--chain": { key: "chain", type: "bool", desc: "Also set last_frame to the next shot's keyframe within a section" },
+  "--relay-dir": { key: "relayDir", type: "string", desc: "Directory of <shotId>.first.png + .url tail-frame images. When a shot has one, that image REPLACES its keyframe as the i2i first frame — the shot continues from where the previous shot ended. This is the frame-relay chain (principle: within one scene, the previous shot's last frame becomes this shot's first frame). Unlike --chain, which follows shot.section (lyric structure), this is driven by the caller's own scene grouping." },
   "--force": { key: "force", type: "bool", desc: "Regenerate even if the clip already exists" },
   "--only": { key: "only", type: "list", multi: true, desc: "Only process these shot ids" },
   "--dry-run": { key: "dryRun", type: "bool", desc: "List the tasks without creating them" },
+  "--show-prompt": { key: "showPrompt", type: "bool", desc: "Print the FINAL prompt each shot will be sent (after lint repair and enhancement), then exit. Zero cost — use it to verify what the model actually receives." },
   "--skip-motion-check": { key: "skipMotionCheck", type: "bool", desc: "Skip the post-generation motion measurement" },
   "--max-wait": { key: "maxWait", type: "int", default: 1800, desc: "Max seconds to wait per clip (default 1800)" },
   "--poll-interval": { key: "pollInterval", type: "int", default: 8, desc: "Polling interval in seconds (default 8)" },
@@ -63,6 +65,9 @@ Options:
   --keys "sk-a,sk-b"     Agnes API keys (round-robin)
   --mode keyframe        keyframe (first_frame = keyframe, default) | reference
   --chain                Pin last_frame to the next shot's keyframe inside a section
+  --relay-dir <dir>      Use <shotId>.first.png from this dir as a shot's FIRST frame,
+                         i.e. continue from the previous shot's last frame. Grouped by
+                         the caller's own scene mapping, not by shot.section like --chain.
   --motion-min 1.2       Reject clips whose measured motion is below this
   --motion-retries 2     How many times to regenerate a static clip
   --candidates 1         Shoot N takes per shot, keep the liveliest (N x credits)
@@ -81,9 +86,34 @@ Example:
 const CAMERA_KEYS = [
   "dolly", "push in", "pull back", "pan", "tilt", "track", "crane", "jib", "orbit",
   "handheld", "steadicam", "zoom", "slider", "arc", "truck", "follow", "sweep",
+  "static", "locked off", "fixed camera", "still camera", "no camera movement",
   "推进", "推近", "拉远", "拉镜", "横移", "平移", "摇", "升", "降", "跟拍", "跟", "环绕", "旋转", "手持", "变焦",
-  "移动", "游走", "推轨", "升降", "划过",
+  "移动", "游走", "推轨", "升降", "划过", "固定机位", "镜头静止", "机位固定", "静止", "固定",
 ];
+
+/**
+ * A prompt that EXPLICITLY declares a locked-off camera.
+ *
+ * These must not receive an auto-appended camera move, and must not receive the
+ * blanket "never be still" clause: that clause silently overrides the
+ * storyboard's own instruction and turns a declared static shot into a dolly-in
+ * (pitfall 92). A static shot is a legitimate choice — the camera holds, the
+ * subject and ambient keep moving.
+ */
+const STATIC_CAMERA_KEYS = [
+  "static", "locked off", "fixed camera", "still camera", "no camera movement",
+  "固定机位", "镜头静止", "机位固定", "静止",
+];
+
+/**
+ * Guards every clip against a lighting change INSIDE the shot. The model will
+ * happily "improve" a dusk keyframe into a starry night over six seconds if any
+ * part of the prompt hints at darkness, which then resets at every cut. Keeping
+ * the light tied to the first frame is what makes consecutive shots cut cleanly
+ * (pitfall 93).
+ */
+const LIGHT_LOCK_CLAUSE =
+  " 光照与时间保持不变：整段画面维持与首帧一致的光线色温与明暗，不得在镜头内发生昼夜或天气变化。";
 
 const SUBJECT_KEYS = [
   "walk", "run", "turn", "raise", "lower", "lift", "reach", "open", "close", "step",
@@ -128,7 +158,7 @@ function lintMotionPrompt(shot, sb, opts) {
     notes.push("补写主体动作");
   }
   if (!hasAny(original, AMBIENT_KEYS)) {
-    const amb = "环境持续运动：空气流动、光线缓变、细小颗粒漂浮";
+    const amb = "环境持续运动：空气流动、薄雾缓缓飘移、细小颗粒漂浮（光照保持不变）";
     additions.push(amb);
     notes.push("补写环境次级运动");
   }
@@ -137,10 +167,16 @@ function lintMotionPrompt(shot, sb, opts) {
   if (additions.length) prompt = original.replace(/[。.\s]+$/, "") + "。" + additions.join("。") + "。";
 
   if (!opts.noEnhance) {
-    prompt +=
-      " 整段画面始终处于连续、自然的运动中，严禁静止帧、严禁定格、严禁缓慢到近乎不动的镜头。" +
-      " 运镜匀速平滑，动作连贯可信，无跳帧、无画面撕裂、无二次曝光。" +
-      " 画面中不出现任何文字、字幕、水印、logo 或 UI 元素。";
+    const declaredStatic = hasAny(original, STATIC_CAMERA_KEYS);
+    prompt += declaredStatic
+      ? " 摄影机全程锁定不动，机位与构图恒定，画面不出现推、拉、摇、移。" +
+        " 画面内保持连续细微的自然运动：呼吸、眨眼、发丝与薄雾轻动、尘埃漂浮，严禁定格帧、严禁画面冻结。" +
+        " 运镜匀速平滑，动作连贯可信，无跳帧、无画面撕裂、无二次曝光。" +
+        " 画面中不出现任何文字、字幕、水印、logo 或 UI 元素。"
+      : " 整段画面始终处于连续、自然的运动中，严禁静止帧、严禁定格、严禁缓慢到近乎不动的镜头。" +
+        " 运镜匀速平滑，动作连贯可信，无跳帧、无画面撕裂、无二次曝光。" +
+        " 画面中不出现任何文字、字幕、水印、logo 或 UI 元素。";
+    prompt += LIGHT_LOCK_CLAUSE;
     const style = sb.visual_style || {};
     if (style.look) prompt += ` 影像风格：${style.look}。`;
     if (style.lighting) prompt += ` 光线：${style.lighting}。`;
@@ -203,6 +239,7 @@ async function generateClip(pool, job, opts) {
   const done = await agnes.pollVideoTask(pool, created._video_id, {
     pollIntervalMs: args.pollInterval * 1000,
     maxWaitMs: args.maxWait * 1000,
+    key: created._key,   // 钉住创建者 key —— 换 key 查询会 404「任务不存在」
   });
 
   const out = job.outFile || clipPath(dir, job.id);
@@ -253,6 +290,7 @@ async function main() {
   const shots = sb.shots;
   const jobs = [];
   const skipped = [];
+  const staleClips = [];
   const assetProblems = [];
   const readiness = [];
   const sceneAssets = assets.loadSceneAssets(imgDir, sb);
@@ -260,9 +298,26 @@ async function main() {
   for (let i = 0; i < shots.length; i++) {
     const shot = shots[i];
     const kf = path.join(imgDir, `shot_${String(shot.id).replace(/[^\w.-]/g, "_")}.png`);
-    const kfUrl = urlSidecar(kf);
+    let kfUrl = urlSidecar(kf);
+
+    // ---- 尾帧接力（--relay-dir）----------------------------------------------
+    // 若这一镜有接力帧，就用它**替换**关键帧作为 i2i 的首帧 ——
+    // 镜头从上一镜结束的地方接着往下走，而不是从一张独立生成的关键帧重新开始。
+    //
+    // 与 --chain 的分工：--chain 改的是 last_frame（按 section 分组，用下一镜的
+    // 关键帧收尾）；--relay-dir 改的是 first_frame（按调用方自己的场景分组）。
+    // 两者可以同时用，但接力链本身不需要 --chain。
+    let relayUrl = null;
+    if (args.relayDir) {
+      const rp = path.join(args.relayDir, `${String(shot.id).replace(/[^\w.-]/g, "_")}.first.png`);
+      relayUrl = urlSidecar(rp);
+      if (relayUrl) {
+        agnes.log(`      [relay] ${shot.id}: 首帧改用上一镜尾帧（${path.basename(rp)}）`);
+        kfUrl = relayUrl;
+      }
+    }
     const out = clipPath(clipDir, shot.id);
-    const hasCharacter = Array.isArray(shot.characters_in_shot) && shot.characters_in_shot.length > 0;
+    const hasCharacter = assets.characterNames(shot).length > 0;
     const sceneRef = assets.sceneRefFor(shot, sceneAssets);
 
     // ---- readiness record --------------------------------------------------
@@ -286,6 +341,13 @@ async function main() {
     ]);
 
     if (!args.force && isUsableClip(out)) {
+      // A clip whose keyframe has been re-generated AFTER it (e.g. an identity /
+      // face fix on 02_images) no longer represents the current keyframe. It is
+      // still skipped (re-shooting costs API quota), but the fact is surfaced so
+      // it is never silently shipped.
+      try {
+        if (fs.statSync(kf).mtimeMs > fs.statSync(out).mtimeMs) staleClips.push(shot.id);
+      } catch (_) { /* keyframe missing -> already reported via readiness */ }
       skipped.push(shot.id);
       continue;
     }
@@ -309,6 +371,9 @@ async function main() {
       lastFrame: null,
       images: null,
       audios: null,
+      // Declared locked-off camera: exempt from the anti-static clause and from
+      // the "too static -> amplify motion" retry (pitfall 92).
+      declaredStatic: hasAny(shot.video_prompt, STATIC_CAMERA_KEYS),
     };
 
     if (args.mode === "keyframe") {
@@ -373,12 +438,29 @@ async function main() {
   agnes.log(
     `  to generate: ${jobs.length}    already present: ${skipped.length}    blocked: ${assetProblems.length}`
   );
+  if (staleClips.length) {
+    agnes.log(
+      `  ⚠ ${staleClips.length} 个已存在的镜头其首帧比成片更新（首帧改过但镜头没重拍），` +
+      `本次仍沿用旧镜头：${staleClips.join(" ")}`
+    );
+    agnes.log("    若首帧是新一轮修脸/修构图，请删除对应 03_clips/shot_*.mp4 后重跑本阶段，否则成片会留着旧形象。");
+  }
   jobs.forEach((j) =>
     agnes.log(
       `    ${String(j.id).padEnd(6)} ${String(j.seconds).padStart(2)}s  ${j.mode.padEnd(9)} ` +
       `${(j.shot.camera_movement || "-").slice(0, 40)}`
     )
   );
+
+  if (args.showPrompt) {
+    jobs.forEach((j) => {
+      process.stdout.write(
+        `\n===== ${j.id}  (${j.seconds}s, ${j.declaredStatic ? "声明固定机位" : "有运镜"}) =====\n${j.prompt}\n`
+      );
+    });
+    process.stdout.write(`\nPLANNED=${jobs.length}\n`);
+    process.exit(0);
+  }
 
   if (args.dryRun) {
     agnes.log("\n--dry-run: no tasks created.");
@@ -404,7 +486,12 @@ async function main() {
       let rec = null;
       let lastErr = null;
 
-      for (let attempt = 0; attempt <= args.motionRetries; attempt++) {
+      // A shot that declares a locked-off camera is SUPPOSED to be quiet. Forcing
+      // it through the "too static -> amplify the move" retry would dolly it in
+      // against the storyboard's own instruction (pitfall 92).
+      const retries = job.declaredStatic ? 0 : args.motionRetries;
+
+      for (let attempt = 0; attempt <= retries; attempt++) {
         const j = attempt === 0
           ? job
           : { ...job, prompt: amplifyMotionPrompt(job.prompt, job.shot, attempt), seconds: job.seconds };
@@ -435,7 +522,7 @@ async function main() {
         }
 
         if (!takes.length) {
-          if (attempt < args.motionRetries) { await agnes.sleep(5000); continue; }
+          if (attempt < retries) { await agnes.sleep(5000); continue; }
           break;
         }
 
@@ -466,11 +553,15 @@ async function main() {
         }
         agnes.log(
           `      [${job.id}] motion=${mscore.toFixed(2)} (min ${args.motionMin}) -> ` +
-          `${mscore >= args.motionMin ? "ok" : "TOO STATIC"}`
+          `${mscore >= args.motionMin ? "ok" : job.declaredStatic ? "ok (固定机位，静是设计意图)" : "TOO STATIC"}`
         );
         if (mscore >= args.motionMin) break;
-        if (attempt === args.motionRetries) {
-          agnes.log(`      [${job.id}] WARNING: still below threshold after ${args.motionRetries} retries; keeping the liveliest take`);
+        if (job.declaredStatic) {
+          agnes.log(`      [${job.id}] 该镜声明固定机位，静帧合规，不触发加运动重跑。`);
+          break;
+        }
+        if (attempt === retries) {
+          agnes.log(`      [${job.id}] WARNING: still below threshold after ${retries} retries; keeping the liveliest take`);
           break;
         }
       }
@@ -490,10 +581,18 @@ async function main() {
   const rows = [];
   const weak = [];
   const failed = [];
+  const notRequested = [];
   for (let i = 0; i < shots.length; i++) {
     const shot = shots[i];
     const p = clipPath(clipDir, shot.id);
-    if (!fs.existsSync(p)) { rows.push([shot.id, "MISSING", "-", "-", "-", "-"]); failed.push(shot.id); continue; }
+    if (!fs.existsSync(p)) {
+      // A shot left out by --only was never meant to be shot in this run: it is
+      // *pending*, not *failed*. Counting it as a failure made every pilot run
+      // exit non-zero and write stages.clips.done=false, which reads as "the
+      // video stage broke" when in fact all requested clips were produced.
+      if (!wants(shot.id)) { rows.push([shot.id, "—", "-", "-", "-", "-"]); notRequested.push(shot.id); continue; }
+      rows.push([shot.id, "MISSING", "-", "-", "-", "-"]); failed.push(shot.id); continue;
+    }
     const pr = ff.probeMedia(p);
     const res = results.find((r) => r.ok && r.value && r.value.id === shot.id);
     const mscore = res && res.value.motion !== undefined ? res.value.motion : null;
@@ -505,16 +604,20 @@ async function main() {
       pr.duration ? pr.duration.toFixed(2) + "s" : "-",
       mscore === null ? "-" : mscore.toFixed(2),
     ]);
-    if (mscore !== null && mscore < args.motionMin) weak.push(`${shot.id}=${mscore.toFixed(2)}`);
+    if (mscore !== null && mscore < args.motionMin) {
+      // A declared locked-off shot is EXPECTED to be quiet —别把它报成低运动缺陷.
+      if (!hasAny(shot.video_prompt, STATIC_CAMERA_KEYS)) weak.push(`${shot.id}=${mscore.toFixed(2)}`);
+    }
   }
   cli.printTable(rows, ["shot", "体积", "分辨率", "帧率", "时长", "运动量"]);
 
   results.forEach((r, i) => { if (!r.ok) failed.push(`${jobs[i].id}(${String(r.error.message).split("\n")[0].slice(0, 60)})`); });
 
-  const ready = rows.filter((r) => r[1] !== "MISSING").length;
+  const ready = rows.filter((r) => r[1] !== "MISSING" && r[1] !== "—").length;
   process.stdout.write("\n");
   process.stdout.write(`CLIPS_DIR=${clipDir}\n`);
   process.stdout.write(`CLIPS_READY=${ready}/${shots.length}\n`);
+  if (notRequested.length) process.stdout.write(`SHOTS_PENDING=${notRequested.join(",")}\n`);
   const notReadyIds = readiness.filter((r) => r[5] !== "READY").map((r) => r[0]);
   if (notReadyIds.length) process.stdout.write(`SHOTS_NOT_READY=${notReadyIds.join(",")}\n`);
   if (weak.length) process.stdout.write(`LOW_MOTION=${weak.join(",")}\n`);
@@ -523,7 +626,7 @@ async function main() {
 
   project.stages = project.stages || {};
   project.stages.clips = {
-    done: failed.length === 0,
+    done: failed.length === 0 && ready === shots.length,
     at: new Date().toISOString(),
     ready,
     total: shots.length,
@@ -535,6 +638,11 @@ async function main() {
   if (failed.length) {
     process.stdout.write(`\n仍有 ${failed.length} 个镜头缺失，重跑本脚本会自动续做。\n`);
     process.exit(1);
+  }
+  if (notRequested.length) {
+    process.stdout.write(`\n本次用 --only 只跑了部分镜头，尚有 ${notRequested.length} 个未生成（不计为失败）。\n`);
+    process.stdout.write(`  续跑全量：node videos.js --project "${projectDir}" --keys <key>\n`);
+    process.exit(0);
   }
   process.stdout.write("\n下一步：\n");
   process.stdout.write(`  node assemble.js --project "${projectDir}"\n`);

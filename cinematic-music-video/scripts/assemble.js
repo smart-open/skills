@@ -275,10 +275,25 @@ async function main() {
 
     if (!args.force && fs.existsSync(out)) {
       const pr = ff.probeMedia(out);
-      if (pr.width === canvas.width && pr.height === canvas.height && pr.frameCount === wantFrames) {
+      // The intermediate is only reusable if it still matches BOTH the geometry
+      // AND the source clip. Comparing geometry alone silently reuses a stale
+      // render whenever a shot is re-generated with the same dimensions (e.g.
+      // after a face/identity fix), which then ends up in the final MV.
+      let fresh = true;
+      try {
+        fresh = fs.statSync(out).mtimeMs >= fs.statSync(s.file).mtimeMs;
+      } catch (_) {
+        fresh = false;
+      }
+      if (pr.width === canvas.width && pr.height === canvas.height && pr.frameCount === wantFrames && fresh) {
         normFiles.push(out);
         agnes.log(`      [skip] ${s.shot.id} already normalised`);
         continue;
+      }
+      if (!fresh) {
+        agnes.log(`      [stale] ${s.shot.id} source clip is newer than the intermediate -> re-normalising`);
+      } else {
+        agnes.log(`      [redo] ${s.shot.id} geometry mismatch -> re-normalising`);
       }
     }
     ff.normalizeClip({

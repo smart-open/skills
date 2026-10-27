@@ -66,7 +66,8 @@ description: "生产级 AI 脱口秀视频工坊。用户提供脱口秀简稿�
 - 先合成再定妆：定妆照背景简化，减少视频生成场景漂移
 - 台词逐字校验：分镜表台词拼接 ≠ 原文时自动重试（最多 3 次）
 - 单镜失败不中断：记录后继续，最后用 `--regenerate` 补拍
-- API 层 503/429 队列满自动指数退避重试（图像 6 次、视频任务 4 次）
+- API 层 503/429 自动重试：图像 6 次指数退避；视频任务 4 次，其中**队列满（503 `video_queue_full`）走 70 秒长退避**（短退避扛不住平台级拥堵）、429 限速固定等 70s
+- **舞台调度锁（STAGE_LOCK）**：每镜 prompt 注入"禁烧字幕（霓虹灯布景除外）+ 演员全程立麦前 + 机位平缓推拉 + 观众仅在台前观众席（可鼓掌欢呼），不得出现在舞台上或演员身后"
 - 每镜末尾要求"说完台词自然停顿"，转场落在停顿点，拼接无痕
 
 ## 使用方法
@@ -140,6 +141,7 @@ node talkshow_produce.js --resume --work-dir work/20260901-143000-abcd --express
 | `--voice-desc <text>` | 否 | 智能 | 音色描述；优先级最高，会覆盖一切默认。**注意：若不提供且提供的是女性演员图，仍默认走男声 profile，需显式 `--voice female` 才女声匹配** |
 | `--voice <female\|male>` | 否 | 智能 | 音色性别预设（female=28岁清亮女声；male=30岁中音男声），不传 `--voice-desc` 时生效。**提供女性演员图时务必 `--voice female`，否则女演员会配男声**（声画不匹配，已修复：旧版静默走男声） |
 | `--prop <preset\|text>` | 否 | 无道具 | **段子特定道具白名单**。预设：`thermos`=哑光黑色保温杯（带吸管杯盖，配小茶几）、`coffee`=白色陶瓷咖啡杯、 `none`=无道具。也可写自定义描述（自由文本，如 `--prop "一只银色保温杯"`）。仅当段子明确需要该道具时使用，无关段子不要加，否则画面漂移。`--prop none` 或省略 → 舞台除立式麦外保持干净，演员双手空手。 |
+| `--outfit-lock <text>` | 否 | 空 | **服装/发型逐字锁定段**（新建与 `--resume` 均可传，存 `state.inputs.outfitLock` 全片复用）。把服装款式、剪裁、开衩位置、裙长、鞋款、发型发色写成一句"服装宪法"注入每镜视频 prompt，并明令"不得把开衩裙画成直筒裙、不得丢失外套"。**提供演员图时强烈建议使用**：仅靠参考图 + 泛化"服装一致"锚点，视频模型在全身镜头会把服装细节自由发挥（实测：高开衩包臀裙被画成普通黑裙、脸型变圆）；逐字锁定段写入后此类漂移根治 |
 | `--expression <0-10>` | 否 | `8` | **表情与肢体夸张程度**。10=极度夸张（瞪眼张嘴、舞台剧式）；**8=自然克制（默认）**，微表情为主、五官不变形；6=内敛冷面喜剧；≤4=近乎无表情。同时约束分镜 `emotion` 用词与每镜视频 prompt，并对旧分镜中的夸张词自动降级 |
 | `--ratio <r>` | 否 | `16:9` | 16:9 / 9:16 / 1:1 / 4:3 / 3:4 / 21:9 |
 | `--max-shot <n>` | 否 | `12` | 单镜最大秒数（模型上限 12） |
@@ -182,13 +184,43 @@ work/<session>/
 4. **交付**：成片 + qc_report.md 一起交付，报告人工清单供用户勾选
 5. **URL 传参**：在 Git Bash 中传 URL 参数时使用 `MSYS_NO_PATHCONV=1`（防路径转换）；脚本已内置 URL 反斜杠自愈
 
+### Agent 兜底循环（拥堵期标准运行范式，强烈推荐）
+
+平台免费视频队列在白天常整小时 503 饱和、深夜零星放行（实测规律：深夜 22 点后至清晨为放行窗口）。单次运行扛不住，**Agent 应把流水线包进外层智能循环**后台运行：
+
+```bash
+STATE="<work-dir>/state.json"
+for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
+  # ① 存在失败镜时清除旧 merged，强制阶段四重合并（防"缺镜成片"被当成功）
+  node -e "const fs=require('fs');const s=JSON.parse(fs.readFileSync(process.argv[1],'utf8'));
+    if(s.videos&&s.videos.some(v=>!v.ok)&&s.merged){s.merged=null;s.done=false;
+    fs.writeFileSync(process.argv[1],JSON.stringify(s,null,2));}" "$STATE"
+  # ② 首轮可带 --regenerate 重拍指定镜；后续轮普通 --resume
+  node talkshow_produce.js --resume --work-dir <work-dir> [--outfit-lock "..."]
+  # ③ 成功判据：全部镜 ok 且 merged.final 存在——不能只看退出码（部分镜失败仍 exit 0）
+  node -e "const s=JSON.parse(require('fs').readFileSync(process.argv[1],'utf8'));
+    const ok=s.videos&&s.videos.length&&s.videos.every(v=>v.ok)&&s.merged&&s.merged.final;
+    if(!ok)process.exit(1)" "$STATE" && break
+  sleep 120
+done
+```
+
+要点：**断点机制保证已生成资产/镜头不重复计费**，循环每轮只补缺失镜；队列放行不可预测时循环接力跑（跑完 12 轮未齐就再开一轮），已到手镜头始终锁定。
+
+### 交付前 QC 清单（必做，逐项核验）
+
+1. **完整性**：`state.json` 全部镜 `ok:true`，且 `videos/` 下文件数与镜数一致（防旧命名残留混淆）
+2. **成片时效**：`ffprobe` 最终成片时长 ≈ 分镜表总时长（±3s）；文件 mtime 晚于最后一镜生成时间——**只信 state.json 的 `merged.final` 字段会踩"旧残片"坑**
+3. **逐镜抽帧审计**（30%/70% 两帧）：双字幕/烧录文字、观众位置（台上穿帮）、服装与 `--outfit-lock` 一致性、人物身份特征。可用 `node qa_shots.js --work-dir <dir>` 自动化（视觉模型按 `watermark_or_text` / `extra_person` / `outfit_match` 等维度判定）
+4. **字幕唯一性**：成片中只允许 SRT 压制这一层字幕
+
 ## 故障排查
 
 | 问题 | 解决方案 |
 |---|---|
 | `size must be 720P` | Flash 版视频固定 720P，脚本已固定，勿改 `--model-video` 后手动传 size |
 | `images length must not exceed 5` | 双参考图方案只用 2 张，检查是否误传多图 |
-| 503 queue is full | 脚本自动指数退避重试；持续失败等 30s 再跑 |
+| 503 queue is full | 脚本自动重试；**视频队列满（`video_queue_full`/队列已满）已改为 70 秒长退避**（短指数退避扛不住平台级拥堵），持续失败属平台级饱和（免费期白天尤甚），用外层兜底循环磨（见"Agent 兜底循环"） |
 | `429 video generation rate limit exceeded (1 req/min)` | 视频接口限速 1 次/分钟（实测）；脚本命中后固定等 70s 再重试，勿缩短间隔 |
 | 分镜拆解 JSON 解析失败 | 自动重试 3 次；仍失败检查简稿是否有大段英文/特殊符号 |
 | 某镜生成失败 | 继续其余镜头，最后 `--resume --regenerate <n>` 补拍 |
@@ -202,7 +234,11 @@ work/<session>/
 | 口型不同步 | 缩短该镜台词（拆分镜），或检查该镜 seconds 是否远大于台词所需时长 |
 | 拼接报错 xfade | 确认 FFmpeg 为完整版（winget Gyan.FFmpeg），片段分辨率差异已由脚本自动归一 |
 | 字幕乱码/方框 | SRT 为 UTF-8；确认系统有 Microsoft YaHei 字体 |
-| 视频任务轮询超时 | 默认 15 分钟；网络慢可改 `agnes_client.js` 中 `timeoutMs` |
+| 视频任务轮询超时 | 默认 **40 分钟**（原 15 分钟会把已入队的任务白白丢弃——实测拥堵期任务入队后 pending 超 15 分钟属常态）；网络更慢可再调 `agnes_client.js` 中 `timeoutMs` |
+| **成片出现双字幕、且两层样式不一样** | 视频模型偶发自带烧录台词字幕（白字/红字艺术字、位置随机），与后期 SRT 压制叠成双字幕。`prompts.js` 的 `STAGE_LOCK` 已含"画面严禁出现任何字幕/台词文本（舞台霓虹灯布景除外）"；仍出现时用 `qa_shots.js`（`watermark_or_text` 维度）定位坏镜，`--regenerate <n>,<n>` 补拍。**交付前必须逐镜抽帧审计**（30%/70% 处各 1 帧） |
+| **观众被画到舞台上/坐在演员身后** | `STAGE_LOCK` 已约束"观众只在台前观众席（前景剪影/台下背影），可鼓掌欢呼大笑，不得出现在舞台上或演员身后"；仍穿帮时 `qa_shots.js` 的 `extra_person` 维度定位 + 补拍 |
+| **部分镜失败仍 exit 0 并出"缺镜成片"** | `talkshow_produce.js` 阶段四拿现有镜直接合并，**外层循环不能以退出码判成功**——必须校验 `state.json` 全部 `v.ok` 且 `merged.final` 存在（见"Agent 兜底循环"标准范式） |
+| **交付的"成片"实为旧残片（state 显示已合并）** | 循环的成功校验若只查 `merged.final` 是否存在，最后一轮重合并可能未落盘（文件还是缺镜期的残片）。**交付前必须 `ffprobe` 成片时长（应 ≈ 分镜表总时长）+ 核对文件 mtime**，不符则清 `merged` 字段 + 删 `final/` 旧文件 + `--resume` 重跑阶段四 |
 | Windows 字幕压制失败（`subtitles` 滤镜报 `original_size` / 路径解析错） | FFmpeg `-vf subtitles='D\:/...'` 在 Windows 下盘符冒号转义极脆弱。`scripts/ffmpeg_tools.js` 的 `burnSubtitles` 已改用 **`cwd: 字幕目录` + `basename` + 单引号包裹** 方案彻底绕开。如手动跑命令：`cd` 到字幕所在目录，再 `ffmpeg -i in.mp4 -vf "subtitles='file.srt':force_style='...'" out.mp4` |
 | 段子特定道具（如保温杯、咖啡杯、书本、手机）想作为视觉锚点跨镜稳定出现 | 用 `--prop <preset\|text>` 参数启用。可选预设：`thermos`（哑光黑色保温杯+小茶几）、`coffee`（白色陶瓷咖啡杯），或自由文本。**默认省略时舞台无道具**（`prompts.js` 的 `consistencyAnchor` / `stageCompositePrompt` / SOP 8.5 三处都会自动改为"舞台除立式麦外保持干净，禁止分镜师添加任何手持/桌面道具"）。**示例**：`--prop thermos` / `--prop "一只银色保温杯"`。如需新增预设（如书本、耳机），在 `prompts.js` 的 `PROP_PRESETS` 加一行即可，无需改三处逻辑 |
 | 视频中道具位置跨镜漂移（如 S01 在右前景、S04 转左前景） | 视频生成阶段模型对小道具长时段位置保持能力有限。**视觉叙事一致性可接受**（道具仍可见且全程唯一）；如需绝对固定位置，用 `--regenerate <n>,<n>`（仅该镜）补拍 + 在对应镜 prompt 中显式写「xxx 道具始终位于画框xxx方向」 |
@@ -250,3 +286,23 @@ work/<session>/
   回退链。draft.js 输出默认迁至 `<cwd>/talkshow-studio/out/drafts/<时间戳>`（跟随会话工作目录，
   不写回技能目录）。
   talkshow-studio-kling 改为经回退链引用本技能 kb，删除其重复副本，消除双份漂移。
+
+## 完善记录（2026-10-27 实战补丁轮：队列韧性 / 服装锁定 / 舞台调度 / 交付 QC）
+
+来源：14 镜脱口秀《出生入死》全流程实战（含跨 3 天队列拥堵攻坚与两轮用户反馈返工），以下均已落码并实战验证。
+
+### 脚本级修复（scripts/）
+
+1. **全脚本 UTF-8 BOM 剥离**：Windows 下技能脚本带 BOM 会让 Node 直接 SyntaxError（`node --script-file` 尚未解析就崩）。症状：`node xxx.js --help` 也报语法错误且报错行号在第 1 行。修复：`sed -i '1s/^\xEF\xBB\xBF//'`。**新增脚本文件时务必无 BOM 落盘**。
+2. **agnes_client.js `withRetry` 队列满长退避**：503 `video_queue_full`/队列已满 命中 70s 固定退避（原 3/6/12s 指数退避在平台级饱和下 4 次全烧完）；429 限速仍 70s。
+3. **agnes_client.js `pollVideoTask` 超时 15→40 分钟**：拥堵期任务入队后 pending 超 15 分钟属常态，短超时会**把已入队的任务白白丢弃**（丢弃后任务仍在平台侧跑，但脚本侧记为失败 → 重复提交浪费额度）。
+4. **`--outfit-lock` 服装逐字锁定**（prompts.js `shotVideoPrompt` 第 5 参 + talkshow_produce.js CLI 参数，存 `state.inputs.outfitLock`，resume 可覆盖）：实测证明"参考图 + 泛化服装一致锚点"不足以约束视频模型——全身镜头会把高开衩包臀裙画成普通直筒黑裙、脸型画圆；逐字锁定段（款式/剪裁/开衩位置/裙长/鞋款/发色 + "不得把开衩裙画成直筒裙"负向禁令）写入后根治。**提供演员图时必配**。
+5. **`STAGE_LOCK` 舞台调度锁定段**（prompts.js，无条件注入每镜 prompt）：修复两类实测穿帮——①视频模型自带烧录台词字幕（白字/红字艺术字，与 SRT 叠成双字幕）→ 禁令"画面严禁出现任何字幕/台词文本（舞台霓虹灯布景除外），台词只通过口型与声音呈现"；②观众被画到舞台上坐演员身后 → "观众只在台前观众席（前景剪影/台下背影），可鼓掌欢呼大笑，不得出现在舞台上或演员身后"；同时固化"演员全程立麦前 + 机位平缓推拉运镜"。
+6. **`propDesc` 空值兜底**：早期 state.json 无 `propDesc` 字段，resume 时 prompt 出现 `undefined` 字样，续跑入口已补 `state.inputs.propDesc == null → ""` 兜底。
+
+### Agent 级方法论（写入"Agent 兜底循环"与"交付前 QC 清单"两节）
+
+- **退出码不可信**：`talkshow_produce.js` 部分镜失败仍 exit 0 并用现有镜合并出"缺镜成片"——外层循环必须以 `state.json` 全镜 `v.ok` 为成功判据，且每轮开始前清 `merged` 强制重合并。
+- **交付双验证**：`ffprobe` 成片时长 + 文件 mtime，防"state 显示已合并、实为旧残片"（本次实战真实踩坑：交付前发现 final 是 3 天前 9.5s 残片）。
+- **逐镜抽帧审计**：每镜 30%/70% 两帧人审或 `qa_shots.js` 机审，重点维度：双字幕、观众位置、服装一致性、人物身份。
+- **队列规律**：免费视频通道白天（尤其工作日）几乎全拒，深夜 22 点后至清晨零星放行（约 1 小时 1 任务）；长片应挂循环跨夜磨，断点保证零重复计费。

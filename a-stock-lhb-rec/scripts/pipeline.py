@@ -126,18 +126,30 @@ def fetch_hot(dates):
     url_tpl = "http://zx.10jqka.com.cn/event/api/getharden/date/{d}/orderby/date/orderway/desc/charset/GBK/"
     h = {"User-Agent": UA}
     done = 0
+    missed = []
     for d in dates:
         p = os.path.join(C.HOT_DIR, f"hot_{d}.json")
         if os.path.exists(p):
             done += 1; continue
-        try:
-            r = requests.get(url_tpl.format(d=d), headers=h, timeout=12)
-            data = r.json()
-            if data.get("errocode", 0) == 0:
-                json.dump(data.get("data") or [], open(p, "w", encoding="utf-8"), ensure_ascii=False)
-        except Exception as e:
-            print(f"  hot {d} ERR {e}")
+        # 瞬时失败(网络拦截/空响应)常见, 重试 3 次避免静默丢失题材维度
+        ok = False
+        for attempt in range(3):
+            try:
+                r = requests.get(url_tpl.format(d=d), headers=h, timeout=12)
+                data = r.json()
+                if data.get("errocode", 0) == 0:
+                    json.dump(data.get("data") or [], open(p, "w", encoding="utf-8"), ensure_ascii=False)
+                    ok = True
+                    break
+                print(f"  hot {d} 第{attempt+1}次 errocode={data.get('errocode')}")
+            except Exception as e:
+                print(f"  hot {d} 第{attempt+1}次 ERR {e}")
+            time.sleep(1.5 * (attempt + 1))
+        if not ok:
+            missed.append(d)
         time.sleep(0.25)
+    if missed:
+        print(f"[hot] ⚠ 以下日期题材抓取失败(主线维度将缺失, 重跑 daily 会自动补抓): {', '.join(missed)}")
     print(f"[hot] 已就绪 {len(os.listdir(C.HOT_DIR))} 文件")
 
 

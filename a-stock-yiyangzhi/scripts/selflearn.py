@@ -237,7 +237,11 @@ def main(argv=None):
     if not diag:
         print("[selflearn] 无可用缓存K线，跳过诊断，返回")
         return 0
-    d = date or C.latest_trade_date(sep="-")
+    # --date 传入的是 YYYYMMDD（同时供 verify 消费）；报告文件名/标题统一用展示格式 YYYY-MM-DD
+    if date and len(date) == 8 and date.isdigit():
+        d = f"{date[:4]}-{date[4:6]}-{date[6:8]}"
+    else:
+        d = date or C.latest_trade_date(sep="-")
     # 回放窗口末根：用缓存最新交易日（非今天，避免盘中未收盘）
     md = _render_report(diag, d)
     md_path = os.path.join(C.REPORT_ROOT, f"一阳指自学习-{d}.md")

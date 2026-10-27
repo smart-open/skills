@@ -15,6 +15,7 @@ import sys
 import csv
 import glob
 import argparse
+from datetime import datetime, timedelta
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from _common import (VERIFY_PATH, load_json, dump_json, safe_float,
@@ -45,6 +46,23 @@ def resolve_target():
 def zt_threshold(code):
     # 主板 10%（创业板 300/301、科创板 688 用 20%，本技能仅主板，但保守兼容）
     return 9.8 if not code.startswith(("300", "301", "688")) else 19.5
+
+
+def _latest_completed_ymd():
+    """最近一个「已收盘」交易日 YYYYMMDD：盘后(>=15:05)取当日，盘中取前一工作日。"""
+    now = datetime.now()
+    d = now.date()
+    if (now.hour, now.minute) < (15, 5):
+        d = d - timedelta(days=1)
+    while d.weekday() >= 5:          # 周末回退（节假日依赖 K 线实际日期，不在此处理）
+        d = d - timedelta(days=1)
+    return d.strftime("%Y%m%d")
+
+
+def _cut(klines, latest_ymd):
+    """仅保留已收盘交易日的 K 线，剔除盘中未完成 bar（防止用当日盘中价污染 T+N）。"""
+    return [k for k in (klines or [])
+            if str(k.get("d", "")).replace("-", "") <= latest_ymd]
 
 
 def _fwd_metrics(klines, idx, code):
@@ -100,33 +118,36 @@ def main():
     if not screen or screen.get("T") != target:
         raise SystemExit(f"!! screen_{target}.json 缺失或 T 不符")
 
-    # 收集候选（精选 + 备选，去重）
+    # 收集候选（精选 + 备选 + 全量评分池，去重）
     cands = {}
-    for key in ("strategy1", "strategy2", "all_s1", "all_s2", "s2_backup", "near_qualify"):
+    for key in ("strategy1", "strategy2", "all_s1", "all_s2",
+                "pool_s1", "pool_s2", "s2_backup", "near_qualify"):
         for x in screen.get(key, []):
             code = x.get("code")
             if not code or code in cands:
                 continue
             cands[code] = {
                 "code": code, "name": x.get("name", ""),
-                "strategy": "S1" if key in ("strategy1", "all_s1") else
-                            ("S2" if key in ("strategy2", "all_s2", "s2_backup") else "near"),
-                "score": x.get("score", x.get("score2", 0)),
+                "strategy": "S1" if key in ("strategy1", "all_s1", "pool_s1") else
+                            ("S2" if key in ("strategy2", "all_s2", "pool_s2", "s2_backup") else "near"),
+                "score": next((v for v in (x.get("score"), x.get("score2")) if v is not None), 0),
                 "gate_ok": x.get("gate_ok", True),
                 "raw_f": x.get("raw_f", {}),
             }
     if not cands:
         raise SystemExit("!! screen 中无可验证候选")
 
-    # K 线：优先缓存，缺则联网拉
+    # K 线：缓存未覆盖「最近已收盘交易日」即视为陈旧，重新联网拉取（否则 known 升不上去）
     kcache = load_json(KLINE_CACHE, {})
     codes = list(cands.keys())
+    latest_ymd = _latest_completed_ymd()
 
     def _pull(code):
-        if code in kcache and kcache[code]:
-            return code, kcache[code]
+        rows = kcache.get(code) or []
+        if rows and str(rows[-1].get("d", "")).replace("-", "") >= latest_ymd:
+            return code, rows
         if _args.no_fetch:
-            return code, []
+            return code, rows
         return code, fetch_kline(code)
 
     rows_map = {}
@@ -135,9 +156,16 @@ def main():
             c, rows = fu.result()
             if rows:
                 rows_map[c] = rows
+    # 统一剔除盘中未完成 bar（只用已收盘交易日，防止污染 T+N）
+    rows_map = {c: r for c, r in ((c, _cut(r, latest_ymd)) for c, r in rows_map.items()) if r}
     if not _args.no_fetch:
         kcache.update({c: rows_map[c] for c in rows_map})
         dump_json(kcache, KLINE_CACHE)
+
+    # 市场情绪（来自 screen.market，供 evolve 分层：急退日 vs 平常日）
+    _mk = screen.get("market") or {}
+    mkt_chg = _mk.get("zt_chg_pct", "")
+    mkt_risk = 1 if _mk.get("risk_off") else 0
 
     # 逐只评估
     verify_rows = []
@@ -151,6 +179,7 @@ def main():
             "date": target, "code": code, "name": info["name"],
             "strategy": info["strategy"], "score": info["score"],
             "gate_ok": int(info["gate_ok"]),
+            "mkt_chg": mkt_chg, "mkt_risk": mkt_risk,
         }
         for n in (1, 2, 3):
             f = ev[f"t{n}"]
@@ -169,30 +198,46 @@ def main():
         print("!! 无可验证样本（K线未覆盖 T 日之后）")
         return
 
-    # 追加历史 CSV（按 date+code 去重）
+    # 合并写入历史 CSV（按 date+code upsert：联网重算权威，可覆盖修正旧行）
     hist_path = VERIFY_PATH
     fieldnames = ["date", "code", "name", "strategy", "score", "gate_ok",
                   "T1_ret_c", "T1_ret_h", "T1_zt",
                   "T2_ret_c", "T2_ret_h", "T2_zt",
                   "T3_ret_c", "T3_ret_h", "T3_zt",
                   "known", "hit", "hit_t1",
+                  "mkt_chg", "mkt_risk",
                   "f_washout", "f_trend", "f_fund", "f_vol", "f_pos", "f_liq"]
     existing = []
     if os.path.exists(hist_path):
         with open(hist_path, "r", encoding="utf-8-sig", newline="") as f:
             existing = list(csv.DictReader(f))
-    keys = {(r.get("date"), r.get("code")) for r in existing}
-    added = 0
+    idx_map = {(r.get("date"), r.get("code")): i for i, r in enumerate(existing)}
+    added = updated = 0
     for r in verify_rows:
-        if (r["date"], r["code"]) in keys:
+        k = (r["date"], r["code"])
+        if k in idx_map:
+            old = existing[idx_map[k]]
+            if not _args.no_fetch:
+                replace = True          # 联网重算结果权威（含修正被盘中数据污染的行）
+            else:
+                try:
+                    replace = int(r.get("known") or 0) > int(old.get("known") or 0)
+                except (TypeError, ValueError):
+                    replace = True
+                if not replace and r.get("mkt_chg", "") != "" and not old.get("mkt_chg"):
+                    replace = True
+            if replace:
+                existing[idx_map[k]] = r
+                updated += 1
             continue
         existing.append(r)
+        idx_map[k] = len(existing) - 1
         added += 1
     with open(hist_path, "w", encoding="utf-8-sig", newline="") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         w.writeheader()
         w.writerows(existing)
-    print(f"✅ 验证回填完成 → {hist_path}（新增 {added}，累计 {len(existing)}）")
+    print(f"✅ 验证回填完成 → {hist_path}（新增 {added}，更新 {updated}，累计 {len(existing)}）")
 
     # 汇总命中率
     cur = [r for r in verify_rows]
@@ -204,11 +249,11 @@ def main():
     print(f"   {target} 验证样本 {n}（T+3 可判定 {n_known}）命中 {hit}，命中率 {hit/max(n,1)*100:.0f}%")
     if n_t1:
         print(f"   T+1 可交易口径命中 {hit_t1}/{n_t1}（{hit_t1/max(n_t1,1)*100:.0f}%）")
-    for r in sorted(cur, key=lambda x: -x["score"])[:8]:
+    for r in sorted(cur, key=lambda x: -(x["score"] or 0))[:8]:
         t1 = r["T1_ret_c"]
         t1s = f"{t1:+.1f}%" if t1 != "" else "—"
         mark = "✓" if r["hit"] else ("·" if r["known"] >= 3 else "待")
-        print(f"     {r['code']} {r['name'][:6]:<6} S={r['score']:>3} T1 {t1s} {mark}")
+        print(f"     {r['code']} {r['name'][:6]:<6} S={r['score'] if r['score'] is not None else 0:>3} T1 {t1s} {mark}")
 
 
 if __name__ == "__main__":

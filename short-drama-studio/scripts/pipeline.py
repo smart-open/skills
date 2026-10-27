@@ -43,6 +43,7 @@ def main():
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--no-subs", action="store_true")
     ap.add_argument("--no-bgm", action="store_true")
+    ap.add_argument("--yes", action="store_true", help="非交互环境跳过预算确认")
     args = ap.parse_args()
 
     prod = str(Path(args.production).resolve())

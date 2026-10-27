@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Agnes AI API 客户端（零依赖，Node.js 内置模块）
  *
  * 覆盖三个模态：
@@ -92,9 +92,10 @@ async function withRetry(fn, { label = "API 调用", maxRetries = 5, baseDelayMs
         /503|429|queue is full|timeout|ECONNRESET|ECONNREFUSED|ETIMEDOUT|socket hang up|5\d\d 服务器/i.test(msg) ||
         (status != null && (status >= 500 || status === 429));
       if (!retryable || attempt === maxRetries) break;
-      // 视频创建接口限速 1 次/分钟：命中 rate limit 时固定等 70s，其余按指数退避
+      // 视频创建接口限速 1 次/分钟：命中 rate limit 时固定等 70s；队列满（image/video queue full）同样长退避 70s，其余按指数退避
       const isRateLimit = /429|rate limit/i.test(msg);
-      const delay = isRateLimit ? 70000 : baseDelayMs * Math.pow(2, attempt - 1);
+      const isQueueFull = /queue_full|queue is full|队列已满|队列已满/i.test(msg);
+      const delay = isRateLimit || isQueueFull ? 70000 : baseDelayMs * Math.pow(2, attempt - 1);
       console.log(`  [retry] ${label} 第 ${attempt} 次失败（${msg.slice(0, 160)}），${Math.round(delay / 1000)}s 后重试...`);
       await sleep(delay);
     }
@@ -275,7 +276,7 @@ async function pollVideoTask({
   model = DEFAULT_VIDEO_MODEL,
   videoId,
   intervalMs = 4000,
-  timeoutMs = 15 * 60 * 1000,
+  timeoutMs = 40 * 60 * 1000,
   onTick = null,
 }) {
   const origin = new URL(baseUrl).origin;

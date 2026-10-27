@@ -143,8 +143,10 @@ def main():
 
     if n < _args.min_samples:
         result["reason"] = f"样本不足（{n}<{_args.min_samples}），维持先验权重"
-        dump_json(load_json(PARAMS_PATH, {}) | {"status": "insufficient", "samples": n},
-                  PARAMS_PATH)
+        result["status"] = "insufficient"
+        payload = load_json(PARAMS_PATH, {})
+        payload.update({"status": "insufficient", "reason": result["reason"], "samples": n})
+        dump_json(payload, PARAMS_PATH)
         print(result["reason"])
         return
 
@@ -190,6 +192,9 @@ def main():
     result.update({"ok": True, "n": n, "base_hit": round(base_hit, 3),
                    "n_snapshot": n_snapshot,
                    "weights": smoothed, "raw_weights": new_w, "factor_info": info})
+    # 显式覆盖状态字段，避免保留上一次的 status="insufficient" / 旧 reason
+    result["status"] = "ok"
+    result["reason"] = f"权重已按 {n} 个样本进化"
     old = load_json(PARAMS_PATH, {})
     old.update(result)
     dump_json(old, PARAMS_PATH)

@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env node
+#!/usr/bin/env node
 /**
  * talkshow_produce.js — 生产级脱口秀视频流水线（Agnes 全模态 + FFmpeg）
  *
@@ -63,6 +63,7 @@ talkshow_produce.js — 生产级脱口秀视频流水线
   --actor-image <path|url> 脱口秀演员图片（本地路径或 URL；不提供时自动生成默认演员：现代都市美女模特）
   --actor-desc <text>      默认演员的形象描述（仅在未提供 --actor-image 时生效）
   --stage-image <path|url> 舞台图片（本地路径或 URL；不提供时自动生成）
+  --outfit-lock <text>     服装/发型逐字锁定段（每镜注入 prompt，对抗视频模型改衣服/换发型）
 
 可选：
   --voice-desc <text>      音色描述（默认：${P.DEFAULT_VOICE_PROFILE}）
@@ -133,6 +134,7 @@ function newState(workDir, opts) {
       scriptFile: opts.scriptFile,
       actorImage: opts.actorImage,
       stageImage: opts.stageImage,
+      outfitLock: opts.outfitLock || "",
       voiceDesc: opts.voiceDesc,
       expressionLevel: opts.expressionLevel,
       propDesc: opts.propDesc || "",
@@ -454,7 +456,8 @@ async function stageVideos(workDir, state, apiKey, baseUrl, regenSpec = null) {
       shot,
       state.inputs.voiceDesc,
       state.inputs.expressionLevel,
-      state.inputs.propDesc || ""
+      state.inputs.propDesc || "",
+      state.inputs.outfitLock || ""
     );
     const outPath = path.join(videosDir, `shot_${shot.id}_${shot.seconds}s.mp4`);
     console.log(`  [${shot.id}] 生成中（${shot.seconds}s，台词 ${shot.text.length} 字）...`);
@@ -669,6 +672,7 @@ async function main() {
   const scriptFile = args["script-file"];
   const actorImage = args["actor-image"] || args["actor"] || null;
   const stageImage = args["stage-image"] || args["stage"] || null;
+  const outfitLock = typeof args["outfit-lock"] === "string" ? args["outfit-lock"].trim() : "";
 
   let workDir = args["work-dir"] || null;
   let state;
@@ -689,6 +693,14 @@ async function main() {
     if (state.inputs.expressionLevel == null) state.inputs.expressionLevel = P.DEFAULT_EXPRESSION_LEVEL;
     // 兼容旧会话：早期 state.json 无 propDesc 字段，续跑时兜底为空（无道具），避免 prompt 出现 undefined
     if (state.inputs.propDesc == null) state.inputs.propDesc = "";
+    // 兼容旧会话：早期 state.json 无 outfitLock 字段，续跑时兜底为空
+    if (state.inputs.outfitLock == null) state.inputs.outfitLock = "";
+    // 续跑时允许覆盖/补上服装锁定段（对后续所有新拍镜头生效；已 ok 镜头需 --regenerate 重拍）
+    if (outfitLock && outfitLock !== state.inputs.outfitLock) {
+      console.log(`  服装锁定段已更新（对新拍镜头生效）`);
+      state.inputs.outfitLock = outfitLock;
+      saveState(workDir, state);
+    }
     // 续跑时允许覆盖道具（如 --prop thermos 补上保温杯），但需同步重拍分镜与视频才生效
     if (args.prop != null && args.prop !== true) {
       const np = P.resolveProp(args.prop);
@@ -721,6 +733,7 @@ async function main() {
       scriptFile: path.resolve(scriptFile),
       actorImage: actorImage ? (/^https?:\/\//i.test(actorImage) ? actorImage : path.resolve(actorImage)) : null,
       stageImage: stageImage ? (/^https?:\/\//i.test(stageImage) ? stageImage : path.resolve(stageImage)) : null,
+      outfitLock: outfitLock,
       // 音色优先级：--voice-desc（自定义）> --voice female|male（性别预设）> 默认规则
       // 注意：默认规则对"提供了演员图"的场景沿用男声 profile，若演员为女性须显式 --voice female，
       // 否则会出现女演员配男声的声画不匹配。

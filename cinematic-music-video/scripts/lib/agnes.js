@@ -142,8 +142,16 @@ class KeyPool {
       // All keys cooling down — wait for the earliest to recover.
       let earliest = Infinity;
       for (const f of this.failures.values()) earliest = Math.min(earliest, f.until);
-      const wait = Math.max(1000, earliest - Date.now());
-      log(`[keys] all keys cooling down, waiting ${Math.round(wait / 1000)}s ...`);
+      // Defensive: if the failures map is somehow empty (a racing worker
+      // cleared it between the scan above and here) earliest stays Infinity
+      // and sleep(Infinity) hangs the process forever with no log line after
+      // this one. Measured 2026-10-09 — the run appeared dead for 7 minutes.
+      const wait = Number.isFinite(earliest) ? Math.max(1000, earliest - Date.now()) : 3000;
+      log(
+        this.keys.length === 1
+          ? `[keys] the only key is cooling down, waiting ${Math.round(wait / 1000)}s ...`
+          : `[keys] all keys cooling down, waiting ${Math.round(wait / 1000)}s ...`
+      );
       await sleep(wait);
     }
   }
@@ -152,14 +160,29 @@ class KeyPool {
   penalize(key, reason) {
     const f = this.failures.get(key) || { count: 0, until: 0 };
     f.count += 1;
-    // Exponential-ish cooldown, capped.
-    const cd = Math.min(this.cooldownMs * Math.pow(1.6, f.count - 1), 300000);
+    // Exponential-ish cooldown, capped — BUT the cap must depend on how many
+    // keys we have.
+    //
+    // Measured 2026-10-09: with a SINGLE key, the 300s hard cap is a trap. One
+    // key that gets penalized five times parks the cursor for five minutes,
+    // and every retry in that window just waits — the run looks hung
+    // (`[keys] all keys cooling down, waiting 300s ...`) while it is really
+    // just idling on the only channel it has. With N keys a long cooldown is
+    // fine: the other N-1 keys keep working, so penalizing one hard is cheap.
+    // With one key it is fatal, so cap it at something a person will tolerate.
+    const cap = this.keys.length > 1 ? 300000 : 60000;
+    const cd = Math.min(this.cooldownMs * Math.pow(1.6, f.count - 1), cap);
     f.until = Date.now() + cd;
     this.failures.set(key, f);
     log(`[keys] ${KeyPool.mask(key)} penalized (${reason}); cooldown ${Math.round(cd / 1000)}s`);
   }
 
   success(key) {
+    // Health means health: a successful call clears the failure record whole,
+    // including its count. Deleting only the cooldown but keeping the count
+    // would let a recovered key jump straight back to a multi-minute park on
+    // its next 429 (measured 2026-10-09). A key that just worked has earned a
+    // clean slate.
     this.failures.delete(key);
     this.usage.set(key, (this.usage.get(key) || 0) + 1);
   }
@@ -275,6 +298,75 @@ async function withKeyRetry(pool, callFn, opts) {
  * @param {number}   opts.temperature
  * @returns {Promise<string>} assistant text
  */
+/**
+ * One streaming (SSE) chat attempt.
+ *
+ * Why streaming and not `stream:false`: the non-streaming chat endpoint silently
+ * buffers large generations (a 24-shot storyboard is ~38k chars) and can stall for
+ * tens of minutes behind a proxy, long after the model has actually produced tokens.
+ * The same request returns in ~3 minutes when streamed. Only `delta.content` is
+ * accumulated; anything unparseable is skipped rather than throwing.
+ */
+function chatStreamRequest({ key, body, timeout }) {
+  return new Promise((resolve, reject) => {
+    const req = https.request(
+      {
+        host: API_HOST,
+        path: "/v1/chat/completions",
+        method: "POST",
+        headers: {
+          Authorization: "Bearer " + key,
+          "Content-Type": "application/json",
+          Connection: "close",
+          "Content-Length": Buffer.byteLength(body),
+        },
+        timeout,
+      },
+      (res) => {
+        if (res.statusCode < 200 || res.statusCode >= 300) {
+          let errBody = "";
+          res.setEncoding("utf8");
+          res.on("data", (c) => (errBody += c));
+          res.on("end", () => {
+            const err = new Error(`HTTP ${res.statusCode}: ${errBody.slice(0, 800)}`);
+            err.status = res.statusCode;
+            err.body = errBody;
+            reject(err);
+          });
+          return;
+        }
+        res.setEncoding("utf8");
+        let buf = "";
+        let out = "";
+        res.on("data", (chunk) => {
+          buf += chunk;
+          let nl;
+          while ((nl = buf.indexOf("\n")) !== -1) {
+            const line = buf.slice(0, nl).trim();
+            buf = buf.slice(nl + 1);
+            if (!line || !line.startsWith("data:")) continue;
+            const payload = line.slice(5).trim();
+            if (payload === "[DONE]") continue;
+            try {
+              const j = JSON.parse(payload);
+              const delta = j.choices && j.choices[0] && j.choices[0].delta;
+              if (delta && typeof delta.content === "string") out += delta.content;
+            } catch (e) {
+              /* partial SSE frame — keep buffering */
+            }
+          }
+        });
+        res.on("end", () => resolve(out));
+        res.on("error", reject);
+      }
+    );
+    req.on("error", reject);
+    req.on("timeout", () => req.destroy(new Error("Request timed out after " + timeout + "ms")));
+    req.write(body);
+    req.end();
+  });
+}
+
 async function chat(pool, opts) {
   const payload = {
     model: MODEL_CHAT,
@@ -284,9 +376,26 @@ async function chat(pool, opts) {
     ],
     max_tokens: opts.maxTokens || 16000,
     temperature: opts.temperature === undefined ? 0.75 : opts.temperature,
-    stream: false,
   };
-  const body = JSON.stringify(payload);
+  const timeout = Number(process.env.CMV_CHAT_TIMEOUT) || 900000;
+
+  // Preferred path: SSE streaming (see chatStreamRequest for the rationale).
+  try {
+    const out = await withKeyRetry(
+      pool,
+      (key) =>
+        chatStreamRequest({
+          key,
+          body: JSON.stringify(Object.assign({}, payload, { stream: true })),
+          timeout,
+        }),
+      { label: "chat" }
+    );
+    if (out && out.trim()) return out;
+    log("      chat: stream produced no content, falling back to non-streaming");
+  } catch (e) {
+    log(`      chat: streaming failed (${String(e.message).split("\n")[0].slice(0, 140)}), falling back to non-streaming`);
+  }
 
   const res = await withKeyRetry(
     pool,
@@ -295,8 +404,8 @@ async function chat(pool, opts) {
         method: "POST",
         pathStr: "/v1/chat/completions",
         headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
-        body,
-        timeout: Number(process.env.CMV_CHAT_TIMEOUT) || 900000,
+        body: JSON.stringify(Object.assign({}, payload, { stream: false })),
+        timeout,
       }),
     { label: "chat" }
   );
@@ -311,7 +420,6 @@ async function chat(pool, opts) {
   if (!choice) throw new Error("Chat response has no choices: " + res.raw.slice(0, 800));
   const content = choice.message && choice.message.content;
   if (!content) throw new Error("Chat response has empty content: " + res.raw.slice(0, 800));
-  if (opts.raw) return content;
   return content;
 }
 
@@ -466,16 +574,22 @@ async function createVideoTask(pool, opts) {
   }
 
   const body = JSON.stringify(payload);
+  // ★ 必须记住创建用的 key：视频任务绑定在创建它的账号上。本机 15 个 key 分属
+  //   多个账号，实测只有创建者的 key 能查到该任务（其余 14 个一律 HTTP 404
+  //   「任务不存在」）。轮询若轮换 key，就会 404 风暴 + 误伤整个 key 池。
+  let usedKey = null;
   const res = await withKeyRetry(
     pool,
-    (key) =>
-      httpRequest({
+    (key) => {
+      usedKey = key;
+      return httpRequest({
         method: "POST",
         pathStr: "/v1/videos",
         headers: { Authorization: "Bearer " + key, "Content-Type": "application/json" },
         body,
         timeout: 600000,
-      }),
+      });
+    },
     { label: "video-create" }
   );
 
@@ -486,6 +600,7 @@ async function createVideoTask(pool, opts) {
   const videoId = json.video_id || json.id || json.task_id;
   if (!videoId) throw new Error("No video_id in create response: " + res.raw.slice(0, 800));
   json._video_id = videoId;
+  json._key = usedKey;   // 交给 pollVideoTask 钉住（见下）
   return json;
 }
 
@@ -498,6 +613,10 @@ async function createVideoTask(pool, opts) {
  */
 async function pollVideoTask(pool, videoId, opts) {
   opts = opts || {};
+  // opts.key：创建该任务所用的 key。给了就**只用它**轮询——任务是账号级的，
+  // 切换 key 会得到 HTTP 404「任务不存在」（实测 15 key 仅 1 个命中）。
+  // 未给时退回原来的轮换行为（兼容旧调用方）。
+  const pinnedKey = opts.key || null;
   let interval = opts.pollIntervalMs || 8000;
   const maxWait = opts.maxWaitMs || 1800000; // 30 min
   const startedAt = Date.now();
@@ -505,7 +624,7 @@ async function pollVideoTask(pool, videoId, opts) {
   let consecutiveErrors = 0;
 
   for (;;) {
-    const { key } = await pool.acquire("video-poll");
+    const key = pinnedKey || (await pool.acquire("video-poll")).key;
     let ok = false;
     try {
       const res = await httpRequest({
@@ -516,7 +635,7 @@ async function pollVideoTask(pool, videoId, opts) {
       });
       const j = JSON.parse(res.raw);
       ok = true;
-      pool.success(key);
+      if (!pinnedKey) pool.success(key);
       consecutiveErrors = 0;
 
       const progress = j.progress != null ? j.progress : -1;
@@ -544,10 +663,12 @@ async function pollVideoTask(pool, videoId, opts) {
         interval = Math.min(Math.round(interval * 1.5), 30000);
         log(`  [${videoId}] poll 429, interval -> ${Math.round(interval / 1000)}s`);
       } else if (isKeyFailure(e)) {
-        pool.penalize(key, `HTTP ${e.status}`);
+        if (!pinnedKey) pool.penalize(key, `HTTP ${e.status}`);
       } else {
         consecutiveErrors++;
-        pool.penalize(key, "poll error");
+        // 钉住的 key 不参与惩罚：404 大多是「用错账号查任务」，不是 key 坏了，
+        // 惩罚它会把整个池子拖进无谓冷却。
+        if (!pinnedKey) pool.penalize(key, "poll error");
         log(`  [${videoId}] poll error: ${String(e.message).split("\n")[0].slice(0, 140)}`);
         if (consecutiveErrors > 12) throw new Error("Too many consecutive poll errors for " + videoId + ": " + e.message);
       }

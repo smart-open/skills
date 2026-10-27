@@ -39,6 +39,10 @@ function run(cmd, args, opts) {
     maxBuffer: opts.maxBuffer || 256 * 1024 * 1024,
     windowsHide: true,
     input: opts.input,
+    // stdin 只在真要往里写数据时才开管道。坑位 52：Windows 上 stdin 为匿名管道时，
+    // MSYS2/MinGW 构建的 ffmpeg.exe 会 spawn 失败并返回 EBUSY（status=null、无 stderr），
+    // 而同一条命令在 bash/cmd 里跑得好好的——所以现象是"ffmpeg 明明装着却启动不了"。
+    stdio: opts.input === undefined ? ["ignore", "pipe", "pipe"] : ["pipe", "pipe", "pipe"],
   });
   if (res.error) {
     throw new Error(`Failed to launch ${cmd}: ${res.error.message}. Is ffmpeg installed and on PATH?`);

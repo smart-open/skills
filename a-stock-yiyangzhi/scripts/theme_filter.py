@@ -89,10 +89,33 @@ def _throttle(wait=0.35):
         _last[0] = time.time()
 
 
+# 网络熔断：push2 主机整体不可达时（限流/断网），连续失败若干次后本轮不再重试，
+# 避免为每只候选做「3 主机 × 重试」的长耗时无谓请求（会把整轮扫描拖到 20 分钟以上）
+_p2_fail = [0]
+_p2_down = [False]
+_P2_FAIL_LIMIT = 6
+
+
+def _p2_skip():
+    return _p2_down[0]
+
+
+def _p2_ok():
+    _p2_fail[0] = 0
+
+
+def _p2_failed():
+    _p2_fail[0] += 1
+    if _p2_fail[0] >= _P2_FAIL_LIMIT:
+        _p2_down[0] = True
+
+
 # ===== 当日热点识别 =====
 def fetch_board_rank(fs, top_n=40):
     """抓板块涨幅榜，返回 [(name, chg), ...]（剔除风格标签）"""
     import requests as _rq
+    if _p2_skip():
+        return []
     hosts = ["https://push2.eastmoney.com", "https://82.push2.eastmoney.com",
              "https://push2delay.eastmoney.com"]
     params = {"pn": "1", "pz": str(top_n), "po": "1", "np": "1", "fltt": "2",
@@ -108,9 +131,14 @@ def fetch_board_rank(fs, top_n=40):
                     nm = str(it.get("f14", ""))
                     if nm and nm not in STYLE_BOARDS:
                         out.append((nm, C.safe_float(it.get("f3"))))
+                # 全为 0 的板块榜 = 盘前/休市空快照，数据失真，视为不可用（不展示假热点）
+                if out and all(abs(c) < 1e-9 for _n, c in out):
+                    continue
+                _p2_ok()
                 return out
         except Exception:
             continue
+    _p2_failed()
     return []
 
 
@@ -132,10 +160,30 @@ def fetch_hot_boards(concept_n=30, industry_n=20):
     return hot_concepts, hot_industries, brief
 
 
+def aggregate_hot_from_stocks(results, concept_n=15, industry_n=15):
+    """历史模式：实时板块榜无法按日回溯，改由候选股的概念/行业词频聚合当日热点。
+    返回 (hot_concepts:set, hot_industries:set, brief:dict)"""
+    from collections import Counter
+    cc, ic = Counter(), Counter()
+    for ev in results:
+        ind = (ev.get("industry") or "").strip()
+        if ind:
+            ic[ind] += 1
+        for c in (ev.get("concepts") or []):
+            if c and c not in STYLE_BOARDS:
+                cc[c] += 1
+    hot_concepts = [k for k, _ in cc.most_common(concept_n * 2) if k not in STYLE_BOARDS][:concept_n]
+    hot_industries = [k for k, _ in ic.most_common(industry_n)][:industry_n]
+    brief = {"热点概念": hot_concepts[:15], "热点行业": hot_industries[:15]}
+    return set(hot_concepts), set(hot_industries), brief
+
+
 # ===== 个股题材 =====
 def fetch_stock_theme(code):
     """返回 {"industry": str, "concepts": list[str]}；失败返回空（不阻断扫描，仅丢失标签）"""
     import requests as _rq
+    if _p2_skip():
+        return {"industry": "", "concepts": []}
     hosts = ["https://push2.eastmoney.com", "https://82.push2.eastmoney.com",
              "https://push2delay.eastmoney.com"]
     params = {"secid": _secid(code), "fields": "f57,f58,f127,f129",
@@ -147,12 +195,15 @@ def fetch_stock_theme(code):
                         headers={"User-Agent": C.UA}, timeout=10)
             d = (r.json().get("data") or {})
             if d:
+                _p2_ok()
                 return {
                     "industry": str(d.get("f127", "") or ""),
                     "concepts": [x for x in str(d.get("f129", "") or "").split(",") if x],
                 }
         except Exception:
-            time.sleep(0.3)
+            if _p2_down[0]:
+                break
+    _p2_failed()
     return {"industry": "", "concepts": []}
 
 

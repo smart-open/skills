@@ -270,6 +270,42 @@ def verify(fn, kws):
 - 若仅做**离线重跑 / 美化 / 换股诊断**，无需联网，直接用现有 `data/` 内数据即可（`--date` 指向已存在数据的日期）。
 - **日日自动生成（数据驱动）**：verdict 定调、副标题、主线题材、热点板块、推荐 pick、轮动节奏解读均已数据驱动，`--date` 换日期重跑即自动更新，**无需手改脚本**。唯一例外是 05 章「重点政策/消息」依赖 `news_{date}.json`（`collect_news.py` 按关键词规则筛选 Top5，语义质量弱于人工精选，属可接受的自动化折中）；轮动表头日期为**降序**（最近交易日排最前）。
 
+## 历史日回补 SOP（重要：目标日 ≠ 运行日时必读）
+
+1. **先裁后取（窗口）**：`collect_zt_15d.py` 按"最新日期往前取 15 天"，若先采后裁会把运行日算进去，砍掉后目标日窗口只剩 14 天。正确顺序：
+   - `collect_boards_15d.py --days N` → `trim_intraday.py {运行日}` → `collect_zt_15d.py`（此时其内部 `sorted(dates)[-15:]` 恰好是"目标日及前 14 日"）→ `collect_fund_15d.py --days N` → 再 `trim_intraday.py {运行日}` → 模型 6 步。
+   - `N` = 目标日到运行日的交易日数 + 1。例：运行日 9-21 回补 9-18 用 `--days 16`；回补 9-14 用 `--days 20`。
+2. **指数必须按目标日取**：`collect_data.py` 的 `fetch_indexes_hist()` 走**新浪日K**（绕过系统代理）取 `date <= 目标日` 的最后一根；东财 push2his 仅用于补成交额，被风控时成交额置空、报告显示「—」。**切勿用 `qt.gtimg.cn` 实时行情回补历史日**（会取到运行日数据）。
+3. **无历史接口的字段**：涨跌家数 / 涨跌幅榜 / 板块资金只有实时口径，回补日拿到的是运行时点快照；`generate_report_v3.py` 在 `trade_date != 今天` 时自动插入「数据说明」告警条，属预期行为，不要当成 bug。
+4. **⚠️ 盘前回补时涨跌家数必然无效**：实时接口在盘前返回「全平」（`up=down=0`、`flat=total`）。`generate_report_v3.py` 已自带识别（`breadth_ok`），会统一展示为「—」并附「涨跌家数缺失」说明，属预期行为，**不要手工改回 0/0**。此类回补最好放在**收盘后**执行（字段仍会因"非运行日"带数据说明）。
+5. **⚠️ 沙箱 / 后台执行的网络坑（最易踩）**：Bash 沙箱会拦截同花顺 http（`q.10jqka.com.cn` / `zx.10jqka.com.cn`），导致 `collect_boards_15d` / `collect_fund_15d` 兜底失败、`collect_zt_15d` 全部 403。采集**必须在前台 + 关闭沙箱**下运行（`dangerouslyDisableSandbox`）。**注意：`run_in_background=true` 时该参数不生效**——后台任务仍走沙箱并被拦截。长采集请前台执行（`timeout=600000`）或拆成多个脚本顺序跑。
+6. **⚠️ 采集失败会污染落盘数据**：`collect_zt_15d.py` 在部分日期取数失败时会把那几天写成 0 并**覆盖旧文件**（仅"全部为 0"时才保留旧数据）；`collect_boards_15d` / `collect_fund_15d` 失败则保留旧数据不动。**每次采集后必须校验**：`zt_15d`（15 天且每日板块数 > 0）、`boards_15d`（含目标日、板块数 ~380）、`fund_15d`（40 个）——发现异常立即在**关闭沙箱**下重采。校验脚本片段：
+   ```python
+   z=json.load(open('a-stock-operator-v2/data/zt_15d.json',encoding='utf-8'))
+   print(sorted(z.keys()), [len(z[d]) for d in sorted(z)])
+   ```
+7. **能当日跑就当日跑**：收盘后运行（约 17:20 起）所有字段均为精确值；回补仅用于补缺，且报告会带数据说明。
+8. `trim_intraday.py` 在工程目录 `a-stock-operator-v2/trim_intraday.py`，用法 `python trim_intraday.py {CUT日期}`，剔除所有数据文件中日期 ≥ CUT 的记录（boards/fund/zt_15d/zt_pool_15d）。
+
+## 脚本被平台还原后的恢复（反复出现，重要）
+
+平台升级/同步偶尔会把 `scripts/` 目录**还原成旧快照**，导致本地修复静默丢失。**凡是报告里重新出现"资金轮动数据暂缺"这类已修过的旧文案，先怀疑脚本被还原**，而不是数据问题。
+
+恢复方法（备份目录在工程内，不受技能还原影响，已含全部补丁版脚本）：
+
+```bash
+cp /d/ai_work/stock-report/a-stock-operator-v2/_scripts_backup/*.py \
+   /c/Users/tianw/.workbuddy/skills/a-stock-operator-v2/scripts/
+```
+
+补丁清单（备份中应包含）：
+- `generate_report_v3.py`：四象限全空时渲染「无明显象限 + 中性区板块 + 轮动速度/扩散指数」，**不再输出"数据暂缺"**；回补日自动插入「数据说明」告警条；容忍成交额缺失（显示「—」）；**识别涨跌家数无效**（`breadth_ok`：盘前/回补时接口返回全平）并统一降级为「—」，不输出误导性 0/0。
+- `rotation_evolve.py`：成功分支显式写 `status="ok"` 与 `reason`，避免残留 `status="insufficient"`。
+- `collect_data.py`：`fetch_indexes_hist()` 按目标日取**新浪日K**，回补历史日不再取到运行日指数。
+- 工程目录 `a-stock-operator-v2/trim_intraday.py`（盘中/回补裁剪用）。
+
+**每次跑完若发现旧文案复发**：修复后务必 `cp scripts/*.py _scripts_backup/` 刷新备份，形成双保险。
+
 ## 合规
 
 报告末尾固定声明：「以上基于公开行情整理，仅供复盘参考，不构成投资建议。」

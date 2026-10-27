@@ -245,8 +245,12 @@ const COMPARE_RUBRIC = `请逐项比对，并给出卡点：
 - skin_tone 肤色与质感
 - hair_style / hair_color 发型与发色
 - age_impression 视觉年龄感
+- rendering_style 渲染媒介（实拍摄影 / 3D CG 渲染 / 二次元动画 / Q版卡通 / 插画）
 只把「真实存在的、肉眼可见的差异」计入 differences；因角度、表情、光线、景别造成的正常差异不要计入。
-若两张图中的人明显是不同的人，相同度必须低于 40。`;
+若两张图中的人明显是不同的人，相同度必须低于 40。
+渲染媒介另有一票否决权：若参考图是实拍摄影、而待检图变成了 3D 卡通 / 动漫 / 插画（或反过来），
+这属于「不同次元」，same_style 必须为 false，并且 same_person 也必须为 false，不论五官是否相似。
+反之，同一种媒介下因镜头、灯光、景深、调色、修图造成的差异不算风格不一致。`;
 
 /**
  * Compare a candidate keyframe with the identity references.
@@ -276,6 +280,7 @@ async function compareIdentity(pool, o) {
       "焦外的光斑、糊成一团的霓虹色块、无意义的乱码笔画都算 false。" +
       "\n\n只输出如下 JSON（不要任何解释文字、不要 markdown 代码块）：\n" +
       '{"same_person":true,"score":0,"differences":["用中文逐条描述具体的外貌差异"],' +
+      '"same_style":true,"style_note":"两者渲染媒介是否一致，一句话说明；一致就给空字符串",' +
       '"protagonist_count":1,"other_people_count":0,"other_people_prominent":false,' +
       '"has_readable_text":false,"text_content":"","verdict":"一句话结论"}',
   });
@@ -285,6 +290,10 @@ async function compareIdentity(pool, o) {
     same_person: raw.same_person === true,
     score,
     differences,
+    // 渲染媒介一致性：只有模型明确说 false 才当作不一致（缺失时按一致处理，
+    // 避免旧服务不返回该字段时把每一镜都判失败）。
+    same_style: raw.same_style !== false,
+    style_note: String(raw.style_note || ""),
     protagonist_count: Number(raw.protagonist_count) || 0,
     other_people_count: Number(raw.other_people_count) || 0,
     other_people_prominent: raw.other_people_prominent === true,
@@ -314,20 +323,33 @@ async function compareIdentity(pool, o) {
  * layout, not head-to-toe, any text, or no single figure at all.
  */
 async function auditStudioRef(pool, o) {
+  // Two framings share this gate (render.FRAMINGS): a full-length studio view and
+  // a waist-up one. "head_to_toe" is the right criterion for the first and the
+  // wrong one for the second — a waist-up reference is SUPPOSED to be cut at the
+  // waist, so gating it on head-to-toe would reject every good attempt.
+  const framing = o.framing || "full";
+  const waist = framing === "waistup";
   const raw = await chatVisionJson(pool, {
     system: VISION_SYSTEM,
     images: [o.candPath],
     maxPx: o.maxPx,
     text:
-      `这是一张"${o.angle || "front"}"角度的全身棚拍参考图，用于影视角色一致性。请严格审核。\n\n` +
+      `这是一张"${o.angle || "front"}"角度的${waist ? "半身（腰以上）" : "全身"}棚拍参考图，用于影视角色一致性。请严格审核。\n\n` +
       "只输出如下 JSON（不要任何解释文字、不要 markdown 代码块）：\n" +
-      '{"person_count":1,"is_panel_layout":false,"head_to_toe":true,"feet_visible":true,' +
-      '"background_clean":true,"has_any_text":false,"deformed":false,"score":0,' +
-      '"issues":["用中文逐条列出具体缺陷，没有就给空数组"]}\n\n' +
+      (waist
+        ? '{"person_count":1,"is_panel_layout":false,"head_visible":true,"cut_at_waist":true,' +
+          '"background_clean":true,"has_any_text":false,"deformed":false,"score":0,' +
+          '"issues":["用中文逐条列出具体缺陷，没有就给空数组"]}\n\n'
+        : '{"person_count":1,"is_panel_layout":false,"head_to_toe":true,"feet_visible":true,' +
+          '"background_clean":true,"has_any_text":false,"deformed":false,"score":0,' +
+          '"issues":["用中文逐条列出具体缺陷，没有就给空数组"]}\n\n') +
       "判定说明：\n" +
       "- person_count：画面中一共有几个清晰可见的人（背景路人也要计）。\n" +
       "- is_panel_layout：是否为多格拼贴/分屏/网格排版/带内嵌小图（哪怕只有一格是全身、旁边还挂了头像特写，也算 true）。\n" +
-      "- head_to_toe：同一个人是否完整从头顶到鞋底入画，没有被裁掉。（若画面是多格拼贴，按'否'处理。）\n" +
+      (waist
+        ? "- head_visible：头顶是否完整入画，没有被裁掉。（若画面是多格拼贴，按'否'处理。）\n" +
+          "- cut_at_waist：这张图是否确实是半身像 —— 取景截在腰部上下、人物占满画面高度。若它其实是一张把整个人缩在画面中间的全身照，按'否'处理。\n"
+        : "- head_to_toe：同一个人是否完整从头顶到鞋底入画，没有被裁掉。（若画面是多格拼贴，按'否'处理。）\n") +
       "- background_clean：背景是否为干净的纯色影棚背景，无街景、无道具、无建筑。",
   });
   const score = Number(raw.score) || 0;
@@ -336,13 +358,13 @@ async function auditStudioRef(pool, o) {
   const hardFail =
     personCount !== 1 ||
     raw.is_panel_layout === true ||
-    raw.head_to_toe === false ||
+    (waist ? raw.head_visible === false || raw.cut_at_waist === false : raw.head_to_toe === false) ||
     raw.has_any_text === true ||
     raw.deformed === true;
   return {
     person_count: personCount,
     is_panel_layout: raw.is_panel_layout === true,
-    head_to_toe: raw.head_to_toe !== false,
+    head_to_toe: waist ? raw.head_visible !== false : raw.head_to_toe !== false,
     background_clean: raw.background_clean !== false,
     has_any_text: raw.has_any_text === true,
     // The model's own 0-100 is unreliable here, and the gates above are what

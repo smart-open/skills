@@ -292,10 +292,11 @@ def video_poll(video_id, *, model=VIDEO_MODEL, interval=2, max_wait=1200, on_pro
                 on_progress(d)
         last_status = status
         if status == "completed":
-            if not (d.get("metadata") or {}).get("url"):
+            meta = d.get("metadata") or {}
+            final_url = meta.get("url") or d.get("url")
+            if not final_url:
                 raise AgnesError(f"任务完成但缺少 metadata.url: {json.dumps(d)[:300]}")
             # 成本追踪（成功才记录，失败不扣）
-            meta = d.get("metadata") or {}
             secs = meta.get("duration_seconds") or meta.get("seconds") or 0
             tracker.record("video", model=model, seconds=secs or 10,
                            resolution="720P", video_id=video_id)

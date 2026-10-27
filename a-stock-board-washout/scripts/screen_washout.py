@@ -363,12 +363,16 @@ for _stg in ("S1", "S2"):
         if set(_wts.keys()) == set(FACTOR_WEIGHTS[_stg].keys()):
             _tot = sum(_wts.values())
             if _tot > 0:
-                FACTOR_WEIGHTS[_stg] = {k: round(v / _tot, 6) for k, v in _wts.items()}
+                # 归一化后把浮点残差并入最大权重项，保证和精确=1（否则下方断言会崩）
+                _norm = {k: v / _tot for k, v in _wts.items()}
+                _kmax = max(_norm, key=_norm.get)
+                _norm[_kmax] = 1.0 - sum(v for k, v in _norm.items() if k != _kmax)
+                FACTOR_WEIGHTS[_stg] = _norm
 
 # 权重和必须为 1（集中配置便于调参/回测，运行期自检防误改）
 for _stg, _wts in FACTOR_WEIGHTS.items():
     _s = sum(_wts.values())
-    assert abs(_s - 1.0) < 1e-9, f"!! {_stg} 因子权重和={_s}，必须=1"
+    assert abs(_s - 1.0) < 1e-6, f"!! {_stg} 因子权重和={_s}，必须=1"
 
 
 def raw_factors(v):
@@ -763,6 +767,22 @@ def main():
     zt_t0 = {r.get("code"): r for r in (pools_t0.get("limit_up", {}).get("list", [])) if r.get("code")}
     zb_t = {r.get("code"): r for r in (pools_t.get("broken", {}).get("list", [])) if r.get("code")}
 
+    # 市场情绪上下文（供报告情绪行 + 急退闸门 + 验证/进化分层）
+    _zt_T = int(safe_float((pools_t.get("limit_up") or {}).get("total")) or 0)
+    _zb_T = int(safe_float((pools_t.get("broken") or {}).get("total")) or 0)
+    _zt_T0 = int(safe_float((pools_t0.get("limit_up") or {}).get("total")) or 0)
+    _zt_chg = round((_zt_T - _zt_T0) / _zt_T0 * 100, 1) if _zt_T0 else 0.0
+    _risk_off = bool(_zt_T0 and _zt_chg < -25)
+    market = {
+        "zt_T": _zt_T,
+        "zb_T": _zb_T,
+        "zb_rate_T": round(_zb_T / (_zt_T + _zb_T) * 100, 1) if (_zt_T + _zb_T) else 0.0,
+        "zt_T0": _zt_T0,
+        "zt_chg_pct": _zt_chg,
+        "risk_off": _risk_off,
+        "tag": "急退" if _risk_off else ("回暖" if _zt_chg > 5 else "平稳/回落"),
+    }
+
     all_s1, all_s2, near = [], [], []
     for code, rec in stocks.items():
         name = rec.get("name", "")
@@ -892,11 +912,19 @@ def main():
 
     out = {
         "T": target,
+        "market": market,
         "model": model,
         "strategy1": [dict(x, _relaxed=not x["gate_ok"]) for x in s1],
         "strategy2": [dict(x, _relaxed=not x["gate_ok"]) for x in s2],
         "all_s1": [dict(x, _relaxed=not x["gate_ok"]) for x in all_s1[:6]],
         "all_s2": [dict(x, _relaxed=not x["gate_ok"]) for x in all_s2[:6]],
+        # 全量评分池（精简键）：供 verify 跟踪 → 大幅提升自学习样本积累速度
+        "pool_s1": [{"code": x.get("code"), "name": x.get("name", ""), "score": x.get("score"),
+                     "score2": x.get("score2"), "gate_ok": bool(x.get("gate_ok")),
+                     "raw_f": x.get("raw_f", {})} for x in all_s1],
+        "pool_s2": [{"code": x.get("code"), "name": x.get("name", ""), "score": x.get("score"),
+                     "score2": x.get("score2"), "gate_ok": bool(x.get("gate_ok")),
+                     "raw_f": x.get("raw_f", {})} for x in all_s2],
         "s2_backup": [dict(x, _relaxed=False) for x in s2_backup],
         "near_qualify": [dict(x, _relaxed=True) for x in near[:10]],
         "counts": {"s1": len(s1), "s2": len(s2), "s1_true": sum(1 for x in s1 if x["gate_ok"]),

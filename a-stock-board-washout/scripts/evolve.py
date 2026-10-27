@@ -79,7 +79,11 @@ def load_samples():
             hit = int(r.get("hit", 0))
         except (TypeError, ValueError):
             hit = 0
-        rec = {"strategy": r.get("strategy", "S1"), "hit": hit}
+        try:
+            risk = int(r.get("mkt_risk") or 0)
+        except (TypeError, ValueError):
+            risk = 0
+        rec = {"strategy": r.get("strategy", "S1"), "hit": hit, "risk": risk}
         # 提取因子原始值
         ok = True
         for fk in FACTORS:
@@ -95,6 +99,17 @@ def load_samples():
         if ok:
             out.append(rec)
     return out
+
+
+def _normalize_sum1(w, nd=4):
+    """归一化并使和精确=1：把浮点残差并入最大权重项（否则 screen 端 1e-9 断言会崩）。"""
+    tot = sum(w.values())
+    if tot <= 0:
+        return dict(w)
+    n = {k: round(v / tot, nd) for k, v in w.items()}
+    kmax = max(n, key=n.get)
+    n[kmax] = round(1.0 - sum(v for k, v in n.items() if k != kmax), nd)
+    return n
 
 
 def evolve(samples, min_samples, alpha):
@@ -126,18 +141,19 @@ def evolve(samples, min_samples, alpha):
             w = max(w, 0.02)
             new_w[fk] = w
             info[fk] = {"rho": round(rho, 3), "aligned": aligned, "n": n}
-        # 归一化
-        tot = sum(new_w.values())
-        new_w = {k: round(v / tot, 4) for k, v in new_w.items()}
+        # 归一化（残差并入最大项，保证和精确=1）
+        new_w = _normalize_sum1(new_w)
         # EMA 平滑到先验
-        smoothed = {k: round(alpha * new_w[k] + (1 - alpha) * PRIOR[stg][k], 4)
-                    for k in new_w}
+        smoothed = {k: alpha * new_w[k] + (1 - alpha) * PRIOR[stg][k] for k in new_w}
         # 再次归一化（平滑后和可能≠1）
-        tot2 = sum(smoothed.values())
-        smoothed = {k: round(v / tot2, 4) for k, v in smoothed.items()}
+        smoothed = _normalize_sum1(smoothed)
         result[stg] = {
             "ok": True, "n": n, "base_hit": round(base_hit, 3),
             "weights": smoothed, "raw_weights": new_w, "factor_info": info,
+            "by_risk": {("急退日" if rk else "平常日"):
+                        {"n": len(rs), "hit": round(statistics.mean([s["hit"] for s in rs]), 3)}
+                        for rk, rs in ((0, [s for s in sub if s.get("risk") == 0]),
+                                       (1, [s for s in sub if s.get("risk") == 1])) if rs},
         }
     return result
 
@@ -164,6 +180,9 @@ def main():
         print(f"        因子相关: " + " ".join(
             f"{fk}={r['factor_info'][fk]['rho']:+.2f}{'' if r['factor_info'][fk]['aligned'] else '✗'}"
             for fk in r["factor_info"]))
+        if r.get("by_risk"):
+            print("        情绪分层: " + " | ".join(
+                f"{k} n={v['n']} hit={v['hit']*100:.0f}%" for k, v in r["by_risk"].items()))
 
 
 if __name__ == "__main__":

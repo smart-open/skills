@@ -51,6 +51,88 @@ def parse_indexes(text):
         })
     return out
 
+
+# (腾讯代码, 东财secid, 6位代码, 名称) —— 指数按目标日取历史K线，避免回补历史日时取到"运行日"行情
+INDEX_LIST = [
+    ("sh000001", "1.000001", "000001", "上证指数"),
+    ("sz399001", "0.399001", "399001", "深证成指"),
+    ("sz399006", "0.399006", "399006", "创业板指"),
+    ("sh000688", "1.000688", "000688", "科创50"),
+    ("sh000300", "1.000300", "000300", "沪深300"),
+    ("sh000905", "1.000905", "000905", "中证500"),
+    ("sh000852", "1.000852", "000852", "中证1000"),
+    ("sh000016", "1.000016", "000016", "上证50"),
+]
+INDEX_LIVE_URL = "https://qt.gtimg.cn/q=" + ",".join(x[0] for x in INDEX_LIST)
+
+
+_EM_HIS_OK = {"v": True}
+
+
+def _fetch_index_amount(ses, secid):
+    """东财push2his补指数成交额（新浪日K无此字段）。被风控则整体跳过，返回 None。"""
+    if not _EM_HIS_OK["v"]:
+        return None
+    try:
+        url = ("https://push2his.eastmoney.com/api/qt/stock/kline/get"
+               f"?secid={secid}&fields1=f1,f2,f3&fields2=f51,f53,f59,f57"
+               "&klt=101&fqt=1&beg=20240101&end=20991231")
+        klines = ((ses.get(url, timeout=8).json().get("data") or {}).get("klines")) or []
+        sel = None
+        for line in klines:
+            p = line.split(",")
+            if len(p) >= 4 and p[0].replace("-", "") <= TRADE_DATE:
+                sel = p
+            else:
+                break
+        if not sel:
+            return None
+        return round(float(sel[3]) / 1e8, 2)
+    except Exception:
+        _EM_HIS_OK["v"] = False
+        return None
+
+
+def fetch_indexes_hist():
+    """按 TRADE_DATE 取指数（新浪日K为主源，东财补成交额；均绕过系统代理）。
+    回补历史日时必须用本函数，避免 qt.gtimg.cn 实时行情取到"运行日"数据。
+    新浪日K无成交额、东财可能被风控 → 成交额置 None，报告显示"—"。"""
+    ses = requests.Session()
+    ses.trust_env = False  # 忽略系统代理（本机注册表代理常不可达），直连
+    ses.headers.update({"User-Agent": UA})
+    ymd = f"{TRADE_DATE[:4]}-{TRADE_DATE[4:6]}-{TRADE_DATE[6:]}"
+    out = []
+    for tcode, secid, code, name in INDEX_LIST:
+        bars = []
+        for i in range(3):
+            try:
+                u = ("https://money.finance.sina.com.cn/quotes_service/api/json_v2.php/"
+                     f"CN_MarketData.getKLineData?symbol={tcode}&scale=240&ma=no&datalen=30")
+                bars = json.loads(ses.get(u, timeout=20).text)
+                if bars:
+                    break
+            except Exception:
+                pass
+            time.sleep(1.0 * (i + 1))
+        sel = prev = None
+        for b in bars:
+            if b.get("day", "") <= ymd:
+                prev, sel = sel, b
+            else:
+                break
+        if not sel:
+            continue
+        try:
+            px = round(float(sel["close"]), 2)
+            pc = round((float(sel["close"]) / float(prev["close"]) - 1) * 100, 2) if prev else 0
+            ca = round(float(sel["close"]) - float(prev["close"]), 2) if prev else 0
+        except Exception:
+            continue
+        out.append({"code": code, "name": name, "price": px, "change_pct": pc,
+                    "change_amt": ca, "amount_yi": _fetch_index_amount(ses, secid)})
+        time.sleep(0.2)
+    return out if len(out) == len(INDEX_LIST) else []
+
 def fetch_pool(kind):
     name_map = {"ZT": "getTopicZTPool", "ZB": "getTopicZBPool", "DT": "getTopicDTPool"}
     url = (f"https://push2ex.eastmoney.com/{name_map[kind]}"
@@ -188,9 +270,16 @@ def main():
             print(f"  ✗ {key}: {e}")
 
     print("[1/6] 指数")
-    safe("indexes", lambda: parse_indexes(http_get(
-        "https://qt.gtimg.cn/q=sh000001,sz399001,sz399006,sh000688,sh000300,sh000905,sh000852,sh000016",
-        gbk=True)))
+
+    def _fetch_indexes():
+        r = fetch_indexes_hist()
+        if r:
+            return r
+        if TRADE_DATE != datetime.now().strftime("%Y%m%d"):
+            print("  !! 指数历史K线获取失败，回退实时行情 —— 回补日会取到运行日数据，不准确！")
+        return parse_indexes(http_get(INDEX_LIVE_URL, gbk=True))
+
+    safe("indexes", _fetch_indexes)
     def fetch_pool_group(kind):
         """单次拉取涨停/炸板/跌停池，避免重复请求导致 total 与 pool 不一致。"""
         p = fetch_pool(kind)
