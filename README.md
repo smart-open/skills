@@ -1,12 +1,12 @@
 ﻿# AI Skills 工程集合
 
-> 一套面向 AI 多媒体创作的 Skills 集合 — 涵盖文生图、图生图、文生视频、图生视频、AI 音乐、电影级音乐 MV、爆款短剧、跨朝代婚礼电影、脱口秀视频、技术文章、学习手册、企业门户、A 股量化分析与技能数据抓取，以及战略思考与决策。
+> 一套面向 AI 多媒体创作的 Skills 集合 — 涵盖文生图、图生图、文生视频、图生视频、AI 音乐、电影级音乐 MV、爆款短剧、跨朝代婚礼电影、脱口秀视频、技术文章、学习手册、企业门户、A 股量化分析与技能数据抓取、多任务并行编排，以及战略思考与决策。
 
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-24-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-25-orange)]()
 
 ---
 
@@ -27,6 +27,7 @@
   - [战略思考与决策](#战略思考与决策)
   - [技能数据抓取](#技能数据抓取)
   - [个人开发分身](#个人开发分身)
+  - [任务编排](#任务编排)
 - [朝代列表](#朝代列表)
 - [婚礼电影方案对比](#婚礼电影方案对比)
 - [通用注意事项](#通用注意事项)
@@ -38,7 +39,7 @@
 
 ## 简介
 
-本工程聚合了 **24 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、电影级音乐 MV、爆款短剧、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、全网深度画像、A 股操盘分析、首板洗盘选股、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、个人开发分身、战略思考与决策、技能数据抓取**。
+本工程聚合了 **25 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、电影级音乐 MV、爆款短剧、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、全网深度画像、A 股操盘分析、首板洗盘选股、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、个人开发分身、多任务并行编排、战略思考与决策、技能数据抓取**。
 
 **核心亮点：**
 
@@ -49,7 +50,8 @@
 - **跨朝代叙事**：13 个中国历史朝代完整配置，每个朝代独立服装 / 场景 / 风俗
 - **面部复刻**：FaceFusion 换脸（80%+）或 Seedream i2i 保留五官特征
 - **口型同步**：脱口秀视频通过 Wav2Lip 后处理或原生音画同步实现口型对齐
-- **产物外置**：所有运行时产物（数据/报告/视频）跟随**当前会话工作目录**（`os.getcwd()` / `process.cwd()`），不写回技能安装目录，保持技能库纯净
+- **产物外置**：所有运行时产物（数据/报告/视频）跟随**当前会话工作目录**（`os.getcwd()` / `process.cwd()`）；SuperAgent 项目目录统一落 `<cwd>/out/superagent-<主题>/`，不写回技能安装目录，保持技能库纯净
+- **多任务编排**：SuperAgent 流程把需求优化 → 任务 DAG → 人工确认门禁 → ≤3 路并行 → 审查验收 → 失败重置重试（≤5）固化为可续跑的确定性流程
 - **A 股分析**：个股六维诊断、市场选股、行情复盘、首板洗盘选股、龙虎榜 T+3 模型、一阳指战法扫描，报告统一为 Markdown（`{报告完整中文名称}-{YYYY-MM-DD}.md`）
 - **技能数据抓取**：8 个主流 Skill 市场（Smithery、ClaudeSkills 等）的批量抓取备份工具
 
@@ -83,6 +85,7 @@
 | `skill-data-fetcher`（8 子技能） | 主流 Skill 市场批量抓取备份（Smithery / ClaudeSkills 等 8 家） | 各家 Skill 市场 API | Node.js 12+ | 单家约 1–3 分钟 |
 | `strategic-advisor` | 战略顾问技能（七步深度对话流程，双文件输出，零依赖架构） | 无（纯规范型） | 无 | 约 20–40 分钟（包含最终审查） |
 | `dev-twin` | 个人开发分身引擎（画像库与引擎解耦、多级覆盖，按画像自主开发：定位→路由→决策分级→学习闭环） | 无（纯规范型） | 画像库（内置默认 + 外部 `persona-*` 覆盖） | 与开发任务等同 |
+| `superagent-orchestrator` | SuperAgent 多任务编排（需求优化 → 任务 DAG → 人工确认 → ≤3 并行 → 审查验收 → 失败重置重试，含视觉交付手册） | 无（纯规范型 + 零依赖调度脚本） | Node.js 18+ | 视任务规模而定 |
 
 ---
 
@@ -201,6 +204,11 @@ skills/
 │   └── persona-zhutianwei/            # 内置默认画像库（朱天伟，可替换为自己的）
 │       ├── profile-*.md               # 分层画像：core / coding / architecture / workflow / tools / polyglot
 │       └── corpus/                    # 学习语料（HITL 进化闭环）
+├── superagent-orchestrator/           # SuperAgent 多任务编排（DAG + 人工确认 + ≤3 并行 + 失败恢复）
+│   ├── SKILL.md
+│   ├── references/                    # DAG 规格 / 验收手册 / 视觉交付 / 办公场景
+│   └── scripts/                       # superagent.mjs 调度器 + smoke.mjs 自检
+├── out/                               # 运行产物（git 忽略）：项目整体落 out/superagent-<主题>/
 │
 ├── docs/                              # 战略调研报告与行动计划文档
 
@@ -871,6 +879,43 @@ python scripts/generate_report.py          # 渲染 Markdown 报告 -> {cwd}/首
 
 ---
 
+### 任务编排
+
+#### 21. superagent-orchestrator — SuperAgent 多任务编排引擎
+
+把白板架构（Router → 控制面 → 调度器 → 多 Worker → CLI 执行）落成可执行流程：**需求优化 → 需求/验收提炼 → 任务 DAG → 人工确认门禁 → ≤3 路并行执行 → 汇总审查 → 验收与边界检查 → 失败重置恢复 → 交付复盘**。
+
+**核心机制：**
+
+- 需求四元组（目标/交付物/约束/不做什么）+ 歧义三级分类，阻断问题一次最多 3 问
+- 验收三要素（判据/方法/证据），拒绝「效果好」这类不可判定项
+- 任务 DAG：节点含依赖/输入/输出/验收/边界/停止条件，自动校验依赖环、并发上限、并行写冲突与「读取他人产物但未声明依赖」
+- 人工确认门禁：执行前把需求、DAG、验收、审查方案与依据来源（RAG/外部资料/快照）交人工确认；`approve` 记录计划指纹，`request-changes` 回到需求分析，确认后改计划自动失效
+- 确定性控制面：`scripts/superagent.mjs` 提供 `validate / approve / request-changes / next / update / status`，状态落盘 `plan.state.json`，可中断续跑
+- 失败恢复：失败自动重置全部传递下游（含已完成），单任务重试上限 5 次，超限 blocked 并上报，不阻塞其他分支
+- 并发硬上限 3，Worker 独立上下文，共享 run 目录产物
+- 自检与样例：`scripts/smoke.mjs` 33 项覆盖校验/确认门禁/指纹失效/领取/重置/守卫/输入依赖；`references/office-scenarios.md` 记录 5 个办公场景（低 1 / 中 2 / 高 2）实测
+- 视觉交付：`references/visual-deliverables.md` 提供海报/信息图/知识地图的 DAG 拆分、视觉 AC、生图提示词、本地中文渲染、100% 裁切审查与密钥扫描；底图只生成氛围且无文字/水印，改文案或版式只重跑渲染
+- 已落地视觉案例（均在会话 `out/`）：电工装配 × PLC（15 站 × 5 + 15 实战，100h，5248×2944，3,718,782 B）与上位机 × 机器视觉（20 站 × 5 + 20 实战，600h，5248×2944，3,459,149 B），均通过独立像素审查
+
+**用法：**
+
+```bash
+node superagent-orchestrator/scripts/superagent.mjs validate plan.json
+node superagent-orchestrator/scripts/superagent.mjs approve plan.json --note "需求/DAG/验收已确认"
+node superagent-orchestrator/scripts/superagent.mjs next plan.json --claim
+node superagent-orchestrator/scripts/superagent.mjs update plan.json T3 --status failed --note "证据缺失"
+node superagent-orchestrator/scripts/superagent.mjs request-changes plan.json --note "修改点"
+node superagent-orchestrator/scripts/superagent.mjs status plan.json
+node superagent-orchestrator/scripts/smoke.mjs
+```
+
+> 项目目录默认整体落 `<cwd>/out/superagent-<主题>/`，含 `plan.json`、`plan.state.json`、`work/`、`assets/`、`out/`、`report.md`；会话根 `out/` 可另放最终 PNG/报告副本，但不替代项目目录，也不写回技能目录。
+>
+> 适用：多步骤/跨领域/多交付物任务、需要并行与失败恢复的长流程、要求过程可审计与可续跑的工作。
+
+---
+
 ## 朝代列表
 
 timeless-wedding 和 timeless-wedding-volc 均支持以下 13 个中国历史朝代：
@@ -997,6 +1042,8 @@ timeless-wedding 和 timeless-wedding-volc 均支持以下 13 个中国历史朝
 | A 股龙虎榜 T+3 涨停预判 | `a-stock-lhb-rec` | 逻辑回归概率模型 + 席位画像 + 自进化 |
 | A 股首板洗盘 / 炸板洗盘选股 | `a-stock-board-washout` | 双策略洗盘识别 + 内联 K 线/量能/分时 SVG + 第二日操作建议 |
 | 从需求到代码的完整开发流程编排 | `dev-lifecycle` | 5 阶段 + HITL 确认 + SOP 6 步开发 |
+| 多任务拆解、人工确认、并行执行与失败恢复 | `superagent-orchestrator` | 需求→DAG→确认门禁→≤3 并行→验收→重置重试，全程可续跑 |
+| 海报 / 知识地图 / 信息图等视觉成品 | `superagent-orchestrator` | 无水印底图 + 本地中文渲染 + 4K 输出 + 100% 裁切审查 |
 | 模糊想法→战略分析→行动计划 | `strategic-advisor` | 七步深度对话 + 五层渐进式提问 + 双文件输出（战略调研报告+行动计划）+ 零依赖架构 |
 | 人物/公司背景调查、深度画像、数字孪生建模 | `deep-profile` | 公开数据采集 + 交叉验证 + 深层推理，输出自包含 HTML 画像报告 |
 | 批量备份 Skill 市场榜单 | `skill-data-fetcher` | 8 家主流 Skill 市场，独立运行 |
