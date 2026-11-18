@@ -1,12 +1,12 @@
 ﻿# AI Skills 工程集合
 
-> 一套面向 AI 多媒体创作的 Skills 集合 — 涵盖文生图、图生图、文生视频、图生视频、AI 音乐、电影级音乐 MV、爆款短剧、跨朝代婚礼电影、脱口秀视频、技术文章、学习手册、企业门户、A 股量化分析与技能数据抓取、多任务并行编排，以及战略思考与决策。
+> 一套面向 AI 多媒体创作的 Skills 集合 — 涵盖文生图、图生图、文生视频、图生视频、AI 音乐、电影级音乐 MV、爆款短剧、跨朝代婚礼电影、脱口秀视频、技术文章、学习手册、企业门户、小鹅通课程下载备份、A 股量化分析与技能数据抓取、多任务并行编排，以及战略思考与决策。
 
 [![Platform](https://img.shields.io/badge/Platform-TRAE-blue)]()
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-25-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-26-orange)]()
 
 ---
 
@@ -22,6 +22,7 @@
   - [婚礼电影](#婚礼电影)
   - [脱口秀视频](#脱口秀视频)
   - [AI 音乐与下载](#ai-音乐与下载)
+  - [课程与资料下载](#课程与资料下载)
   - [内容创作与网站](#内容创作与网站)
   - [A 股量化分析](#a-股量化分析)
   - [战略思考与决策](#战略思考与决策)
@@ -39,7 +40,7 @@
 
 ## 简介
 
-本工程聚合了 **25 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、电影级音乐 MV、爆款短剧、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、全网深度画像、A 股操盘分析、首板洗盘选股、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、个人开发分身、多任务并行编排、战略思考与决策、技能数据抓取**。
+本工程聚合了 **26 个独立 Skills**（外加 8 个技能数据抓取子技能），覆盖 AI 创作与数据分析的核心场景：**图片生成、视频生成、音乐创作、音乐下载、小鹅通课程下载、电影级音乐 MV、爆款短剧、跨时空婚礼电影、脱口秀视频、技术文章、学习手册、企业门户网站、全网深度画像、A 股操盘分析、首板洗盘选股、龙虎榜涨停推荐、一阳指量化扫描、软件开发流程编排、个人开发分身、多任务并行编排、战略思考与决策、技能数据抓取**。
 
 **核心亮点：**
 
@@ -54,6 +55,7 @@
 - **多任务编排**：SuperAgent 流程把需求优化 → 任务 DAG → 人工确认门禁 → ≤3 路并行 → 审查验收 → 失败重置重试（≤5）固化为可续跑的确定性流程
 - **A 股分析**：个股六维诊断、市场选股、行情复盘、首板洗盘选股、龙虎榜 T+3 模型、一阳指战法扫描，报告统一为 Markdown（`{报告完整中文名称}-{YYYY-MM-DD}.md`）
 - **技能数据抓取**：8 个主流 Skill 市场（Smithery、ClaudeSkills 等）的批量抓取备份工具
+- **课程备份**：小鹅通已购课程批量下载（登录 Cookie + 权限探测 + HLS 解密 + 硬链接去重），未提供 Cookie 时先引导用户从浏览器导出
 
 ---
 
@@ -75,6 +77,7 @@
 | `learning-handbook-pipeline` | 图文并茂 PDF 学习手册生成流水线（三技能协作） | guizang 插图 + fireworks 图表 + design-taste-frontend | Node.js（Puppeteer）、Python（PyMuPDF 验证） | 单本约 20–60 分钟 |
 | `enterprise-portal-generator` | 企业门户网站一键生成器（6 页生产级网站 + 12 行业预设） | GenerateImage（Hero 图） | 无（纯 HTML/CSS/JS 模板） | 单站点约 10–30 分钟 |
 | `music-downloader` | 国内 5 大音乐平台歌曲下载器（MP3 + LRC 歌词） | 网易云/QQ/酷狗/咪咕/汽水 API | Python 3.8+ | 单首约 3–10 秒 |
+| `xiaoe-course-downloader` | 小鹅通已购课程批量下载与备份（Cookie 引导 + 权限探测 + HLS 解密 + 清单） | 小鹅通 H5 接口（xet/xiaoeknow） | Python 3.10+（requests/pycryptodome）、FFmpeg | 视课程量而定（可断点续跑） |
 | `a-stock-operator` | A 股市场操盘手（个股六维诊断 + 市场资讯选股推荐） | 东方财富 API（12 端点）+ 财联社等 5 大财经网站 | 无（纯规范型，通过 MCP 调用 API） | 个股诊断约 2–5 分钟，市场报告约 5–10 分钟 |
 | `a-stock-operator-v2` | A 股行情复盘 + 个股诊断（情绪温度计 + 板块轮动专题 + 双权重评分） | 东方财富/腾讯/新浪公开 API + 财联社 | Python 3.10+ | 全流程约 5–10 分钟（`collect_all.py` 一条命令） |
 | `a-stock-yiyangzhi` | A 股一阳指战法量化扫描（转势/开门 + 主线标签 + 可靠性优化） | 东方财富/腾讯公开接口 | Python 3.12+（numpy/requests） | 全市场扫描约 3–8 分钟 |
@@ -172,6 +175,10 @@ skills/
 │   ├── SKILL.md
 │   ├── requirements.txt
 │   └── scripts/batch_download_v4.py
+├── xiaoe-course-downloader/           # 小鹅通课程批量下载与备份
+│   ├── SKILL.md                       # 含「缺少 Cookie 时」引导流程
+│   ├── references/api.md              # H5 接口速查
+│   └── scripts/                       # run / fetch_catalog / download / gen_report
 │
 ├── a-stock-operator/                  # A 股操盘手（纯规范型）
 │   └── SKILL.md
@@ -316,6 +323,7 @@ node talkshow/scripts/talkshow.js \
 | Wav2Lip | 最新 | 口型同步后处理 | talkshow | `git clone https://github.com/Rudrabha/Wav2Lip` |
 | pandas / scikit-learn / requests / joblib | 最新 | 龙虎榜模型训练 | a-stock-lhb-rec | `pip install pandas scikit-learn requests joblib` |
 | numpy / requests | 最新 | 一阳指量化扫描 | a-stock-yiyangzhi | `pip install numpy requests` |
+| requests / pycryptodome | 最新 | 小鹅通课程抓取与 HLS 分片 AES-128 解密 | xiaoe-course-downloader | `pip install requests pycryptodome` |
 
 ---
 
@@ -614,6 +622,43 @@ python scripts/batch_download_v4.py --excel "歌曲列表.xlsx" -q high
 **音质参数：** `standard`（128kbps）/ `high`（320kbps，默认）/ `lossless`（FLAC）
 
 **核心特性：** 5 平台逐层回退、多 API 回退、断点续传、自动歌词、音质可选、多种输入（dict/字符串/文本/文件/Excel）
+
+---
+
+### 课程与资料下载
+
+#### 9a. xiaoe-course-downloader — 小鹅通课程批量下载与备份
+
+把当前账号有权限的小鹅通课程视频备份到本地，支持店铺首页 / 课程页 / 分类页任意入口，自动抓取课程、权限探测、HLS 分片 AES-128 解密、ffmpeg 无损转封装、NTFS 硬链接去重（同一课时出现在多门课不占额外空间），并生成课程清单。
+
+**前置依赖：**
+
+```bash
+pip install requests pycryptodome
+ffmpeg -version        # 必须可执行，用于 ts -> mp4 转封装
+```
+
+**Cookie（必需）—— 用户没提供时先引导获取：**
+
+小鹅通接口需要已登录账号的 Cookie，技能内置引导流程，不会直接失败：
+
+1. 电脑浏览器打开店铺链接并登录 → `F12` → `Network` → 刷新
+2. 点任意 `h5_index` / `xe.` 请求 → `Request Headers` 里复制 `Cookie` 整行
+3. 保存为当前目录 `cookies.txt`（也支持 Copy as cURL、Cookie-Editor 导出 Netscape 格式）
+
+```bash
+# 先验证 Cookie 并只出清单（不下载）
+python xiaoe-course-downloader/scripts/run.py \
+  --url "https://<app_id>.h5.xet.pomoho.com" --cookie-file cookies.txt --report-only
+
+# 确认清单后下载
+python xiaoe-course-downloader/scripts/run.py \
+  --url "https://<app_id>.h5.xet.pomoho.com" --cookie-file cookies.txt
+```
+
+**核心能力：** 权限用「能否取到播放地址」实测判定（目录接口的 `subscribe/available` 不可靠）、试看课时可单独下载、缺 Cookie 时打印获取指引、失败清单自动记录并可反复重跑补漏。
+
+> **产物落点**：默认写到当前会话根目录，元数据落 `<out>/.xet/`（`catalog.json` / `courses.json` / `fails.txt`），`-o` 可改。
 
 ---
 
@@ -1025,6 +1070,7 @@ timeless-wedding 和 timeless-wedding-volc 均支持以下 13 个中国历史朝
 | 把一个想法做成 3–5 分钟短剧 | `short-drama-studio` | 角色圣经 + 首尾帧链 + 配音字幕，人物/声音/场景跨镜一致 |
 | 创作一首 AI 音乐 | `suno-cn-music` | 8 个 API，全流程覆盖 |
 | 下载已有歌曲（MP3 + 歌词） | `music-downloader` | 5 平台回退，批量下载，自动歌词 |
+| 备份小鹅通已购课程视频 | `xiaoe-course-downloader` | Cookie 引导 + 权限实测 + HLS 解密 + 硬链接去重 |
 | 婚礼电影 — 需高面部相似度 | `timeless-wedding` | FaceFusion 换脸 80%+ |
 | 婚礼电影 — 无需 Python，快速生成 | `timeless-wedding-volc` | Seedream i2i 保留五官，零额外依赖 |
 | 婚礼电影 — 需要分镜剧本 | `timeless-wedding-volc` | 战国/唐/明/现代已配置时间分段剧本 |
