@@ -1,8 +1,8 @@
-# 已验证办公场景库
+# 办公域场景库（已验证）
 
-本文件记录 2026-11 用 5 个日常办公场景跑通编排器的实测结果，可作为选型与计划模板参考。所有场景产物在 `out/superagent-office/`（运行时目录，不入库）。
+本文件是 `superagent-orchestrator` 的办公域场景包，记录 2026-11 用 5 个日常办公场景跑通编排器的实测结果，可作为选型与计划模板参考。所有场景产物在 `out/superagent-office/`（运行时目录，不入库）。
 
-> 视觉/图像类交付（海报、信息图、知识地图）不在本表，见 `references/visual-deliverables.md`；该手册包含 4K 中文知识地图的实测 DAG、视觉 AC 与踩坑记录。
+> 通用流程与其它领域配方见 `domain-playbooks.md`；视觉/图像类交付见 `visual-deliverables.md`，该手册包含 4K 中文知识地图的实测 DAG、视觉 AC 与踩坑记录。
 
 > 这 5 个场景在「执行前人工确认门禁」加入前完成；复现时在 `validate` 之后、`next --claim` 之前，先按 `references/acceptance-playbook.md` 出确认包并 `approve`。下表指标不含确认环节，其余流程与当前版本一致。
 
