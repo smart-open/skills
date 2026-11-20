@@ -6,7 +6,7 @@
 [![Node.js](https://img.shields.io/badge/Node.js-12%2B-green)]()
 [![Python](https://img.shields.io/badge/Python-3.10%2B-blue)]()
 [![License](https://img.shields.io/badge/License-Personal%20Use-lightgrey)]()
-[![Skills](https://img.shields.io/badge/Skills-26-orange)]()
+[![Skills](https://img.shields.io/badge/Skills-27-orange)]()
 
 ---
 
@@ -75,6 +75,7 @@
 | `talkshow-studio-kling` | 生产级脱口秀视频工坊（可灵版） | 可灵 Kling Video/Image + FFmpeg | Node.js 12+、FFmpeg 4.4+ | 单场景约 3–8 分钟 |
 | `tech-article-craft` | 自包含技术文章生成器（内联 CSS/JS HTML + AI 配图 + 图表组件） | GenerateImage + WebSearch/WebFetch | 无（纯模板生成） | 单篇约 5–15 分钟 |
 | `learning-handbook-pipeline` | 图文并茂 PDF 学习手册生成流水线（三技能协作） | guizang 插图 + fireworks 图表 + design-taste-frontend | Node.js（Puppeteer）、Python（PyMuPDF 验证） | 单本约 20–60 分钟 |
+| `markdown-to-pdf` | Markdown → PDF 保真转换（表格/代码/SVG/告警块/脚注全保留，零 npm 依赖） | 内置 marked + 系统 Chrome/Edge 无头打印 + 字体表探测 | Node.js 18+、Chrome/Edge、Python+PyMuPDF（可选自检） | 单文件约 0.7 秒 |
 | `enterprise-portal-generator` | 企业门户网站一键生成器（6 页生产级网站 + 12 行业预设） | GenerateImage（Hero 图） | 无（纯 HTML/CSS/JS 模板） | 单站点约 10–30 分钟 |
 | `music-downloader` | 国内 5 大音乐平台歌曲下载器（MP3 + LRC 歌词） | 网易云/QQ/酷狗/咪咕/汽水 API | Python 3.8+ | 单首约 3–10 秒 |
 | `xiaoe-course-downloader` | 小鹅通已购课程批量下载与备份（Cookie 引导 + 权限探测 + HLS 解密 + 清单） | 小鹅通 H5 接口（xet/xiaoeknow） | Python 3.10+（requests/pycryptodome）、FFmpeg | 视课程量而定（可断点续跑） |
@@ -163,6 +164,14 @@ skills/
 │   └── SKILL.md
 ├── learning-handbook-pipeline/        # PDF 学习手册流水线
 │   └── SKILL.md
+├── markdown-to-pdf/                   # Markdown → PDF 保真转换
+│   ├── SKILL.md
+│   ├── assets/                        # 内置 marked（MIT）
+│   │   ├── marked.umd.js
+│   │   └── LICENSE-marked.md
+│   └── scripts/
+│       ├── md2pdf.mjs                 # 转换器（零 npm 依赖）
+│       └── verify_pdf.py              # PDF 产物自检
 ├── enterprise-portal-generator/       # 企业门户生成
 │   ├── SKILL.md
 │   └── references/                    # 4 个引用文件
@@ -1081,6 +1090,7 @@ timeless-wedding 和 timeless-wedding-volc 均支持以下 13 个中国历史朝
 | 脱口秀 — 可灵生态 | `talkshow-studio-kling` | Kling Video 3.0，720P 原生口型 |
 | 撰写可发布的技术文章 | `tech-article-craft` | 自包含 HTML + AI 配图 + 13 种图表组件 |
 | 制作图文并茂的 PDF 学习手册 | `learning-handbook-pipeline` | 三技能协作 + Puppeteer 转 PDF |
+| 把已有 Markdown 批量转成 PDF | `markdown-to-pdf` | 表格/代码/SVG 零丢失 + 产物自检 |
 | 生成企业门户网站 | `enterprise-portal-generator` | 6 页生产级网站 + 12 行业预设 + 60+ 项预飞检查 |
 | A 股个股诊断分析 | `a-stock-operator` | 六维评分体系 + 12 API 实时数据 + 6 层验证 |
 | A 股市场行情与选股 | `a-stock-operator` | 涨停池 + 板块排行 + 龙虎榜 + 情绪指标 |
